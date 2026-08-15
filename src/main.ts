@@ -166,6 +166,7 @@ const ui = new EditorUI(store, {
       return { ...current, animations };
     });
     if (wasPlaying) store.set({ playing: name });
+    if (store.get().selectedAnimation === animationId) store.set({ selectedAnimation: name });
     ui.setStatus(`이름 변경: ${animationId} → ${name}`);
   },
 
@@ -175,6 +176,7 @@ const ui = new EditorUI(store, {
       const { [animationId]: _removed, ...rest } = current.animations;
       return { ...current, animations: rest };
     });
+    if (store.get().selectedAnimation === animationId) store.set({ selectedAnimation: null });
     ui.setStatus("애니메이션을 삭제했습니다.");
   },
 
@@ -192,6 +194,23 @@ const ui = new EditorUI(store, {
     ui.setStatus(
       hidden ? "내보내기에서 제외했습니다. 파일에는 남습니다." : "내보내기에 다시 포함합니다.",
     );
+  },
+
+  onAnimationSetting: (animationId, patch) => {
+    commit((current) => {
+      const animation = current.animations[animationId];
+      if (!animation) return current;
+      return {
+        ...current,
+        animations: { ...current.animations, [animationId]: { ...animation, ...patch } },
+      };
+    });
+
+    // 재생 중이면 멈추지 않고 곧바로 반영한다.
+    if (store.get().playing === animationId) {
+      if (patch.speed !== undefined) player.setSpeed(patch.speed);
+      if (patch.strength !== undefined) player.setAmount(patch.strength);
+    }
   },
 
   onExport: () => void exportProject(),
@@ -323,9 +342,12 @@ function playAnimation(animationId: string): void {
     return;
   }
 
-  player.play(animation);
+  player.play(animation, {
+    speed: animation.speed ?? 1,
+    amount: animation.strength ?? 1,
+  });
   view.scene.setWeightOverlay(null);
-  store.set({ playing: animationId });
+  store.set({ playing: animationId, selectedAnimation: animationId });
   ui.setStatus(`재생: ${animationId}`);
 }
 

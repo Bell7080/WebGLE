@@ -950,3 +950,77 @@ button.size-option.selected {
 button.size-option.selected .size-dot {
   background: var(--sel-line);
 }
+
+/* 애니메이션 속도 · 강도 (기획서 31) */
+.anim-settings {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+}
+
+.anim-settings.visible {
+  display: flex;
+}
+
+.anim-knob {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.knob-label {
+  font-size: 12px;
+  color: var(--text-3);
+  cursor: help;
+}
+
+.knob-track {
+  position: relative;
+  width: 76px;
+  height: 14px;
+  background: var(--bg-control);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  cursor: ew-resize;
+  overflow: hidden;
+}
+
+/* 기본값 1 위치 눈금 */
+.knob-track::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--default-at, 50%);
+  width: 1px;
+  background: var(--text-3);
+  opacity: 0.7;
+}
+
+.knob-fill {
+  height: 100%;
+  background: var(--sel-line);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.knob-readout {
+  min-width: 40px;
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.anim-reset {
+  font-size: 11.5px;
+  padding: 3px 8px;
+  border: 1px solid var(--line-strong);
+}
+
+/* 조절 대상인 칸 표시 */
+.anim-item.tuning .anim-play {
+  box-shadow: inset 0 -2px 0 var(--text-3);
+}

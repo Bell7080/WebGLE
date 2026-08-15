@@ -143,6 +143,36 @@ describe("재생", () => {
     expect(player.current!.playing).toBe(false);
   });
 
+  it("재생 중 속도와 크기를 바꿀 수 있다 (기획서 31)", () => {
+    const player = new AnimationPlayer();
+    player.play(idle, { speed: 0.5, amount: 0.5 });
+    expect(player.current!.speed).toBe(0.5);
+
+    player.update(1, []);
+    expect(player.current!.time).toBeCloseTo(0.5);
+
+    player.setSpeed(2);
+    player.setAmount(1.5);
+    expect(player.current!.speed).toBe(2);
+    expect(player.current!.amount).toBe(1.5);
+
+    player.update(0.5, []);
+    expect(player.current!.time).toBeCloseTo(1.5);
+  });
+
+  it("강도는 Bone의 motionStrength와 함께 곱해진다", () => {
+    const player = new AnimationPlayer();
+    const head = bone("h", ["head"], null, 2);
+
+    player.play(idle, { amount: 0.5 });
+    const half = player.update(0.5, [head]).get("h")!.rotation;
+
+    player.play(idle, { amount: 1 });
+    const full = player.update(0.5, [head]).get("h")!.rotation;
+
+    expect(half).toBeCloseTo(full * 0.5);
+  });
+
   it("정지하면 상태가 사라진다", () => {
     const player = new AnimationPlayer();
     player.play(idle);

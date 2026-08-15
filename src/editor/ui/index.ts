@@ -59,6 +59,8 @@ export interface EditorUICallbacks {
   onRenameAnimation(animationId: string, name: string): void;
   onRemoveAnimation(animationId: string): void;
   onToggleAnimationHidden(animationId: string): void;
+  /** 속도 · 강도 조절. (기획서 31) */
+  onAnimationSetting(animationId: string, patch: { speed?: number; strength?: number }): void;
   onExport(): void;
   onBrushChange(patch: Partial<BrushState>): void;
 }
@@ -106,6 +108,15 @@ const BRUSH_SIZES = [
   175, 210, 250, 300, 355, 420, 500,
 ] as const;
 
+/** 막대 하나의 채움과 숫자를 지금 값에 맞춘다. */
+function updateKnob(knob: HTMLElement | undefined, value: number, min: number, max: number): void {
+  if (!knob) return;
+  const fill = knob.querySelector<HTMLElement>(".knob-fill");
+  const readout = knob.querySelector<HTMLElement>(".knob-readout");
+  if (fill) fill.style.width = `${((value - min) / (max - min)) * 100}%`;
+  if (readout) readout.textContent = `${value.toFixed(2)}배`;
+}
+
 /** 크기 버튼에 그릴 점의 지름 범위(px). */
 const DOT_MIN = 4;
 const DOT_MAX = 26;
@@ -134,6 +145,7 @@ export class EditorUI {
   private readonly inspector = requireElement<HTMLDivElement>("inspector");
   private readonly animButtons = requireElement<HTMLDivElement>("animButtons");
   private readonly animPicker = requireElement<HTMLDivElement>("animPicker");
+  private readonly animSettings = requireElement<HTMLDivElement>("animSettings");
   private readonly statusText = requireElement<HTMLSpanElement>("statusText");
   private readonly dropzone = requireElement<HTMLDivElement>("dropzone");
   private readonly addBoneButton = requireElement<HTMLButtonElement>("addBoneButton");
@@ -147,6 +159,8 @@ export class EditorUI {
   private animPickerOpen = false;
   /** 마지막으로 그린 애니메이션 목록의 모양. 같으면 다시 그리지 않는다. */
   private animSignature = "";
+  /** 속도 · 강도 줄이 지금 어느 애니메이션을 보여 주고 있는지. */
+  private animSettingsId: string | null = null;
 
   constructor(
     private readonly store: EditorStore,
@@ -196,6 +210,118 @@ export class EditorUI {
    * 하단 애니메이션 목록. 프로젝트가 가진 것만 보여 준다. (기획서 30)
    * 각 칸: 이름을 누르면 재생, `−`는 내보내기에서만 빼기(숨김), `×`는 아예 삭제.
    */
+  /**
+   * 고른 애니메이션의 속도 · 강도. (기획서 31)
+   * 값은 애니메이션에 함께 저장되므로 내보내기 결과와 게임에도 그대로 따라간다.
+   */
+  private renderAnimationSettings(): void {
+    const { project, selectedAnimation } = this.store.get();
+    const id = selectedAnimation;
+    const animation = id ? project.animations[id] : undefined;
+
+    this.animSettings.classList.toggle("visible", Boolean(animation));
+    if (!id || !animation) {
+      this.animSettings.replaceChildren();
+      this.animSettingsId = null;
+      return;
+    }
+
+    const speed = animation.speed ?? 1;
+    const strength = animation.strength ?? 1;
+
+    // 같은 애니메이션이면 막대만 갱신한다.
+    // 통째로 다시 그리면 끌고 있던 막대가 사라져 드래그가 끊긴다.
+    if (this.animSettingsId === id) {
+      const knobs = this.animSettings.querySelectorAll<HTMLElement>(".anim-knob");
+      updateKnob(knobs[0], speed, 0.1, 3);
+      updateKnob(knobs[1], strength, 0, 2);
+      return;
+    }
+    this.animSettingsId = id;
+    this.animSettings.replaceChildren();
+
+    this.animSettings.append(
+      this.animKnob("속도", speed, 0.1, 3, `${speed.toFixed(2)}배`, {
+        title: "재생 속도",
+        body: "1이 원래 속도입니다. 0.5면 두 배 느리게, 2면 두 배 빠르게 재생됩니다. 굼뜬 골렘과 잽싼 거미를 같은 프리셋으로 만들 때 씁니다.",
+        meta: `${id}에 저장되어 내보내기와 게임에도 그대로 따라갑니다`,
+      }, (value) => this.callbacks.onAnimationSetting(id, { speed: value })),
+
+      this.animKnob("강도", strength, 0, 2, `${strength.toFixed(2)}배`, {
+        title: "움직임 크기",
+        body: "1이 원래 크기입니다. 0이면 아예 움직이지 않고, 2면 두 배 크게 움직입니다. 관절마다의 강도 값과 곱해집니다.",
+        meta: "너무 크면 그림이 찢어져 보일 수 있습니다",
+      }, (value) => this.callbacks.onAnimationSetting(id, { strength: value })),
+    );
+
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "anim-reset";
+    reset.textContent = "되돌리기";
+    attachTooltip(reset, {
+      title: "기본값으로",
+      body: "속도와 강도를 모두 1로 되돌립니다.",
+      meta: `대상: ${id}`,
+    });
+    reset.addEventListener("click", () =>
+      this.callbacks.onAnimationSetting(id, { speed: 1, strength: 1 }),
+    );
+    this.animSettings.append(reset);
+  }
+
+  /** 하단 바에 들어가는 작은 조절 막대. 1 자리에 눈금이 있다. */
+  private animKnob(
+    label: string,
+    value: number,
+    min: number,
+    max: number,
+    readoutText: string,
+    tip: { title: string; body: string; meta: string },
+    onChange: (value: number) => void,
+  ): HTMLDivElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "anim-knob";
+
+    const labelElement = document.createElement("span");
+    labelElement.className = "knob-label";
+    labelElement.textContent = label;
+    attachTooltip(labelElement, tip);
+
+    const track = document.createElement("div");
+    track.className = "knob-track";
+    // 기본값 1이 어디인지 눈금으로 표시한다.
+    track.style.setProperty("--default-at", `${((1 - min) / (max - min)) * 100}%`);
+
+    const fill = document.createElement("div");
+    fill.className = "knob-fill";
+    fill.style.width = `${((value - min) / (max - min)) * 100}%`;
+
+    const readout = document.createElement("span");
+    readout.className = "knob-readout";
+    readout.textContent = readoutText;
+
+    const setFromEvent = (event: PointerEvent) => {
+      const bounds = track.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+      const next = Math.round((min + ratio * (max - min)) * 20) / 20;
+      fill.style.width = `${ratio * 100}%`;
+      readout.textContent = `${next.toFixed(2)}배`;
+      onChange(next);
+    };
+
+    track.addEventListener("pointerdown", (event) => {
+      track.setPointerCapture(event.pointerId);
+      setFromEvent(event);
+    });
+    track.addEventListener("pointermove", (event) => {
+      if (event.buttons === 1) setFromEvent(event);
+    });
+
+    track.append(fill);
+    wrapper.append(labelElement, track, readout);
+    return wrapper;
+  }
+
   /** 이름 칸을 입력창으로 바꿔 즉석에서 고친다. */
   private startRename(anchor: HTMLElement, id: string): void {
     hideTooltip();
@@ -236,7 +362,7 @@ export class EditorUI {
     // 통째로 다시 그리면 그 사이에 눌린 더블클릭이 사라져 이름 바꾸기가 안 된다.
     const signature = `${entries
       .map(([id, animation]) => `${id}:${animation.hidden ? 1 : 0}`)
-      .join(",")}|${this.animPickerOpen}`;
+      .join(",")}|${this.animPickerOpen}|${this.store.get().selectedAnimation}`;
 
     if (signature === this.animSignature) {
       for (const item of this.animButtons.querySelectorAll<HTMLElement>(".anim-item")) {
@@ -266,6 +392,7 @@ export class EditorUI {
       });
       play.addEventListener("click", () => this.callbacks.onPlay(id));
       play.addEventListener("dblclick", () => this.startRename(play, id));
+      if (this.store.get().selectedAnimation === id) item.classList.add("tuning");
 
       const hide = document.createElement("button");
       hide.type = "button";
@@ -389,6 +516,7 @@ export class EditorUI {
       : "추가할 파츠 고르기";
 
     this.renderAnimations();
+    this.renderAnimationSettings();
     this.renderBoneList(project.bones, selectedBoneId);
     this.renderInspector(project.bones, selectedBoneId);
   }

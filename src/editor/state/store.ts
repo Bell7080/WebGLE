@@ -40,6 +40,8 @@ export interface EditorState {
   brush: BrushState;
   /** 재생 중인 애니메이션 이름. 없으면 null. */
   playing: string | null;
+  /** 속도 · 강도를 조절할 대상. 재생을 멈춰도 남아 있다. */
+  selectedAnimation: string | null;
 }
 
 type Listener = (state: EditorState) => void;
@@ -62,6 +64,7 @@ export class EditorStore {
       mask: null,
       brush: { ...DEFAULT_BRUSH },
       playing: null,
+      selectedAnimation: null,
       ...initial,
     };
   }

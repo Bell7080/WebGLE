@@ -160,6 +160,16 @@ export class AnimationPlayer {
     this.state = null;
   }
 
+  /** 재생 중에 속도를 바꾼다. 시간은 그대로 두고 흐르는 빠르기만 달라진다. */
+  setSpeed(speed: number): void {
+    if (this.state) this.state.speed = speed;
+  }
+
+  /** 재생 중에 움직임 크기를 바꾼다. */
+  setAmount(amount: number): void {
+    if (this.state) this.state.amount = amount;
+  }
+
   get current(): Readonly<PlaybackState> | null {
     return this.state;
   }
