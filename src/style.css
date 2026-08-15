@@ -774,3 +774,68 @@ button.tool .glyph {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* 설명 툴팁 — 태그 · 변형처럼 "고르면 무슨 일이 생기는가"를 알려 준다 */
+.tooltip {
+  position: fixed;
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 260px;
+  padding: 8px 10px;
+  background: #0f0f12;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.tooltip.visible {
+  display: flex;
+}
+
+.tooltip strong {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.tooltip span {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.tooltip em {
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* 변형 방식 버튼 */
+.field-deform {
+  align-items: flex-start;
+}
+
+.field-deform label {
+  padding-top: 3px;
+  cursor: help;
+}
+
+.deform-grid {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+
+button.deform-option {
+  border: 1px solid var(--line-strong);
+  padding: 3px 4px;
+  font-size: 11.5px;
+  color: var(--text-2);
+  cursor: help;
+}

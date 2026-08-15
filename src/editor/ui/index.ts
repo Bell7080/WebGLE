@@ -12,6 +12,20 @@ import { canReparent } from "@core/skeleton";
 import type { BrushState, EditorStore } from "../state/store";
 import { createColorWheel } from "./colorWheel";
 import { findPreset, PRESETS } from "../../presets";
+import { attachTooltip, hideTooltip } from "./tooltip";
+
+/** 이 태그를 실제로 쓰는 애니메이션 이름들. 툴팁 아래에 붙여 준다. */
+function animationsUsingTag(tag: string): string {
+  const users = PRESETS.filter((preset) =>
+    preset.animation.tracks.some(
+      (track) => track.target.kind === "tag" && track.target.tag === tag,
+    ),
+  ).map((preset) => preset.label);
+
+  return users.length > 0
+    ? `이 태그를 쓰는 동작: ${users.join(" · ")}`
+    : "아직 이 태그를 쓰는 기본 동작은 없습니다";
+}
 
 /** 프리셋 id의 한국어 이름. 목록에 없는 것(직접 만든 것)은 id를 그대로 쓴다. */
 function presetLabel(id: string): string {
@@ -34,29 +48,37 @@ export interface EditorUICallbacks {
   onBrushChange(patch: Partial<BrushState>): void;
 }
 
-/** 변형 방식 선택지와 설명. 툴팁으로 그대로 보여 준다. */
+/** 변형 방식 선택지. 짧은 이름은 버튼에, 나머지는 툴팁에 쓴다. */
 const DEFORM_OPTIONS = [
-  [
-    "soft",
-    "부드럽게 · 움직임",
-    "몸통 · 팔 · 꼬리처럼 자연스럽게 휘는 부위. 이웃 관절과 가중치를 섞어 부드럽게 찌그러진다.",
-  ],
-  [
-    "rigid",
-    "형태 유지 · 움직임",
-    "검 · 왕관 · 안경처럼 찌그러지면 안 되는 파츠. 위치 · 회전 · 크기만 따라가고 형태는 그대로.",
-  ],
-  [
-    "pinnedSoft",
-    "부드럽게 · 위치 고정",
-    "발처럼 제자리에 붙여 두고 싶은 부위. 자기와 부모의 움직임은 무시하지만 이웃과의 경계는 부드럽게 휜다.",
-  ],
-  [
-    "fixed",
-    "형태·위치 모두 고정",
-    "바닥 접점처럼 절대 움직이면 안 되는 영역. 다른 관절이 겹쳐 칠해도 원래 자리를 지킨다.",
-  ],
-] as const;
+  {
+    id: "soft",
+    short: "부드럽게",
+    label: "움직이고 휜다",
+    help: "이웃 관절과 가중치를 섞어 자연스럽게 휘고 찌그러집니다. 대부분의 살아 있는 부위가 여기 해당합니다.",
+    examples: "몸통 · 팔 · 다리 · 꼬리 · 촉수",
+  },
+  {
+    id: "rigid",
+    short: "형태 유지",
+    label: "움직이되 안 휜다",
+    help: "위치 · 회전 · 크기는 따라가지만 형태는 그대로 유지합니다. 찌그러지면 어색해지는 단단한 물건에 씁니다.",
+    examples: "검 · 방패 · 왕관 · 안경 · 뿔",
+  },
+  {
+    id: "pinnedSoft",
+    short: "위치 고정",
+    label: "제자리, 경계는 부드럽게",
+    help: "자기와 부모의 움직임을 무시하고 원래 자리를 지킵니다. 다만 이웃이 칠한 부분과의 경계는 부드럽게 휘어 이어집니다.",
+    examples: "바닥을 딛은 발 · 벽에 붙은 부위",
+  },
+  {
+    id: "fixed",
+    short: "완전 고정",
+    label: "위치도 형태도 그대로",
+    help: "다른 관절이 겹쳐 칠해도 원래 좌표를 우선합니다. 절대 움직이면 안 되는 곳에만 쓰세요. 가장자리가 딱딱하게 끊겨 보일 수 있습니다.",
+    examples: "바닥 접점 · 고정된 받침",
+  },
+] as const satisfies readonly { id: PuppetBone["deform"]; short: string; label: string; help: string; examples: string }[];
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -239,6 +261,7 @@ export class EditorUI {
   }
 
   private render(): void {
+    hideTooltip();
     const { project, visibility, selectedBoneId, textureUrl } = this.store.get();
 
     for (const button of this.layerToggles.querySelectorAll("button")) {
@@ -673,7 +696,13 @@ export class EditorUI {
   private tagChip(bone: PuppetBone, tag: string): HTMLSpanElement {
     const chip = document.createElement("span");
     chip.className = "tag-chip";
-    chip.title = TAG_DESCRIPTIONS[tag] ?? "직접 추가한 태그. 프리셋이 찾으면 그때 쓰인다.";
+    attachTooltip(chip, {
+      title: tag,
+      body:
+        TAG_DESCRIPTIONS[tag] ??
+        "목록에 없는 태그입니다. 이 태그를 찾는 애니메이션을 만들면 그때부터 쓰입니다.",
+      meta: animationsUsingTag(tag),
+    });
 
     const name = document.createElement("span");
     name.textContent = tag;
@@ -716,8 +745,12 @@ export class EditorUI {
         button.type = "button";
         button.className = on ? "tag-option active-fill" : "tag-option";
         button.textContent = tag.id;
-        button.title = tag.description;
         button.setAttribute("aria-pressed", String(on));
+        attachTooltip(button, {
+          title: on ? `${tag.id} — 붙어 있음 (누르면 뗍니다)` : tag.id,
+          body: tag.description,
+          meta: animationsUsingTag(tag.id),
+        });
         button.addEventListener("click", () =>
           this.callbacks.onUpdateBone(bone.id, {
             tags: on
@@ -761,22 +794,45 @@ export class EditorUI {
     return picker;
   }
 
+  /**
+   * 변형 방식. 네 가지를 한눈에 비교할 수 있게 버튼으로 두고,
+   * 각각 어떤 파츠를 위한 것인지 툴팁으로 설명한다. (기획서 19)
+   */
   private deformField(bone: PuppetBone): HTMLDivElement {
-    const select = document.createElement("select");
-    for (const [value, label, help] of DEFORM_OPTIONS) {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = label;
-      option.title = help;
-      select.append(option);
+    const wrapper = document.createElement("div");
+    wrapper.className = "field field-deform";
+
+    const label = document.createElement("label");
+    label.textContent = "변형";
+    attachTooltip(label, {
+      title: "변형 방식",
+      body: "이 관절이 칠한 영역을 어떻게 다룰지 정합니다. 휘게 둘지, 형태를 지킬지, 아예 제자리에 묶어 둘지.",
+      meta: "마우스를 각 버튼에 올리면 어떤 파츠에 맞는지 설명이 나옵니다",
+    });
+
+    const grid = document.createElement("div");
+    grid.className = "deform-grid";
+
+    for (const option of DEFORM_OPTIONS) {
+      const on = bone.deform === option.id;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = on ? "deform-option active-fill" : "deform-option";
+      button.textContent = option.short;
+      button.setAttribute("aria-pressed", String(on));
+      attachTooltip(button, {
+        title: `${option.short} — ${option.label}`,
+        body: option.help,
+        meta: `예: ${option.examples}`,
+      });
+      button.addEventListener("click", () =>
+        this.callbacks.onUpdateBone(bone.id, { deform: option.id }),
+      );
+      grid.append(button);
     }
-    select.value = bone.deform;
-    select.title =
-      DEFORM_OPTIONS.find(([value]) => value === bone.deform)?.[2] ??
-      "이 관절이 칠한 영역을 어떻게 변형할지 정한다.";
-    select.addEventListener("change", () =>
-      this.callbacks.onUpdateBone(bone.id, { deform: select.value as PuppetBone["deform"] }),
-    );
-    return this.field("변형", select);
+
+    wrapper.append(label, grid);
+    return wrapper;
   }
+
 }

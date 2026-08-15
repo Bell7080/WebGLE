@@ -56,18 +56,18 @@ export const TAG_CATALOG: readonly TagInfo[] = [
   // 중심 · 구조
   { id: "root", group: "structure", description: "캐릭터 전체의 기준. 대기의 상하 흔들림, 점프의 도약과 착지가 이 관절을 움직인다. 보통 캐릭터당 하나." },
   { id: "core", group: "structure", description: "몸의 중심. 숨쉬기, 찌그러짐(squash), 피격 반동의 기준이 된다." },
-  { id: "body", group: "structure", description: "몸통 부위 표시. 몸통 전체를 대상으로 하는 동작이 참고한다." },
-  { id: "spine", group: "structure", description: "허리 · 등뼈. 몸을 젖히거나 웅크리는 동작이 쓴다." },
-  { id: "hip", group: "structure", description: "골반 · 하체 시작점. 걷기와 착지에서 무게 중심 역할." },
+  { id: "body", group: "structure", description: "몸통 부위 표시. core가 '중심점 하나'라면 body는 '몸통 덩어리'다. 몸통 전체를 대상으로 하는 동작이 참고한다." },
+  { id: "spine", group: "structure", description: "허리 · 등뼈. 포효처럼 몸을 젖히거나 웅크리는 동작에서 중심과 머리 사이를 이어 준다." },
+  { id: "hip", group: "structure", description: "골반 · 하체 시작점. 걷기와 착지에서 상체가 실리는 무게 중심이 된다." },
   { id: "neck", group: "structure", description: "목. 머리와 몸통 사이 완충. 머리 회전을 조금 나눠 받는다." },
 
   // 팔다리
   { id: "arm", group: "limb", description: "팔. 공격 · 대기의 팔 흔들림 대상." },
-  { id: "hand", group: "limb", description: "손. 팔 끝에서 조금 늦게 따라오는 움직임." },
+  { id: "hand", group: "limb", description: "손. 팔이 움직인 뒤 조금 늦게 따라온다. 무기를 쥔 손이라면 weapon도 함께 붙이면 좋다." },
   { id: "leg", group: "limb", description: "다리. 걷기 · 점프에서 접히고 펴진다." },
   { id: "foot", group: "limb", description: "발. 착지 충격을 받는 지점. 바닥에 붙여 두려면 변형을 위치 고정으로." },
-  { id: "claw", group: "limb", description: "발톱 · 갈퀴. 할퀴기 동작의 끝점." },
-  { id: "finger", group: "limb", description: "손가락. 세밀하게 움직일 끝 부분." },
+  { id: "claw", group: "limb", description: "발톱 · 갈퀴. 할퀴기에서 가장 크게 휘둘리는 끝점. 보통 attack도 같이 붙인다." },
+  { id: "finger", group: "limb", description: "손가락. 팔·손보다 더 작고 늦게 움직이는 끝부분. 없어도 대부분의 동작은 문제없다." },
 
   // 부속
   { id: "tail", group: "appendage", description: "꼬리. 몸을 따라 늦게 출렁인다." },
@@ -82,31 +82,31 @@ export const TAG_CATALOG: readonly TagInfo[] = [
 
   // 얼굴
   { id: "head", group: "face", description: "머리. 대기에서 갸웃거리고 피격에서 뒤로 젖혀진다. 여러 개여도 전부 움직인다." },
-  { id: "eye", group: "face", description: "눈. 표정 · 깜빡임 용도로 따로 움직일 때." },
+  { id: "eye", group: "face", description: "눈. 표정이나 깜빡임을 따로 움직이고 싶을 때. 지금 프리셋들은 쓰지 않는다." },
   { id: "mouth", group: "face", description: "입 · 턱. 물기와 포효 동작이 연다." },
-  { id: "jaw", group: "face", description: "아래턱. 무는 동작에서 벌어지는 쪽." },
+  { id: "jaw", group: "face", description: "아래턱. 포효와 물기에서 벌어지는 쪽이다. 턱이 따로 없는 캐릭터면 붙이지 않아도 된다." },
 
   // 역할
   { id: "attack", group: "role", description: "공격에 쓰이는 부위. 찌르기 · 할퀴기 같은 동작이 이 태그를 찾아 앞으로 내민다." },
   { id: "weapon", group: "role", description: "무기 · 도구. 보통 형태를 유지해야 하므로 변형을 형태 유지로 두면 좋다." },
-  { id: "shield", group: "role", description: "방패 · 막는 파츠. 방어 동작에서 앞으로 세운다." },
-  { id: "prop", group: "role", description: "들고 있는 소품. 손을 따라다닌다." },
-  { id: "decoration", group: "role", description: "장식. 움직임에 곁들여 흔들리기만 한다." },
-  { id: "ground", group: "role", description: "바닥에 닿아 있는 부분. 위치를 고정할 때 표시해 둔다." },
+  { id: "shield", group: "role", description: "방패 · 막는 파츠. 방어 동작에서 앞으로 세운다. 지금은 이 태그를 쓰는 프리셋이 없다." },
+  { id: "prop", group: "role", description: "들고 있는 소품. 손을 따라다닌다. 찌그러지면 안 되니 변형을 형태 유지로 두면 좋다." },
+  { id: "decoration", group: "role", description: "장식. 그 자체로는 동작을 만들지 않고, 몸을 따라 흔들리기만 한다." },
+  { id: "ground", group: "role", description: "바닥에 닿아 있는 부분. 발이 미끄러지지 않게 하려면 이 태그를 붙이고 변형을 위치 고정으로 둔다." },
 
   // 움직임 성격
   { id: "secondary", group: "motion", description: "따라 움직이는 부위. 부모보다 한 박자 늦게, 관성으로 흔들린다." },
-  { id: "float", group: "motion", description: "떠 있는 느낌. 천천히 위아래로 부유한다." },
-  { id: "heavy", group: "motion", description: "무겁게. 움직임이 둔하고 크게 흔들리지 않는다." },
-  { id: "light", group: "motion", description: "가볍게. 작은 움직임에도 민감하게 반응한다." },
-  { id: "bounce", group: "motion", description: "탄력 있게. 착지나 충격에서 통통 튄다." },
-  { id: "stiff", group: "motion", description: "뻣뻣하게. 거의 흔들리지 않는 부위." },
+  { id: "float", group: "motion", description: "떠 있는 느낌. 유령이나 부유 몬스터처럼 천천히 위아래로 흔들리게 할 때." },
+  { id: "heavy", group: "motion", description: "무겁게. 둔하게 움직이는 부위. 강도 값을 1보다 낮추는 것과 함께 쓰면 효과가 확실하다." },
+  { id: "light", group: "motion", description: "가볍게. 작은 움직임에도 크게 반응하는 부위. 강도를 1보다 높이면 더 살아난다." },
+  { id: "bounce", group: "motion", description: "탄력 있게. 슬라임처럼 착지와 충격에서 통통 튀는 느낌을 줄 부위." },
+  { id: "stiff", group: "motion", description: "뻣뻣하게. 뿔이나 갑옷처럼 거의 흔들리지 않아야 하는 부위." },
 
   // 위치 구분 (좌우를 강제하지 않는다 — 기획서 10)
-  { id: "front", group: "position", description: "앞쪽. 앞뒤를 나눠 다르게 움직이고 싶을 때." },
-  { id: "back", group: "position", description: "뒤쪽. 앞쪽보다 조금 늦게 따라오게 할 때." },
-  { id: "upper", group: "position", description: "위쪽 부위 구분." },
-  { id: "lower", group: "position", description: "아래쪽 부위 구분." },
+  { id: "front", group: "position", description: "앞쪽. 다리가 여러 쌍인 거미처럼 앞뒤를 나눠 다르게 움직이고 싶을 때 쓴다." },
+  { id: "back", group: "position", description: "뒤쪽. front와 짝지어 쓴다. 뒤쪽만 조금 늦게 따라오게 하면 자연스러워진다." },
+  { id: "upper", group: "position", description: "위쪽 부위 구분. 팔이 여러 쌍일 때 위아래를 나눠 다르게 움직이려면 쓴다." },
+  { id: "lower", group: "position", description: "아래쪽 부위 구분. upper와 짝지어 쓴다." },
 ];
 
 /** 태그 id → 설명. 툴팁에 쓴다. */
