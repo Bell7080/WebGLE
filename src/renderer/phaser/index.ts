@@ -16,7 +16,7 @@ export function createCanvasView(parent: HTMLElement): Promise<CanvasView> {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
-    backgroundColor: "#101216",
+    backgroundColor: "#0b0b0c",
     scale: {
       mode: Phaser.Scale.RESIZE,
       width: parent.clientWidth,

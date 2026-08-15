@@ -17,13 +17,11 @@ const view = await createCanvasView(canvasArea);
 
 const ui = new EditorUI(store, {
   onAddBone: (part) => {
-    // 위치는 일단 이미지 중앙. 캔버스에서 찍어 만드는 조작은 다음 단계에서 붙인다.
+    // 지금 보고 있는 화면 중앙에 만든다. 이후 캔버스에서 끌어 옮길 수 있다.
+    const { x, y } = view.scene.getViewCenter((store.get().project.bones.length % 6) * 14);
     commit((current) => ({
       ...current,
-      bones: [
-        ...current.bones,
-        createBone(part, current.character.width / 2, current.character.height / 2, current.bones),
-      ],
+      bones: [...current.bones, createBone(part, Math.round(x), Math.round(y), current.bones)],
     }));
     const added = store.get().project.bones.at(-1);
     if (added) {
@@ -49,12 +47,23 @@ const ui = new EditorUI(store, {
   },
 
   onUpdateBone: (boneId, patch) => {
-    commit((current) => ({
-      ...current,
-      bones: current.bones.map((bone) =>
-        bone.id === boneId ? ({ ...bone, ...patch } as PuppetBone) : bone,
-      ),
-    }));
+    commit((current) => patchBone(current, boneId, patch));
+  },
+
+  onReorderBone: (boneId, targetId, place) => {
+    commit((current) => {
+      const bones = [...current.bones];
+      const from = bones.findIndex((bone) => bone.id === boneId);
+      if (from < 0) return current;
+
+      const [moved] = bones.splice(from, 1);
+      const target = bones.findIndex((bone) => bone.id === targetId);
+      if (target < 0 || !moved) return current;
+
+      bones.splice(place === "after" ? target + 1 : target, 0, moved);
+      return { ...current, bones };
+    });
+    ui.setStatus("관절 순서를 바꿨습니다.");
   },
 
   onMenu: (action) => {
@@ -79,6 +88,37 @@ function commit(updater: (project: PuppetProject) => PuppetProject): void {
   history.push(store.get().project);
   store.update(updater);
 }
+
+function patchBone(
+  project: PuppetProject,
+  boneId: string,
+  patch: Partial<PuppetBone>,
+): PuppetProject {
+  return {
+    ...project,
+    bones: project.bones.map((bone) =>
+      bone.id === boneId ? ({ ...bone, ...patch } as PuppetBone) : bone,
+    ),
+  };
+}
+
+// 캔버스에서 관절을 직접 집어 옮긴다. 드래그 한 번이 Undo 한 단위다.
+view.scene.setBoneHandlers({
+  onSelect: (boneId) => store.set({ selectedBoneId: boneId }),
+
+  onDragStart: () => history.push(store.get().project),
+
+  onDrag: (boneId, x, y) => {
+    store.update((project) =>
+      patchBone(project, boneId, { x: Math.round(x), y: Math.round(y) }),
+    );
+  },
+
+  onDragEnd: (boneId) => {
+    const bone = store.get().project.bones.find((b) => b.id === boneId);
+    if (bone) ui.setStatus(`${bone.name} 위치: ${Math.round(bone.x)}, ${Math.round(bone.y)}`);
+  },
+});
 
 function resetProject(): void {
   const { textureUrl } = store.get();

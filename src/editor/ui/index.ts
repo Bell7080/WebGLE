@@ -12,6 +12,8 @@ export interface EditorUICallbacks {
   onAddBone(part: string): void;
   onDeleteBone(boneId: string): void;
   onUpdateBone(boneId: string, patch: Partial<PuppetBone>): void;
+  /** 목록에서 끌어 옮긴 결과. targetId 앞/뒤로 옮긴다. */
+  onReorderBone(boneId: string, targetId: string, place: "before" | "after"): void;
   onMenu(action: string): void;
   onPlay(animationId: string): void;
   onStop(): void;
@@ -37,6 +39,7 @@ export class EditorUI {
   private readonly dropzone = requireElement<HTMLDivElement>("dropzone");
   private readonly addBoneButton = requireElement<HTMLButtonElement>("addBoneButton");
   private partSelect!: HTMLSelectElement;
+  private draggingBoneId: string | null = null;
 
   constructor(
     private readonly store: EditorStore,
@@ -120,6 +123,7 @@ export class EditorUI {
 
   private renderBoneList(bones: readonly PuppetBone[], selectedBoneId: string | null): void {
     this.boneList.replaceChildren();
+
     const depthOf = (bone: PuppetBone): number => {
       let depth = 0;
       let cursor = bone.parentId;
@@ -133,19 +137,94 @@ export class EditorUI {
     };
 
     for (const bone of bones) {
-      const item = document.createElement("li");
-      item.textContent = bone.name;
-      item.title = bone.tags.join(", ");
-      item.style.paddingLeft = `${10 + depthOf(bone) * 12}px`;
-      item.classList.toggle("selected", bone.id === selectedBoneId);
-      item.addEventListener("click", () => this.store.set({ selectedBoneId: bone.id }));
-      this.boneList.append(item);
+      this.boneList.append(this.boneRow(bone, depthOf(bone), bone.id === selectedBoneId));
     }
 
     this.boneHint.textContent =
       bones.length === 0
         ? "이미지를 불러온 뒤 관절을 추가하세요."
-        : `관절 ${bones.length}개`;
+        : `관절 ${bones.length}개 · 끌어서 순서 변경`;
+  }
+
+  /** 관절 목록의 한 줄. 드래그로 순서를 바꾸고 ×로 삭제한다. */
+  private boneRow(bone: PuppetBone, depth: number, selected: boolean): HTMLLIElement {
+    const row = document.createElement("li");
+    row.className = "bone-row";
+    row.dataset.boneId = bone.id;
+    row.draggable = true;
+    row.title = bone.tags.length > 0 ? bone.tags.join(", ") : "태그 없음";
+    row.classList.toggle("selected", selected);
+    row.style.paddingLeft = `${10 + depth * 12}px`;
+    row.addEventListener("click", () => this.store.set({ selectedBoneId: bone.id }));
+
+    const grip = document.createElement("span");
+    grip.className = "grip";
+    grip.textContent = "⠿";
+    grip.setAttribute("aria-hidden", "true");
+
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = bone.name;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "remove";
+    remove.textContent = "×";
+    remove.title = `${bone.name} 삭제`;
+    remove.setAttribute("aria-label", `${bone.name} 삭제`);
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.callbacks.onDeleteBone(bone.id);
+    });
+
+    row.append(grip, name, remove);
+    this.bindRowDrag(row, bone.id);
+    return row;
+  }
+
+  private bindRowDrag(row: HTMLLIElement, boneId: string): void {
+    row.addEventListener("dragstart", (event) => {
+      this.draggingBoneId = boneId;
+      row.classList.add("dragging");
+      event.dataTransfer?.setData("text/plain", boneId);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    });
+
+    row.addEventListener("dragend", () => {
+      this.draggingBoneId = null;
+      this.clearDropMarks();
+      row.classList.remove("dragging");
+    });
+
+    row.addEventListener("dragover", (event) => {
+      if (!this.draggingBoneId || this.draggingBoneId === boneId) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+
+      const bounds = row.getBoundingClientRect();
+      const after = event.clientY > bounds.top + bounds.height / 2;
+      this.clearDropMarks();
+      row.classList.add(after ? "drop-after" : "drop-before");
+    });
+
+    row.addEventListener("dragleave", () => {
+      row.classList.remove("drop-before", "drop-after");
+    });
+
+    row.addEventListener("drop", (event) => {
+      event.preventDefault();
+      const draggedId = this.draggingBoneId ?? event.dataTransfer?.getData("text/plain");
+      const place = row.classList.contains("drop-after") ? "after" : "before";
+      this.clearDropMarks();
+      if (!draggedId || draggedId === boneId) return;
+      this.callbacks.onReorderBone(draggedId, boneId, place);
+    });
+  }
+
+  private clearDropMarks(): void {
+    for (const row of this.boneList.querySelectorAll(".bone-row")) {
+      row.classList.remove("drop-before", "drop-after");
+    }
   }
 
   private renderInspector(bones: readonly PuppetBone[], selectedBoneId: string | null): void {
@@ -178,13 +257,10 @@ export class EditorUI {
       this.deformField(bone),
     );
 
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "small";
-    remove.textContent = "관절 삭제";
-    remove.style.margin = "8px 10px";
-    remove.addEventListener("click", () => this.callbacks.onDeleteBone(bone.id));
-    this.inspector.append(remove);
+    const coords = document.createElement("p");
+    coords.className = "hint";
+    coords.textContent = `위치 ${Math.round(bone.x)}, ${Math.round(bone.y)}`;
+    this.inspector.append(coords);
   }
 
   private field(label: string, control: HTMLElement): HTMLDivElement {

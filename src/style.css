@@ -1,16 +1,32 @@
-/* 게임 엔진 스타일의 어두운 편집기 UI. 장식은 최소화한다. (기획서 74) */
+/*
+ * 어두운 그레이 톤 + 흑백 편집기 UI. (기획서 74)
+ * 색은 강조가 아니라 위계를 위해서만 쓴다. 캔버스가 가장 크고 밝게 보이도록 한다.
+ */
 :root {
-  --bg: #16181d;
-  --panel: #1e2128;
-  --panel-2: #24272f;
-  --line: #32363f;
-  --text: #dfe3ea;
-  --text-dim: #8d94a3;
-  --accent: #4c8dff;
-  --accent-soft: rgba(76, 141, 255, 0.18);
-  --topbar-h: 40px;
-  --animbar-h: 44px;
-  --panel-w: 200px;
+  /* 배경: 뒤에서 앞으로 갈수록 밝아진다 */
+  --bg-canvas: #0b0b0c;
+  --bg-app: #131315;
+  --bg-panel: #17171a;
+  --bg-control: #212125;
+  --bg-control-hover: #2a2a30;
+
+  /* 선 */
+  --line: #26262b;
+  --line-strong: #34343b;
+
+  /* 글자 */
+  --text: #ededf0;
+  --text-2: #9b9ba3;
+  --text-3: #6a6a72;
+
+  /* 선택 상태는 흰색 계열로만 표현한다 */
+  --sel-bg: rgba(255, 255, 255, 0.08);
+  --sel-line: #f2f2f4;
+
+  --topbar-h: 42px;
+  --animbar-h: 46px;
+  --panel-w: 216px;
+  --radius: 5px;
 }
 
 * {
@@ -24,9 +40,14 @@ body {
 }
 
 body {
-  background: var(--bg);
+  background: var(--bg-app);
   color: var(--text);
-  font: 13px/1.5 "Pretendard", "Malgun Gothic", system-ui, sans-serif;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo",
+    "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
 
@@ -36,58 +57,91 @@ body {
   height: 100vh;
 }
 
-/* 상단 메뉴 (기획서 34) */
+/* ── 상단 메뉴 ─────────────────────────────── */
 .topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 10px;
-  background: var(--panel);
+  gap: 16px;
+  padding: 0 12px;
+  background: var(--bg-panel);
   border-bottom: 1px solid var(--line);
 }
 
 .brand {
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--accent);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
 }
 
 .menu,
 .modes {
   display: flex;
-  gap: 4px;
+  gap: 2px;
 }
 
 .modes {
   margin-left: auto;
 }
 
+/* ── 컨트롤 공통 ───────────────────────────── */
 button {
-  background: var(--panel-2);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 4px 10px;
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 5px 10px;
   font: inherit;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
   cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 
 button:hover {
-  border-color: var(--accent);
+  background: var(--bg-control);
+  color: var(--text);
 }
 
-button.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: #fff;
+button:active {
+  background: var(--bg-control-hover);
 }
 
-button.small {
-  padding: 2px 8px;
-  font-size: 12px;
+button:focus-visible {
+  outline: 1px solid var(--sel-line);
+  outline-offset: 1px;
 }
 
-/* 작업 영역: 캔버스가 가장 크게 보이도록 한다. */
+button:disabled {
+  color: var(--text-3);
+  cursor: default;
+  background: transparent;
+}
+
+/* 선택된 모드 / 눌린 상태: 흑백 반전 */
+.modes button.active {
+  background: var(--sel-line);
+  color: #101012;
+  font-weight: 600;
+}
+
+button.outlined {
+  border-color: var(--line-strong);
+  color: var(--text-2);
+}
+
+button.outlined:hover {
+  border-color: var(--text-3);
+}
+
+button.icon {
+  padding: 3px 6px;
+  line-height: 1;
+  color: var(--text-3);
+}
+
+/* ── 작업 영역 ─────────────────────────────── */
 .workspace {
   display: grid;
   grid-template-columns: var(--panel-w) 1fr var(--panel-w);
@@ -95,7 +149,7 @@ button.small {
 }
 
 .panel {
-  background: var(--panel);
+  background: var(--bg-panel);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -113,30 +167,51 @@ button.small {
 .panel-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
   border-bottom: 1px solid var(--line);
+  flex: none;
 }
 
 .panel-head h2 {
   margin: 0;
-  font-size: 12px;
-  color: var(--text-dim);
-  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
 }
 
 .part-select {
-  background: var(--panel-2);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  font: inherit;
-  padding: 1px 4px;
-  max-width: 84px;
   margin-left: auto;
-  margin-right: 4px;
 }
 
+select,
+input[type="text"],
+input[type="number"] {
+  background: var(--bg-control);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+select:focus,
+input:focus {
+  outline: none;
+  border-color: var(--text-3);
+}
+
+.part-select {
+  max-width: 84px;
+  padding: 3px 4px;
+  font-size: 12px;
+}
+
+/* ── 관절 목록 ─────────────────────────────── */
 .bone-list {
   list-style: none;
   margin: 0;
@@ -145,31 +220,97 @@ button.small {
   flex: 1;
 }
 
-.bone-list li {
-  padding: 4px 10px;
+.bone-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 10px;
   cursor: pointer;
-  white-space: nowrap;
+  border-left: 2px solid transparent;
+  user-select: none;
+}
+
+.bone-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.bone-row.selected {
+  background: var(--sel-bg);
+  border-left-color: var(--sel-line);
+}
+
+.bone-row .name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
 }
 
-.bone-list li:hover {
-  background: var(--panel-2);
+.bone-row.selected .name {
+  color: var(--text);
 }
 
-.bone-list li.selected {
-  background: var(--accent-soft);
-  box-shadow: inset 2px 0 0 var(--accent);
+.bone-row .grip {
+  color: var(--text-3);
+  font-size: 11px;
+  cursor: grab;
+  opacity: 0;
+  flex: none;
+}
+
+.bone-row:hover .grip,
+.bone-row.selected .grip {
+  opacity: 1;
+}
+
+.bone-row .remove {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-3);
+  border-radius: 3px;
+  opacity: 0;
+}
+
+.bone-row:hover .remove,
+.bone-row.selected .remove {
+  opacity: 1;
+}
+
+.bone-row .remove:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+
+/* 드래그 정렬 */
+.bone-row.dragging {
+  opacity: 0.4;
+}
+
+.bone-row.drop-before {
+  box-shadow: inset 0 1px 0 var(--sel-line);
+}
+
+.bone-row.drop-after {
+  box-shadow: inset 0 -1px 0 var(--sel-line);
 }
 
 .hint {
-  color: var(--text-dim);
+  color: var(--text-3);
   font-size: 12px;
   margin: 8px 10px;
 }
 
+/* ── 속성 패널 ─────────────────────────────── */
 .inspector {
-  padding: 4px 0 10px;
+  padding: 6px 0 10px;
   overflow-y: auto;
 }
 
@@ -177,12 +318,13 @@ button.small {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 10px;
+  padding: 3px 10px;
 }
 
 .field label {
-  color: var(--text-dim);
-  width: 48px;
+  color: var(--text-3);
+  font-size: 12px;
+  width: 44px;
   flex: none;
 }
 
@@ -190,18 +332,24 @@ button.small {
 .field select {
   flex: 1;
   min-width: 0;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  color: var(--text);
-  padding: 3px 6px;
-  font: inherit;
 }
 
-/* 캔버스 */
+.field input[type="number"] {
+  font-variant-numeric: tabular-nums;
+}
+
+.inspector-actions {
+  padding: 8px 10px 0;
+}
+
+.inspector-actions button {
+  width: 100%;
+}
+
+/* ── 캔버스 ────────────────────────────────── */
 .canvas-area {
   position: relative;
-  background: #101216;
+  background: var(--bg-canvas);
   min-width: 0;
   overflow: hidden;
 }
@@ -212,17 +360,23 @@ button.small {
 
 .dropzone {
   position: absolute;
-  inset: 16px;
+  inset: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  border: 2px dashed var(--line);
+  gap: 6px;
+  border: 1px dashed var(--line-strong);
   border-radius: 8px;
-  color: var(--text-dim);
+  color: var(--text-3);
   pointer-events: none;
   text-align: center;
+}
+
+.dropzone strong {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-2);
 }
 
 .dropzone.hidden {
@@ -230,18 +384,20 @@ button.small {
 }
 
 .canvas-area.dragover .dropzone {
-  border-color: var(--accent);
-  background: var(--accent-soft);
   display: flex;
+  border-color: var(--text-2);
+  border-style: solid;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-2);
 }
 
-/* 하단 애니메이션 바 (기획서 30, 32) */
+/* ── 하단 애니메이션 바 ────────────────────── */
 .animbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 10px;
-  background: var(--panel);
+  gap: 2px;
+  padding: 0 12px;
+  background: var(--bg-panel);
   border-top: 1px solid var(--line);
 }
 
@@ -249,14 +405,42 @@ button.small {
 .transport {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .transport {
   margin-left: auto;
 }
 
+.transport button {
+  min-width: 30px;
+  font-size: 11px;
+}
+
 .status {
-  color: var(--text-dim);
-  margin-left: 8px;
+  margin-left: 10px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 스크롤바도 톤을 맞춘다 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2c2c32;
+  border: 3px solid var(--bg-panel);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a42;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
 }
