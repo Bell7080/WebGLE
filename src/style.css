@@ -871,3 +871,83 @@ button.deform-option {
 .anim-group-items button {
   cursor: help;
 }
+
+/* 가중치 그래프 */
+.field-meter .meter {
+  flex: 1;
+  min-width: 0;
+  height: 16px;
+  background: var(--bg-control);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  cursor: ew-resize;
+  overflow: hidden;
+  /* 10칸 눈금 — 몇 번 칠해야 가득 차는지 가늠하게 한다 */
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(10% - 1px),
+    var(--line) calc(10% - 1px),
+    var(--line) 10%
+  );
+}
+
+.meter-fill {
+  height: 100%;
+  background: var(--sel-line);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.field-meter label {
+  cursor: help;
+}
+
+/* 브러시 크기 — 실제 크기가 보이는 점 버튼 */
+.field-sizes {
+  align-items: flex-start;
+}
+
+.field-sizes label {
+  padding-top: 6px;
+  cursor: help;
+}
+
+.size-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+
+button.size-option {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+button.size-option:hover {
+  background: var(--bg-control);
+}
+
+button.size-option .size-dot {
+  display: block;
+  border-radius: 50%;
+  background: var(--text-2);
+}
+
+button.size-option.selected {
+  border-color: var(--sel-line);
+  background: var(--sel-bg);
+}
+
+button.size-option.selected .size-dot {
+  background: var(--sel-line);
+}

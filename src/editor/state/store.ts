@@ -21,7 +21,8 @@ export interface BrushState {
 
 export const DEFAULT_BRUSH: BrushState = {
   tool: null,
-  size: 40,
+  // 크기 선택 버튼에 있는 값으로 맞춰 둔다.
+  size: 45,
   amount: 25,
 };
 

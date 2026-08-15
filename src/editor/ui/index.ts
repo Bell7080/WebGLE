@@ -95,6 +95,9 @@ const DEFORM_OPTIONS = [
   },
 ] as const satisfies readonly { id: PuppetBone["deform"]; short: string; label: string; help: string; examples: string }[];
 
+/** 브러시 크기 선택지(이미지 픽셀). 그림 도구처럼 점 크기로 고른다. */
+const BRUSH_SIZES = [8, 16, 28, 45, 70, 110, 170, 250] as const;
+
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
   if (!element) throw new Error(`UI 요소를 찾을 수 없습니다: #${id}`);
@@ -554,28 +557,8 @@ export class EditorUI {
     );
     section.append(tools);
 
-    section.append(
-      this.sliderField("크기", brush.size, 4, 400, 1, (value) =>
-        this.callbacks.onBrushChange({ size: value }),
-      ),
-      this.sliderField("가중치", brush.amount, 1, 100, 1, (value) =>
-        this.callbacks.onBrushChange({ amount: value }),
-      ),
-    );
-
-    // 아직 어느 관절도 가지지 않은 영역의 비율. 그만큼은 애니메이션에서 움직이지 않는다.
-    const { mask } = this.store.get();
-    const inside = project.mesh.weights.filter((_weight, index) => !mask || mask[index]);
-    const empty = inside.filter((weight) => weight.boneIds.length === 0).length;
-    if (inside.length > 0) {
-      const coverage = document.createElement("p");
-      coverage.className = "hint";
-      coverage.textContent =
-        empty === 0
-          ? "빈 곳 없음 · 전체가 어느 관절엔가 묶여 있습니다."
-          : `칠하지 않은 영역 ${Math.round((empty / inside.length) * 100)}% · 그만큼은 움직이지 않습니다.`;
-      section.append(coverage);
-    }
+    // 가중치가 먼저다. 한 번에 얼마나 쌓을지가 크기보다 자주 바뀐다.
+    section.append(this.weightMeter(brush.amount), this.brushSizes(brush.size));
 
     const hint = document.createElement("p");
     hint.className = "hint";
@@ -640,37 +623,114 @@ export class EditorUI {
     return wrapper;
   }
 
-  private sliderField(
-    label: string,
-    value: number,
-    min: number,
-    max: number,
-    step: number,
-    onChange: (value: number) => void,
-  ): HTMLDivElement {
+  /**
+   * 가중치 그래프. 한 번 칠할 때 쌓이는 양이다.
+   * 막대를 누르거나 끌어 정한다. 10이면 열 번 칠해야 가득 찬다.
+   */
+  private weightMeter(value: number): HTMLDivElement {
     const wrapper = document.createElement("div");
-    wrapper.className = "field";
+    wrapper.className = "field field-meter";
 
-    const labelElement = document.createElement("label");
-    labelElement.textContent = label;
+    const label = document.createElement("label");
+    label.textContent = "가중치";
+    attachTooltip(label, {
+      title: "가중치",
+      body: "한 번 칠할 때 더해지는 양입니다. 10이면 열 번 겹쳐 칠해야 가득 차고, 100이면 한 번에 최대가 됩니다.",
+      meta: "지우개도 같은 값만큼 깎아냅니다",
+    });
 
-    const input = document.createElement("input");
-    input.type = "range";
-    input.min = String(min);
-    input.max = String(max);
-    input.step = String(step);
-    input.value = String(value);
+    const meter = document.createElement("div");
+    meter.className = "meter";
+    meter.setAttribute("role", "slider");
+    meter.setAttribute("aria-valuemin", "1");
+    meter.setAttribute("aria-valuemax", "100");
+    meter.setAttribute("aria-valuenow", String(value));
+
+    const fill = document.createElement("div");
+    fill.className = "meter-fill";
+    fill.style.width = `${value}%`;
 
     const readout = document.createElement("span");
     readout.className = "readout";
     readout.textContent = String(value);
 
-    input.addEventListener("input", () => {
-      readout.textContent = input.value;
-      onChange(Number(input.value));
+    const setFromEvent = (event: PointerEvent) => {
+      const bounds = meter.getBoundingClientRect();
+      const ratio = (event.clientX - bounds.left) / bounds.width;
+      const next = Math.max(1, Math.min(100, Math.round(ratio * 100)));
+      fill.style.width = `${next}%`;
+      readout.textContent = String(next);
+      meter.setAttribute("aria-valuenow", String(next));
+      this.callbacks.onBrushChange({ amount: next });
+    };
+
+    meter.addEventListener("pointerdown", (event) => {
+      meter.setPointerCapture(event.pointerId);
+      setFromEvent(event);
+    });
+    meter.addEventListener("pointermove", (event) => {
+      if (event.buttons === 1) setFromEvent(event);
     });
 
-    wrapper.append(labelElement, input, readout);
+    meter.append(fill);
+    wrapper.append(label, meter, readout);
+    return wrapper;
+  }
+
+  /**
+   * 브러시 크기. 그림 도구처럼 실제 크기에 맞는 점을 눌러 고른다.
+   * 숫자보다 점 크기를 보고 고르는 편이 빠르다.
+   */
+  private brushSizes(current: number): HTMLDivElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "field field-sizes";
+
+    const label = document.createElement("label");
+    label.textContent = "크기";
+    attachTooltip(label, {
+      title: "브러시 크기",
+      body: "칠하거나 지울 원의 반지름입니다(이미지 픽셀 기준). 캔버스의 흰 원이 실제 크기입니다.",
+      meta: "가장자리로 갈수록 옅게 칠해집니다",
+    });
+
+    const row = document.createElement("div");
+    row.className = "size-row";
+
+    // 저장된 값이 선택지와 정확히 같지 않을 수 있으니 가장 가까운 것을 켠다.
+    const nearest = BRUSH_SIZES.reduce((best, size) =>
+      Math.abs(size - current) < Math.abs(best - current) ? size : best,
+    );
+
+    for (const size of BRUSH_SIZES) {
+      const selected = size === nearest;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = selected ? "size-option selected" : "size-option";
+      button.setAttribute("aria-pressed", String(selected));
+
+      const dot = document.createElement("span");
+      dot.className = "size-dot";
+      // 지름은 크기의 제곱근에 비례시킨다. 그대로 쓰면 큰 값이 화면을 다 먹는다.
+      const diameter = Math.round(4 + Math.sqrt(size) * 1.7);
+      dot.style.width = `${diameter}px`;
+      dot.style.height = `${diameter}px`;
+
+      button.append(dot);
+      attachTooltip(button, {
+        title: `${size}px`,
+        body:
+          size <= 16
+            ? "가는 브러시. 경계나 좁은 부위를 다듬을 때."
+            : size <= 60
+              ? "보통 브러시. 팔 · 다리 · 머리 같은 부위에."
+              : "굵은 브러시. 몸통을 한 번에 덮을 때.",
+        meta: selected ? "지금 쓰는 크기" : "눌러서 이 크기로 바꾸기",
+      });
+      button.addEventListener("click", () => this.callbacks.onBrushChange({ size }));
+      row.append(button);
+    }
+
+    wrapper.append(label, row);
     return wrapper;
   }
 
