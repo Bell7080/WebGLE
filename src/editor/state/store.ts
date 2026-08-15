@@ -42,6 +42,8 @@ export interface EditorState {
   playing: string | null;
   /** 속도 · 강도를 조절할 대상. 재생을 멈춰도 남아 있다. */
   selectedAnimation: string | null;
+  /** 도트 그림인지 자동으로 판정한 근거. 화면에 그대로 보여 준다. */
+  pixelArtReason: string | null;
 }
 
 type Listener = (state: EditorState) => void;
@@ -65,6 +67,7 @@ export class EditorStore {
       brush: { ...DEFAULT_BRUSH },
       playing: null,
       selectedAnimation: null,
+      pixelArtReason: null,
       ...initial,
     };
   }

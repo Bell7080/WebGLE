@@ -7,10 +7,12 @@ import {
   type PuppetProject,
 } from "@core/format";
 import { createGridMesh, vertexCount } from "@core/mesh";
+import type { MeshResolution } from "@core/format";
 import {
   normalizeWeights,
   paintInfluence,
   removeBoneWeights,
+  resampleWeights,
   toWeightMap,
   type WeightMap,
 } from "@core/weight";
@@ -23,7 +25,13 @@ import { EditorStore, type BrushState } from "@editor/state/store";
 import { UndoStack } from "@editor/history/UndoStack";
 import { EditorUI } from "@editor/ui";
 import { attachDropTarget, loadImageFile } from "@editor/tools/imageLoader";
-import { buildAlphaMap, sampleAlphaMask, type AlphaMap } from "@editor/tools/alphaMask";
+import {
+  buildAlphaMap,
+  readPixels,
+  sampleAlphaMask,
+  type AlphaMap,
+} from "@editor/tools/alphaMask";
+import { analyzePixels, judgePixelArt } from "@core/image/pixelart";
 import { renderWeightOverlay } from "@editor/tools/weightOverlay";
 import {
   downloadBlob,
@@ -216,8 +224,69 @@ const ui = new EditorUI(store, {
     }
   },
 
+  onCharacterSetting: (patch) => {
+    const { project, textureUrl } = store.get();
+
+    if (patch.name !== undefined) {
+      commit((current) => ({
+        ...current,
+        character: { ...current.character, name: patch.name as string },
+      }));
+      ui.setStatus(`캐릭터 이름: ${patch.name}`);
+    }
+
+    if (patch.pixelArt !== undefined) {
+      commit((current) => ({
+        ...current,
+        character: { ...current.character, pixelArt: patch.pixelArt as boolean },
+      }));
+      // 텍스처 필터가 바뀌므로 이미지를 다시 올린다.
+      if (textureUrl) void reloadTexture(textureUrl, patch.pixelArt);
+      ui.setStatus(patch.pixelArt ? "도트 모드로 그립니다." : "일반 그림으로 그립니다.");
+    }
+
+    if (patch.resolution !== undefined) changeResolution(patch.resolution, project);
+  },
+
   onExport: () => void exportProject(),
 });
+
+/** 도트 모드를 바꾸면 텍스처 필터가 달라져 이미지를 다시 올려야 한다. */
+async function reloadTexture(url: string, pixelArt: boolean): Promise<void> {
+  const image = new Image();
+  image.src = url;
+  await image.decode();
+  view.scene.showTexture(image, pixelArt);
+
+  const { project } = store.get();
+  if (project.mesh) {
+    view.scene.setMesh(project.mesh, project.character.width, project.character.height);
+  }
+}
+
+/**
+ * Mesh 해상도를 바꾼다. (기획서 15)
+ * 칠해 둔 영향 영역은 새 격자로 옮겨 담아 작업을 잃지 않는다.
+ */
+function changeResolution(resolution: MeshResolution, project: PuppetProject): void {
+  const previous = project.mesh;
+  if (!previous || previous.resolution === resolution) return;
+
+  const mesh = createGridMesh(project.character.width, project.character.height, resolution);
+  const moved = resampleWeights(previous, mesh, store.get().weights);
+
+  stopAnimation();
+  commit((current) => ({ ...current, mesh }));
+  store.set({ mask: sampleAlphaMask(alphaMap, mesh) });
+  setWeights(moved);
+
+  view.scene.setMesh(
+    store.get().project.mesh ?? mesh,
+    project.character.width,
+    project.character.height,
+  );
+  ui.setStatus(`Mesh ${mesh.cols}×${mesh.rows} · 칠한 영역은 그대로 옮겼습니다.`);
+}
 
 /** 이미 쓰는 이름이면 뒤에 번호를 붙인다. */
 function uniqueAnimationName(base: string, taken: Record<string, unknown>): string {
@@ -425,8 +494,15 @@ async function importImage(file: File): Promise<void> {
     const { image, url, fileName } = await loadImageFile(file);
     if (previous) URL.revokeObjectURL(previous);
 
+    // 픽셀을 한 번 읽어 알파 마스크와 도트 판정에 함께 쓴다.
+    const pixels = readPixels(image);
+    const verdict = pixels
+      ? judgePixelArt(analyzePixels(pixels.data, pixels.width, pixels.height))
+      : { pixelArt: false, reason: "픽셀을 읽지 못했습니다" };
+
     // Mesh는 이미지 크기에 맞춰 자동으로 만든다. (기획서 73)
-    const mesh = createGridMesh(image.width, image.height, "normal");
+    // 도트 그림은 과하게 휘면 깨져 보이므로 격자를 성기게 잡는다. (기획서 51)
+    const mesh = createGridMesh(image.width, image.height, verdict.pixelArt ? "low" : "normal");
 
     store.update((project) => ({
       ...project,
@@ -436,6 +512,7 @@ async function importImage(file: File): Promise<void> {
         texture: fileName,
         width: image.width,
         height: image.height,
+        pixelArt: verdict.pixelArt,
       },
       mesh,
       // 처음 불러올 때는 대기 하나를 넣어 둔다. 하단에서 더하거나 빼면 된다.
@@ -444,13 +521,18 @@ async function importImage(file: File): Promise<void> {
           ? { idle: structuredClone(PRESETS[0]!.animation) }
           : project.animations,
     }));
-    alphaMap = buildAlphaMap(image);
-    store.set({ textureUrl: url, weights: {}, mask: sampleAlphaMask(alphaMap, mesh) });
+    alphaMap = buildAlphaMap(pixels);
+    store.set({
+      textureUrl: url,
+      weights: {},
+      mask: sampleAlphaMask(alphaMap, mesh),
+      pixelArtReason: verdict.reason,
+    });
 
-    view.scene.showTexture(image, store.get().project.character.pixelArt);
+    view.scene.showTexture(image, verdict.pixelArt);
     view.scene.setMesh(mesh, image.width, image.height);
     ui.setStatus(
-      `이미지 불러옴: ${fileName} (${image.width}×${image.height}) · Mesh ${mesh.cols}×${mesh.rows}`,
+      `${fileName} (${image.width}×${image.height}) · ${verdict.pixelArt ? "도트" : "일반"} 그림 · Mesh ${mesh.cols}×${mesh.rows}`,
     );
   } catch (error) {
     ui.setStatus(error instanceof Error ? error.message : "이미지를 불러오지 못했습니다.");
@@ -512,7 +594,7 @@ async function openProject(file: File): Promise<void> {
       view.scene.showTexture(image, project.character.pixelArt);
       if (project.mesh) {
         view.scene.setMesh(project.mesh, project.character.width, project.character.height);
-        alphaMap = buildAlphaMap(image);
+        alphaMap = buildAlphaMap(readPixels(image));
         store.set({ mask: sampleAlphaMask(alphaMap, project.mesh) });
       }
     }

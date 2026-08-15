@@ -65,6 +65,12 @@ export interface EditorUICallbacks {
     patch: { speed?: number; strength?: number; secondary?: number },
   ): void;
   onExport(): void;
+  /** 캐릭터 전체 설정. 관절을 고르지 않았을 때 속성 패널에 나온다. */
+  onCharacterSetting(patch: {
+    name?: string;
+    pixelArt?: boolean;
+    resolution?: "low" | "normal" | "high";
+  }): void;
   onBrushChange(patch: Partial<BrushState>): void;
 }
 
@@ -646,10 +652,8 @@ export class EditorUI {
     this.inspector.replaceChildren();
     const bone = bones.find((b) => b.id === selectedBoneId);
     if (!bone) {
-      const hint = document.createElement("p");
-      hint.className = "hint";
-      hint.textContent = "선택된 관절이 없습니다.";
-      this.inspector.append(hint);
+      // 고른 관절이 없으면 캐릭터 전체 설정을 보여 준다.
+      this.renderCharacterSettings();
       return;
     }
 
@@ -755,6 +759,121 @@ export class EditorUI {
       this.callbacks.onBrushChange({ tool: active ? null : tool }),
     );
     return button;
+  }
+
+  /**
+   * 캐릭터 설정. 관절을 고르지 않았을 때 자리를 채운다.
+   * 상단의 `설정` 메뉴를 따로 두는 대신 여기에 모았다.
+   */
+  private renderCharacterSettings(): void {
+    const { project, textureUrl, pixelArtReason } = this.store.get();
+
+    if (!textureUrl) {
+      const hint = document.createElement("p");
+      hint.className = "hint";
+      hint.textContent = "이미지를 불러오면 캐릭터 설정이 여기 나옵니다.";
+      this.inspector.append(hint);
+      return;
+    }
+
+    const title = document.createElement("h3");
+    title.textContent = "캐릭터";
+    title.className = "inspector-title";
+    this.inspector.append(title);
+
+    this.inspector.append(
+      this.textField("이름", project.character.name, (value) =>
+        this.callbacks.onCharacterSetting({ name: value.trim() || "character" }),
+      ),
+    );
+
+    const size = document.createElement("p");
+    size.className = "hint";
+    size.textContent = `${project.character.width} × ${project.character.height} · ${project.character.texture}`;
+    this.inspector.append(size);
+
+    // 도트 모드 — 불러올 때 자동으로 판정하고, 틀렸으면 여기서 바꾼다. (기획서 51)
+    const pixelRow = document.createElement("div");
+    pixelRow.className = "field field-choice";
+    const pixelLabel = document.createElement("label");
+    pixelLabel.textContent = "그림";
+    attachTooltip(pixelLabel, {
+      title: "그림 종류",
+      body: "도트로 보면 확대해도 픽셀이 또렷하게 남고, 일반으로 보면 부드럽게 뭉갭니다. 이미지를 불러올 때 자동으로 판정합니다.",
+      meta: pixelArtReason ? `자동 판정: ${pixelArtReason}` : "판정 근거 없음",
+    });
+
+    const pixelChoices = document.createElement("div");
+    pixelChoices.className = "choice-row";
+    for (const [value, label] of [
+      [false, "일반"],
+      [true, "도트"],
+    ] as const) {
+      const button = document.createElement("button");
+      button.type = "button";
+      const on = project.character.pixelArt === value;
+      button.className = on ? "choice active-fill" : "choice";
+      button.textContent = label;
+      button.setAttribute("aria-pressed", String(on));
+      button.addEventListener("click", () =>
+        this.callbacks.onCharacterSetting({ pixelArt: value }),
+      );
+      pixelChoices.append(button);
+    }
+    pixelRow.append(pixelLabel, pixelChoices);
+    this.inspector.append(pixelRow);
+
+    if (pixelArtReason) {
+      const reason = document.createElement("p");
+      reason.className = "hint";
+      reason.textContent = `자동 판정: ${pixelArtReason}`;
+      this.inspector.append(reason);
+    }
+
+    // Mesh 해상도 (기획서 15)
+    const mesh = project.mesh;
+    const meshRow = document.createElement("div");
+    meshRow.className = "field field-choice";
+    const meshLabel = document.createElement("label");
+    meshLabel.textContent = "격자";
+    attachTooltip(meshLabel, {
+      title: "Mesh 해상도",
+      body: "이미지를 몇 칸으로 나눠 변형할지 정합니다. 촘촘할수록 섬세하게 휘지만 무거워지고, 성길수록 가볍지만 뭉툭하게 휩니다.",
+      meta: "바꿔도 칠해 둔 영향 영역은 새 격자로 옮겨 담습니다",
+    });
+
+    const meshChoices = document.createElement("div");
+    meshChoices.className = "choice-row";
+    for (const [value, label] of [
+      ["low", "낮음"],
+      ["normal", "보통"],
+      ["high", "높음"],
+    ] as const) {
+      const button = document.createElement("button");
+      button.type = "button";
+      const on = mesh?.resolution === value;
+      button.className = on ? "choice active-fill" : "choice";
+      button.textContent = label;
+      button.setAttribute("aria-pressed", String(on));
+      button.addEventListener("click", () =>
+        this.callbacks.onCharacterSetting({ resolution: value }),
+      );
+      meshChoices.append(button);
+    }
+    meshRow.append(meshLabel, meshChoices);
+    this.inspector.append(meshRow);
+
+    if (mesh) {
+      const gridInfo = document.createElement("p");
+      gridInfo.className = "hint";
+      gridInfo.textContent = `${mesh.cols} × ${mesh.rows}칸 · 정점 ${(mesh.cols + 1) * (mesh.rows + 1)}개`;
+      this.inspector.append(gridInfo);
+    }
+
+    const pick = document.createElement("p");
+    pick.className = "hint";
+    pick.textContent = "관절을 고르면 그 관절의 속성이 나옵니다.";
+    this.inspector.append(pick);
   }
 
   /** 관절 색. 원형 팔레트는 색 견본을 누를 때만 펼친다. */

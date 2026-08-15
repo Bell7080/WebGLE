@@ -11,8 +11,8 @@ export interface AlphaMap {
   data: Uint8Array;
 }
 
-/** 이미지에서 알파 채널만 읽어 온다. 배경 제거는 하지 않는다. (기획서 54) */
-export function buildAlphaMap(image: HTMLImageElement): AlphaMap | null {
+/** 이미지의 픽셀을 한 번만 읽어 둔다. 알파 마스크와 도트 판정이 함께 쓴다. */
+export function readPixels(image: HTMLImageElement): ImageData | null {
   const canvas = document.createElement("canvas");
   canvas.width = image.width;
   canvas.height = image.height;
@@ -21,12 +21,17 @@ export function buildAlphaMap(image: HTMLImageElement): AlphaMap | null {
   if (!context) return null;
 
   context.drawImage(image, 0, 0);
-  const { data } = context.getImageData(0, 0, image.width, image.height);
+  return context.getImageData(0, 0, image.width, image.height);
+}
 
-  const alpha = new Uint8Array(image.width * image.height);
-  for (let i = 0; i < alpha.length; i += 1) alpha[i] = data[i * 4 + 3] ?? 0;
+/** 알파 채널만 뽑아 둔다. 배경 제거는 하지 않는다. (기획서 54) */
+export function buildAlphaMap(pixels: ImageData | null): AlphaMap | null {
+  if (!pixels) return null;
 
-  return { width: image.width, height: image.height, data: alpha };
+  const alpha = new Uint8Array(pixels.width * pixels.height);
+  for (let i = 0; i < alpha.length; i += 1) alpha[i] = pixels.data[i * 4 + 3] ?? 0;
+
+  return { width: pixels.width, height: pixels.height, data: alpha };
 }
 
 export function alphaAt(map: AlphaMap, x: number, y: number): number {

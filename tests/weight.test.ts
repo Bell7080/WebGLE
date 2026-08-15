@@ -7,6 +7,7 @@ import {
   normalizeWeights,
   paintInfluence,
   removeBoneWeights,
+  resampleWeights,
   toWeightMap,
   type Influence,
 } from "../src/core/weight";
@@ -153,5 +154,40 @@ describe("클리핑 마스크", () => {
     const painted = map["b1"]!.filter((value) => value > 0).length;
     expect(painted).toBeGreaterThan(0);
     expect(painted).toBeLessThanOrEqual(leftHalf.filter(Boolean).length);
+  });
+});
+
+describe("격자 해상도 변경", () => {
+  const coarse = createGridMesh(100, 100, "low");
+  const fine = createGridMesh(100, 100, "high");
+
+  it("칠한 영역이 새 격자로 옮겨진다", () => {
+    const map = applyInfluence({}, "몸통", coarse, circle(50, 50, 40, 1, 0));
+    const moved = resampleWeights(coarse, fine, map);
+
+    expect(moved["몸통"]).toHaveLength(vertexCount(fine));
+    expect(Math.max(...moved["몸통"]!)).toBeGreaterThan(0.9);
+  });
+
+  it("칠하지 않은 바깥쪽은 그대로 비어 있다", () => {
+    const map = applyInfluence({}, "몸통", coarse, circle(50, 50, 20, 1, 0));
+    const moved = resampleWeights(coarse, fine, map);
+
+    // 왼쪽 위 모서리는 원에서 멀리 떨어져 있다.
+    expect(moved["몸통"]![0]).toBeCloseTo(0);
+  });
+
+  it("여러 관절의 채널을 모두 옮긴다", () => {
+    let map = applyInfluence({}, "a", coarse, circle(30, 30, 25));
+    map = applyInfluence(map, "b", coarse, circle(70, 70, 25));
+
+    const moved = resampleWeights(coarse, fine, map);
+    expect(Object.keys(moved).sort()).toEqual(["a", "b"]);
+  });
+
+  it("성긴 격자로 줄여도 대략의 모양이 남는다", () => {
+    const map = applyInfluence({}, "몸통", fine, circle(50, 50, 40, 1, 0));
+    const moved = resampleWeights(fine, coarse, map);
+    expect(Math.max(...moved["몸통"]!)).toBeGreaterThan(0.9);
   });
 });

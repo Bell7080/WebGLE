@@ -178,3 +178,61 @@ export function toWeightMap(weights: readonly VertexWeight[]): WeightMap {
 export function unweightedCount(weights: readonly VertexWeight[]): number {
   return weights.filter((vertex) => vertex.boneIds.length === 0).length;
 }
+
+/**
+ * 격자 해상도가 바뀔 때 칠해 둔 가중치를 새 격자로 옮긴다.
+ *
+ * 두 격자가 같은 이미지를 덮고 있으므로, 새 정점 자리의 값을 옛 격자에서
+ * 이중 선형 보간으로 읽어 온다. 칠한 작업을 잃지 않기 위한 것이다.
+ */
+export function resampleWeights(
+  from: PuppetMesh,
+  to: PuppetMesh,
+  map: WeightMap,
+): WeightMap {
+  const count = vertexCount(to);
+  const result: WeightMap = {};
+
+  for (const [boneId, channel] of Object.entries(map)) {
+    const moved = new Array<number>(count).fill(0);
+
+    for (let i = 0; i < count; i += 1) {
+      const x = to.vertices[i * 2] ?? 0;
+      const y = to.vertices[i * 2 + 1] ?? 0;
+      moved[i] = sampleGrid(channel, from, x, y);
+    }
+
+    result[boneId] = moved;
+  }
+
+  return result;
+}
+
+/** 옛 격자에서 (x, y) 위치의 값을 이중 선형 보간으로 읽는다. */
+function sampleGrid(
+  channel: readonly number[],
+  mesh: PuppetMesh,
+  x: number,
+  y: number,
+): number {
+  const width = mesh.vertices[mesh.vertices.length - 2] ?? 1;
+  const height = mesh.vertices[mesh.vertices.length - 1] ?? 1;
+
+  const u = (x / (width || 1)) * mesh.cols;
+  const v = (y / (height || 1)) * mesh.rows;
+  const col = Math.min(mesh.cols - 1, Math.max(0, Math.floor(u)));
+  const row = Math.min(mesh.rows - 1, Math.max(0, Math.floor(v)));
+  const fx = Math.min(1, Math.max(0, u - col));
+  const fy = Math.min(1, Math.max(0, v - row));
+
+  const stride = mesh.cols + 1;
+  const topLeft = row * stride + col;
+  const a = channel[topLeft] ?? 0;
+  const b = channel[topLeft + 1] ?? 0;
+  const c = channel[topLeft + stride] ?? 0;
+  const d = channel[topLeft + stride + 1] ?? 0;
+
+  const top = a + (b - a) * fx;
+  const bottom = c + (d - c) * fx;
+  return top + (bottom - top) * fy;
+}
