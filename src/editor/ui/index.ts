@@ -501,8 +501,10 @@ export class EditorUI {
   private deformField(bone: PuppetBone): HTMLDivElement {
     const select = document.createElement("select");
     for (const [value, label] of [
-      ["soft", "부드럽게 (Soft)"],
-      ["rigid", "고정 (Rigid)"],
+      ["soft", "부드럽게 · 움직임"],
+      ["rigid", "형태 유지 · 움직임"],
+      ["pinnedSoft", "부드럽게 · 위치 고정"],
+      ["fixed", "형태·위치 모두 고정"],
     ] as const) {
       const option = document.createElement("option");
       option.value = value;

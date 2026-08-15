@@ -1,4 +1,4 @@
-import type { PuppetBone, PuppetMesh } from "../format/types";
+import type { DeformMode, PuppetBone, PuppetMesh } from "../format/types";
 import { sortByHierarchy } from "./index";
 
 /** 2D 아핀 변환. [a c tx / b d ty / 0 0 1] */
@@ -101,6 +101,14 @@ export function computeSkinMatrices(
     // 부모 기준 지역 변환 = 부모 기준 자세의 역 × 자기 기준 자세
     const local = parentRest ? multiply(invert(parentRest), restWorld) : restWorld;
 
+    // 고정 계열은 자기 애니메이션뿐 아니라 부모 변환도 받지 않아 발 같은 기준점을 붙잡는다.
+    const pinned = bone.deform === "pinnedSoft" || bone.deform === "fixed";
+    if (pinned) {
+      world.set(bone.id, restWorld);
+      skin.set(bone.id, IDENTITY);
+      continue;
+    }
+
     const delta = deltas.get(bone.id) ?? NO_DELTA;
     const deltaMatrix = compose(delta.x, delta.y, delta.rotation, delta.scaleX, delta.scaleY);
 
@@ -120,6 +128,7 @@ export function skinVertices(
   mesh: PuppetMesh,
   skinMatrices: ReadonlyMap<string, Mat2D>,
   out?: Float32Array,
+  deformModes: ReadonlyMap<string, DeformMode> = new Map(),
 ): Float32Array {
   const count = mesh.vertices.length / 2;
   const result = out && out.length === mesh.vertices.length ? out : new Float32Array(mesh.vertices.length);
@@ -132,6 +141,36 @@ export function skinVertices(
     if (!vertexWeight || vertexWeight.boneIds.length === 0) {
       result[i * 2] = x;
       result[i * 2 + 1] = y;
+      continue;
+    }
+
+    // 완전 고정 영역은 다른 Bone과 가중치가 겹쳐도 원래 위치와 형태를 우선 보존한다.
+    const hasFixedInfluence = vertexWeight.boneIds.some(
+      (boneId, slot) => deformModes.get(boneId) === "fixed" && (vertexWeight.weights[slot] ?? 0) > 0,
+    );
+    if (hasFixedInfluence) {
+      result[i * 2] = x;
+      result[i * 2 + 1] = y;
+      continue;
+    }
+
+    // Rigid 영역은 여러 행렬을 섞지 않고 가장 강한 Rigid Bone 하나로 통째로 움직인다.
+    let rigidSlot = -1;
+    let rigidWeight = 0;
+    for (let slot = 0; slot < vertexWeight.boneIds.length; slot += 1) {
+      const boneId = vertexWeight.boneIds[slot];
+      const weight = vertexWeight.weights[slot] ?? 0;
+      if (boneId && deformModes.get(boneId) === "rigid" && weight > rigidWeight) {
+        rigidSlot = slot;
+        rigidWeight = weight;
+      }
+    }
+    if (rigidSlot >= 0) {
+      const rigidBoneId = vertexWeight.boneIds[rigidSlot];
+      const rigidMatrix = rigidBoneId ? skinMatrices.get(rigidBoneId) : undefined;
+      const moved = rigidMatrix ? applyPoint(rigidMatrix, x, y) : { x, y };
+      result[i * 2] = moved.x;
+      result[i * 2 + 1] = moved.y;
       continue;
     }
 

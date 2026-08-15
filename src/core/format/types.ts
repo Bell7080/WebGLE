@@ -7,12 +7,19 @@
 
 export const PUPPET_FORMAT = "puppetforge" as const;
 /**
- * 2: Bone에 color 추가. v1 파일은 불러올 때 색을 자동으로 채운다.
+ * 3: Bone 변형 방식을 움직임/찌그러짐 조합 4가지로 확장했다.
  */
-export const PUPPET_VERSION = 2 as const;
+export const PUPPET_VERSION = 3 as const;
 
-/** Bone의 변형 방식. (기획서 19) */
-export type DeformMode = "soft" | "rigid";
+/**
+ * Bone의 변형 방식. (기획서 19 확장)
+ *
+ * - soft: 가중치를 섞어 찌그러뜨리고 애니메이션 변환도 적용한다.
+ * - rigid: 한 Bone의 변환만 적용해 형태를 유지하며 움직인다.
+ * - pinnedSoft: 기준 위치는 고정하되 이웃 Bone과의 경계는 부드럽게 휜다.
+ * - fixed: 기준 위치와 형태를 모두 고정한다.
+ */
+export type DeformMode = "soft" | "rigid" | "pinnedSoft" | "fixed";
 
 /** 관절 하나. 스켈레톤 타입 개념은 존재하지 않는다. (기획서 1.1, 8) */
 export interface PuppetBone {
