@@ -10,8 +10,9 @@ export const PUPPET_FORMAT = "puppetforge" as const;
  * 3: Bone 변형 방식을 움직임/찌그러짐 조합 4가지로 확장했다.
  * 4: 애니메이션에 hidden 추가. 파일에는 남기되 내보내기에서만 뺀다.
  * 5: 애니메이션에 speed / strength 추가. 없으면 둘 다 1로 본다.
+ * 6: 애니메이션에 secondary(따라 흔들림) 추가. 없으면 1로 본다.
  */
-export const PUPPET_VERSION = 5 as const;
+export const PUPPET_VERSION = 6 as const;
 
 /**
  * Bone의 변형 방식. (기획서 19 확장)
@@ -136,6 +137,12 @@ export interface PuppetAnimation {
    * Bone마다의 `motionStrength`와 곱해진다.
    */
   strength?: number;
+
+  /**
+   * 따라 흔들림(Secondary Motion) 세기. 0이면 끄고, 1이 기본. 없으면 1. (기획서 29, 31)
+   * `secondary` 태그가 붙은 관절이 몸을 한 박자 늦게 따라 흔들리는 정도다.
+   */
+  secondary?: number;
 }
 
 export interface PuppetCharacter {

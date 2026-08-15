@@ -17,6 +17,7 @@ import {
 import { computeSkinMatrices, skinVertices } from "@core/skeleton/transform";
 import { hexToNumber } from "@core/format";
 import { AnimationPlayer } from "@core/animation";
+import { SecondaryMotion } from "@core/physics/secondary";
 import { createCanvasView } from "@renderer/phaser";
 import { EditorStore, type BrushState } from "@editor/state/store";
 import { UndoStack } from "@editor/history/UndoStack";
@@ -43,6 +44,8 @@ const store = new EditorStore();
 let alphaMap: AlphaMap | null = null;
 const history = new UndoStack<PuppetProject>();
 const player = new AnimationPlayer();
+/** 꼬리 · 머리카락처럼 늦게 따라오는 부위의 흔들림. (기획서 29) */
+const secondary = new SecondaryMotion();
 
 const view = await createCanvasView(canvasArea);
 
@@ -342,6 +345,7 @@ function playAnimation(animationId: string): void {
     return;
   }
 
+  secondary.reset();
   player.play(animation, {
     speed: animation.speed ?? 1,
     amount: animation.strength ?? 1,
@@ -353,6 +357,7 @@ function playAnimation(animationId: string): void {
 
 function stopAnimation(): void {
   player.stop();
+  secondary.reset();
   store.set({ playing: null });
   view.scene.updateMeshVertices(null);
   overlayDirty = true;
@@ -368,6 +373,17 @@ function tick(now: number): void {
     const { project } = store.get();
     const deltas = player.update(dt, project.bones);
     if (project.mesh) {
+      // 1) 애니메이션만 반영한 자세를 먼저 구한다
+      const posed = computeSkinMatrices(project.bones, deltas);
+      // 2) 그 움직임을 입력 삼아 늦게 따라오는 흔들림을 더하고 (기획서 29)
+      secondary.apply(
+        project.bones,
+        deltas,
+        posed,
+        dt,
+        player.current.animation.secondary ?? 1,
+      );
+      // 3) 흔들림까지 반영한 최종 자세로 정점을 옮긴다
       const skin = computeSkinMatrices(project.bones, deltas);
       // 변형 모드는 정점 혼합 방식까지 결정하므로 런타임에 Bone 설정을 함께 전달한다.
       const deformModes = new Map(project.bones.map((bone) => [bone.id, bone.deform]));
@@ -579,7 +595,13 @@ store.subscribe((state) => {
 
 // 개발 중 콘솔에서 상태를 들여다보기 위한 훅. 배포 빌드에는 포함되지 않는다.
 if (import.meta.env.DEV) {
-  (window as unknown as Record<string, unknown>).__puppet = { store, view, history, player };
+  (window as unknown as Record<string, unknown>).__puppet = {
+    store,
+    view,
+    history,
+    player,
+    secondary,
+  };
 }
 
 window.addEventListener("keydown", (event) => {

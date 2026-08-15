@@ -60,7 +60,10 @@ export interface EditorUICallbacks {
   onRemoveAnimation(animationId: string): void;
   onToggleAnimationHidden(animationId: string): void;
   /** 속도 · 강도 조절. (기획서 31) */
-  onAnimationSetting(animationId: string, patch: { speed?: number; strength?: number }): void;
+  onAnimationSetting(
+    animationId: string,
+    patch: { speed?: number; strength?: number; secondary?: number },
+  ): void;
   onExport(): void;
   onBrushChange(patch: Partial<BrushState>): void;
 }
@@ -228,6 +231,7 @@ export class EditorUI {
 
     const speed = animation.speed ?? 1;
     const strength = animation.strength ?? 1;
+    const swing = animation.secondary ?? 1;
 
     // 같은 애니메이션이면 막대만 갱신한다.
     // 통째로 다시 그리면 끌고 있던 막대가 사라져 드래그가 끊긴다.
@@ -235,6 +239,7 @@ export class EditorUI {
       const knobs = this.animSettings.querySelectorAll<HTMLElement>(".anim-knob");
       updateKnob(knobs[0], speed, 0.1, 3);
       updateKnob(knobs[1], strength, 0, 2);
+      updateKnob(knobs[2], swing, 0, 2);
       return;
     }
     this.animSettingsId = id;
@@ -252,6 +257,12 @@ export class EditorUI {
         body: "1이 원래 크기입니다. 0이면 아예 움직이지 않고, 2면 두 배 크게 움직입니다. 관절마다의 강도 값과 곱해집니다.",
         meta: "너무 크면 그림이 찢어져 보일 수 있습니다",
       }, (value) => this.callbacks.onAnimationSetting(id, { strength: value })),
+
+      this.animKnob("흔들림", swing, 0, 2, `${swing.toFixed(2)}배`, {
+        title: "따라 흔들림 (Secondary Motion)",
+        body: "꼬리 · 머리카락 · 촉수처럼 몸에 매달린 부위가 몸을 한 박자 늦게 따라 흔들리는 정도입니다. 애니메이션에 그런 트랙이 없어도 자동으로 생깁니다.",
+        meta: "secondary 태그가 붙은 관절에만 적용됩니다 · 0이면 끕니다",
+      }, (value) => this.callbacks.onAnimationSetting(id, { secondary: value })),
     );
 
     const reset = document.createElement("button");
@@ -260,11 +271,11 @@ export class EditorUI {
     reset.textContent = "되돌리기";
     attachTooltip(reset, {
       title: "기본값으로",
-      body: "속도와 강도를 모두 1로 되돌립니다.",
+      body: "속도 · 강도 · 흔들림을 모두 1로 되돌립니다.",
       meta: `대상: ${id}`,
     });
     reset.addEventListener("click", () =>
-      this.callbacks.onAnimationSetting(id, { speed: 1, strength: 1 }),
+      this.callbacks.onAnimationSetting(id, { speed: 1, strength: 1, secondary: 1 }),
     );
     this.animSettings.append(reset);
   }

@@ -1,4 +1,4 @@
-# Puppet JSON 포맷 (v5)
+# Puppet JSON 포맷 (v6)
 
 PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 이 파일 하나를 읽는다.
 타입 정의는 [`src/core/format/types.ts`](../src/core/format/types.ts)에 있다.
@@ -8,7 +8,7 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 ```json
 {
   "format": "puppetforge",
-  "version": 5,
+  "version": 6,
   "character": { },
   "bones": [],
   "mesh": null,
@@ -138,6 +138,8 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 - `speed`는 재생 속도 배율이다(기본 1). 0.5면 두 배 느리게 재생한다.
 - `strength`는 움직임 크기 배율이다(기본 1). Bone의 `motionStrength`와 곱해진다.
   같은 프리셋으로 굼뜬 골렘과 잽싼 거미를 만들 때 이 둘을 쓴다. (기획서 31)
+- `secondary`는 따라 흔들림 세기다(기본 1, 0이면 끔). `secondary` 태그가 붙은 관절이
+  몸을 한 박자 늦게 따라 흔들리는 정도이며, Track이 없어도 런타임이 자동으로 만든다. (기획서 29)
 
 값의 의미는 기준 자세로부터의 **변화량**이다.
 
@@ -164,5 +166,6 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 | 3 | `deform`을 움직임/찌그러짐 조합 4가지로 확장하고 런타임 동작을 구현했다. |
 | 4 | 애니메이션에 `hidden` 추가. 파일에는 남기되 내보내기에서만 제외한다. |
 | 5 | 애니메이션에 `speed` · `strength` 추가. 없으면 둘 다 1로 본다. |
+| 6 | 애니메이션에 `secondary`(따라 흔들림) 추가. 없으면 1로 본다. |
 
 읽는 쪽보다 높은 버전은 거부하고, 낮은 버전은 조용히 올려서 연다.
