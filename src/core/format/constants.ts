@@ -88,6 +88,8 @@ export const OVERLAY_LAYERS = [
   { id: "bones", label: "관절" },
   { id: "links", label: "연결" },
   { id: "weights", label: "영향 영역" },
+  /** 선택한 관절 대신 모든 관절의 영향 영역을 한 번에 본다. 빈 곳도 드러난다. */
+  { id: "weightsAll", label: "전체 보기" },
 ] as const;
 
 export type OverlayLayer = (typeof OVERLAY_LAYERS)[number]["id"];
@@ -98,6 +100,7 @@ export const DEFAULT_OVERLAY_VISIBILITY: OverlayVisibility = {
   bones: true,
   links: true,
   weights: true,
+  weightsAll: false,
 };
 
 /** 하단 패널에 노출할 기본 애니메이션. (기획서 30) */

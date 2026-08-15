@@ -329,6 +329,20 @@ export class EditorUI {
       ),
     );
 
+    // 아직 어느 관절도 가지지 않은 영역의 비율. 그만큼은 애니메이션에서 움직이지 않는다.
+    const { mask } = this.store.get();
+    const inside = project.mesh.weights.filter((_weight, index) => !mask || mask[index]);
+    const empty = inside.filter((weight) => weight.boneIds.length === 0).length;
+    if (inside.length > 0) {
+      const coverage = document.createElement("p");
+      coverage.className = "hint";
+      coverage.textContent =
+        empty === 0
+          ? "빈 곳 없음 · 전체가 어느 관절엔가 묶여 있습니다."
+          : `칠하지 않은 영역 ${Math.round((empty / inside.length) * 100)}% · 그만큼은 움직이지 않습니다.`;
+      section.append(coverage);
+    }
+
     const hint = document.createElement("p");
     hint.className = "hint";
     hint.textContent =

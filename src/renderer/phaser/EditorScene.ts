@@ -8,27 +8,8 @@ import {
 } from "@core/format";
 import { toUV } from "@core/mesh";
 
-/** 작은 점을 원 대신 육각형으로 그린다. 정점이 수천 개라 매 프레임 원을 그리면 무겁다. */
-const DOT_SHAPE = Array.from({ length: 6 }, (_unused, i) => ({
-  x: Math.cos((i / 6) * Math.PI * 2),
-  y: Math.sin((i / 6) * Math.PI * 2),
-}));
-const DOT_BUFFER = DOT_SHAPE.map(() => ({ x: 0, y: 0 }));
-
-function fillDot(
-  graphics: Phaser.GameObjects.Graphics,
-  x: number,
-  y: number,
-  radius: number,
-): void {
-  for (let i = 0; i < DOT_SHAPE.length; i += 1) {
-    DOT_BUFFER[i]!.x = x + DOT_SHAPE[i]!.x * radius;
-    DOT_BUFFER[i]!.y = y + DOT_SHAPE[i]!.y * radius;
-  }
-  graphics.fillPoints(DOT_BUFFER, true);
-}
-
 const TEXTURE_KEY = "character";
+const WEIGHT_TEXTURE_KEY = "weight-overlay";
 const BONE_RADIUS = 5;
 /** 관절을 집을 수 있는 화면상 반경(px). 점보다 넉넉하게 잡는다. */
 const PICK_RADIUS = 11;
@@ -66,16 +47,11 @@ export class EditorScene extends Phaser.Scene {
   private meshObject: Phaser.GameObjects.Mesh | null = null;
   private meshData: PuppetMesh | null = null;
   private overlay: Phaser.GameObjects.Graphics | null = null;
+  private weightOverlay: Phaser.GameObjects.Image | null = null;
 
   private bones: readonly PuppetBone[] = [];
   private selectedBoneId: string | null = null;
   private visibility: OverlayVisibility = { ...DEFAULT_OVERLAY_VISIBILITY };
-  /** 선택된 Bone의 정점별 가중치(0~1). 표시용. */
-  private weightPreview: readonly number[] | null = null;
-  /** 이미지의 그려진 영역 안에 있는 정점만 true. */
-  private mask: readonly boolean[] | null = null;
-  /** 화면에 그릴 정점 좌표. 변형 결과가 없으면 원본을 쓴다. */
-  private deformed: Float32Array | null = null;
 
   private panning = false;
   private draggingBoneId: string | null = null;
@@ -229,7 +205,6 @@ export class EditorScene extends Phaser.Scene {
    */
   setMesh(mesh: PuppetMesh, width: number, height: number): void {
     this.meshData = mesh;
-    this.deformed = null;
     this.destroyMesh();
 
     // WebGL에서만 Mesh를 쓸 수 있다. Canvas 렌더러면 원본 이미지를 그대로 둔다.
@@ -256,10 +231,26 @@ export class EditorScene extends Phaser.Scene {
     this.sprite?.setVisible(false);
   }
 
+  /**
+   * 영향 영역 점 패턴을 이미지 위에 얹는다.
+   * 캔버스로 구운 텍스처라 정점 수와 상관없이 촘촘하고, 매 프레임 다시 그리지 않는다.
+   */
+  setWeightOverlay(canvas: HTMLCanvasElement | null): void {
+    this.weightOverlay?.destroy();
+    this.weightOverlay = null;
+    if (this.textures.exists(WEIGHT_TEXTURE_KEY)) this.textures.remove(WEIGHT_TEXTURE_KEY);
+    if (!canvas) return;
+
+    this.textures.addCanvas(WEIGHT_TEXTURE_KEY, canvas);
+    this.weightOverlay = this.add
+      .image(0, 0, WEIGHT_TEXTURE_KEY)
+      .setOrigin(0, 0)
+      .setDepth(5)
+      .setVisible(this.visibility.weights);
+  }
+
   /** 변형된 정점 좌표를 반영한다. null이면 기준 자세로 되돌린다. */
   updateMeshVertices(deformed: Float32Array | null): void {
-    this.deformed = deformed;
-
     const mesh = this.meshData;
     const meshObject = this.meshObject;
     if (!mesh || !meshObject) {
@@ -314,14 +305,11 @@ export class EditorScene extends Phaser.Scene {
     bones: readonly PuppetBone[],
     selectedId: string | null,
     visibility: OverlayVisibility = this.visibility,
-    weightPreview: readonly number[] | null = null,
-    mask: readonly boolean[] | null = null,
   ): void {
     this.bones = bones;
     this.selectedBoneId = selectedId;
     this.visibility = visibility;
-    this.weightPreview = weightPreview;
-    this.mask = mask;
+    this.weightOverlay?.setVisible(visibility.weights);
     this.redrawOverlay();
   }
 
@@ -333,52 +321,9 @@ export class EditorScene extends Phaser.Scene {
     overlay.clear();
     const zoom = this.cameras.main.zoom;
 
-    if (this.visibility.weights) this.drawWeights(overlay, zoom);
     if (this.visibility.links) this.drawLinks(overlay, zoom);
     if (this.visibility.bones) this.drawBonePoints(overlay, zoom);
     if (this.paint && this.brushWorld) this.drawBrush(overlay, zoom);
-  }
-
-  /**
-   * 영향 영역을 정점마다 보여준다. 색은 그 정점을 가장 많이 가진 관절의 색을 따른다.
-   * 이미지 바깥(마스크 밖) 정점은 그리지 않는다.
-   */
-  private drawWeights(overlay: Phaser.GameObjects.Graphics, zoom: number): void {
-    const mesh = this.meshData;
-    if (!mesh) return;
-
-    const source = this.deformed ?? mesh.vertices;
-    const dot = 1.6 / zoom;
-    const colorOf = new Map(this.bones.map((bone) => [bone.id, hexToNumber(bone.color)]));
-    const selectedColor = this.selectedBoneId
-      ? (colorOf.get(this.selectedBoneId) ?? 0xffffff)
-      : 0xffffff;
-
-    for (let i = 0; i < mesh.weights.length; i += 1) {
-      if (this.mask && !this.mask[i]) continue;
-
-      const x = source[i * 2] ?? 0;
-      const y = source[i * 2 + 1] ?? 0;
-      const value = this.weightPreview?.[i] ?? 0;
-
-      if (value > 0.01) {
-        // 지금 고른 관절이 칠한 곳 — 진할수록 밝고 크다.
-        overlay.fillStyle(selectedColor, 0.25 + value * 0.75);
-        fillDot(overlay, x, y, dot * (0.7 + value * 0.8));
-        continue;
-      }
-
-      const owner = mesh.weights[i]?.boneIds[0];
-      if (owner) {
-        // 다른 관절이 가진 곳 — 그 관절의 색으로 옅게.
-        overlay.fillStyle(colorOf.get(owner) ?? 0xffffff, 0.3);
-        fillDot(overlay, x, y, dot * 0.6);
-      } else {
-        // 아직 아무도 칠하지 않은 곳 — 격자만 보이게.
-        overlay.fillStyle(0x000000, 0.3);
-        fillDot(overlay, x, y, dot * 0.42);
-      }
-    }
   }
 
   /** 연결선은 자식 관절의 색을 따른다. */
@@ -435,12 +380,12 @@ export class EditorScene extends Phaser.Scene {
   }
 
   clearTexture(): void {
+    this.setWeightOverlay(null);
     this.overlay?.clear();
     this.sprite?.destroy();
     this.sprite = null;
     this.destroyMesh();
     this.meshData = null;
-    this.deformed = null;
     if (this.textures.exists(TEXTURE_KEY)) this.textures.remove(TEXTURE_KEY);
   }
 

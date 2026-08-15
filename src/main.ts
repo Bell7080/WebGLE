@@ -22,7 +22,8 @@ import { EditorStore, type BrushState } from "@editor/state/store";
 import { UndoStack } from "@editor/history/UndoStack";
 import { EditorUI } from "@editor/ui";
 import { attachDropTarget, loadImageFile } from "@editor/tools/imageLoader";
-import { sampleAlphaMask } from "@editor/tools/alphaMask";
+import { buildAlphaMap, sampleAlphaMask, type AlphaMap } from "@editor/tools/alphaMask";
+import { renderWeightOverlay } from "@editor/tools/weightOverlay";
 import {
   downloadBlob,
   packProject,
@@ -36,6 +37,8 @@ const imageInput = document.getElementById("imageInput") as HTMLInputElement;
 const projectInput = document.getElementById("projectInput") as HTMLInputElement;
 
 const store = new EditorStore();
+/** 이미지에서 뽑아 둔 알파. 저장 대상이 아니라 파생 데이터라 스토어 밖에 둔다. */
+let alphaMap: AlphaMap | null = null;
 const history = new UndoStack<PuppetProject>();
 const player = new AnimationPlayer();
 
@@ -145,8 +148,12 @@ function patchBone(
   };
 }
 
+/** 가중치가 바뀔 때마다 올라가는 번호. 점 패턴을 다시 구울 시점을 알기 위한 것이다. */
+let weightsRevision = 0;
+
 /** 편집 중인 가중치를 정규화해서 Mesh에 반영한다. (기획서 17) */
 function setWeights(weights: WeightMap): void {
+  weightsRevision += 1;
   const { project } = store.get();
   if (!project.mesh) {
     store.set({ weights });
@@ -241,6 +248,7 @@ function playAnimation(animationId: string): void {
   }
 
   player.play(preset);
+  view.scene.setWeightOverlay(null);
   store.set({ playing: animationId });
   ui.setStatus(`재생: ${animationId}`);
 }
@@ -249,6 +257,7 @@ function stopAnimation(): void {
   player.stop();
   store.set({ playing: null });
   view.scene.updateMeshVertices(null);
+  overlayDirty = true;
   ui.setStatus("정지");
 }
 
@@ -264,6 +273,10 @@ function tick(now: number): void {
       const skin = computeSkinMatrices(project.bones, deltas);
       view.scene.updateMeshVertices(skinVertices(project.mesh, skin));
     }
+  } else if (overlayDirty) {
+    // 재생 중에는 굽지 않는다. 점 패턴은 변형을 따라가지 않으므로 재생 중에는 감춘다.
+    overlayDirty = false;
+    refreshWeightOverlay();
   }
 
   requestAnimationFrame(tick);
@@ -286,6 +299,7 @@ function resetProject(): void {
     weights: {},
     mask: null,
   });
+  alphaMap = null;
   ui.setStatus("새 프로젝트");
 }
 
@@ -309,7 +323,8 @@ async function importImage(file: File): Promise<void> {
       },
       mesh,
     }));
-    store.set({ textureUrl: url, weights: {}, mask: sampleAlphaMask(image, mesh) });
+    alphaMap = buildAlphaMap(image);
+    store.set({ textureUrl: url, weights: {}, mask: sampleAlphaMask(alphaMap, mesh) });
 
     view.scene.showTexture(image, store.get().project.character.pixelArt);
     view.scene.setMesh(mesh, image.width, image.height);
@@ -356,7 +371,8 @@ async function openProject(file: File): Promise<void> {
       view.scene.showTexture(image, project.character.pixelArt);
       if (project.mesh) {
         view.scene.setMesh(project.mesh, project.character.width, project.character.height);
-        store.set({ mask: sampleAlphaMask(image, project.mesh) });
+        alphaMap = buildAlphaMap(image);
+        store.set({ mask: sampleAlphaMask(alphaMap, project.mesh) });
       }
     }
 
@@ -388,14 +404,44 @@ projectInput.addEventListener("change", () => {
 
 // 캔버스 오버레이는 상태 변화에 맞춰 다시 그린다.
 store.subscribe((state) => {
-  view.scene.drawBones(
-    state.project.bones,
-    state.selectedBoneId,
-    state.visibility,
-    state.selectedBoneId ? (state.weights[state.selectedBoneId] ?? null) : null,
-    state.mask,
-  );
+  view.scene.drawBones(state.project.bones, state.selectedBoneId, state.visibility);
 });
+
+// 영향 영역 점 패턴은 가중치·선택·표시 설정이 바뀔 때만 다시 굽는다.
+let overlayDirty = true;
+let lastOverlayKey = "";
+store.subscribe((state) => {
+  const key = [
+    state.selectedBoneId,
+    state.visibility.weights,
+    state.visibility.weightsAll,
+    state.project.mesh ? 1 : 0,
+    state.project.bones.map((bone) => bone.color).join(""),
+    weightsRevision,
+  ].join("|");
+  if (key === lastOverlayKey) return;
+  lastOverlayKey = key;
+  overlayDirty = true;
+});
+
+function refreshWeightOverlay(): void {
+  const state = store.get();
+  if (!state.project.mesh || !state.visibility.weights) {
+    view.scene.setWeightOverlay(null);
+    return;
+  }
+
+  view.scene.setWeightOverlay(
+    renderWeightOverlay({
+      mesh: state.project.mesh,
+      bones: state.project.bones,
+      weights: state.weights,
+      selectedBoneId: state.selectedBoneId,
+      showAll: state.visibility.weightsAll,
+      alpha: alphaMap,
+    }),
+  );
+}
 
 // 선택이 바뀌거나 칠하기를 끄면 브러시 연결도 따라간다.
 let lastPaintKey = "";
