@@ -137,6 +137,22 @@ function dotScale(size: number): number {
   return (Math.log(size) - min) / (max - min);
 }
 
+/** `파일` 메뉴에 들어가는 항목. */
+interface FileMenuItem {
+  action: string;
+  label: string;
+  /** 오른쪽에 흐리게 적는 단축키. 없으면 적지 않는다. */
+  shortcut?: string;
+}
+
+const FILE_MENU: readonly FileMenuItem[] = [
+  { action: "new", label: "새 프로젝트" },
+  { action: "import-image", label: "이미지 불러오기" },
+  { action: "open", label: "프로젝트 열기" },
+  { action: "save", label: "프로젝트 저장", shortcut: "Ctrl+S" },
+  { action: "export", label: "내보내기" },
+];
+
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
   if (!element) throw new Error(`UI 요소를 찾을 수 없습니다: #${id}`);
@@ -158,6 +174,10 @@ export class EditorUI {
   private readonly statusText = requireElement<HTMLSpanElement>("statusText");
   private readonly dropzone = requireElement<HTMLDivElement>("dropzone");
   private readonly addBoneButton = requireElement<HTMLButtonElement>("addBoneButton");
+  private readonly fileButton = requireElement<HTMLButtonElement>("fileButton");
+  private readonly fileMenu = requireElement<HTMLDivElement>("fileMenu");
+  private readonly settingsButton = requireElement<HTMLButtonElement>("settingsButton");
+  private readonly settingsPanel = requireElement<HTMLDivElement>("settingsPanel");
   private partSelect!: HTMLSelectElement;
   private draggingBoneId: string | null = null;
   /** 원형 팔레트를 펼쳐 둔 관절. */
@@ -166,6 +186,9 @@ export class EditorUI {
   private tagPickerBoneId: string | null = null;
   /** 애니메이션 추가 목록을 펼쳤는지. */
   private animPickerOpen = false;
+  /** 상단에서 펼쳐 둔 메뉴. */
+  private openMenu: "file" | "settings" | null = null;
+  private settingsPending = false;
   /** 마지막으로 그린 애니메이션 목록의 모양. 같으면 다시 그리지 않는다. */
   private animSignature = "";
   /** 속도 · 강도 줄이 지금 어느 애니메이션을 보여 주고 있는지. */
@@ -505,10 +528,198 @@ export class EditorUI {
     );
   }
 
+  /**
+   * 상단 메뉴. 파일 관련은 `파일` 하나로 모으고, 캐릭터 설정은 `설정`에 둔다.
+   * 버튼을 늘어놓는 대신 눌러서 펼치는 방식이라 상단이 캔버스를 덜 잡아먹는다.
+   */
   private bindMenu(): void {
-    for (const button of document.querySelectorAll<HTMLButtonElement>("[data-menu]")) {
-      button.addEventListener("click", () => this.callbacks.onMenu(button.dataset.menu ?? ""));
+    for (const item of FILE_MENU) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "dropdown-item";
+      button.dataset.menu = item.action;
+
+      const label = document.createElement("span");
+      label.textContent = item.label;
+      button.append(label);
+
+      if (item.shortcut) {
+        const key = document.createElement("kbd");
+        key.textContent = item.shortcut;
+        button.append(key);
+      }
+
+      button.addEventListener("click", () => {
+        this.setOpenMenu(null);
+        this.callbacks.onMenu(item.action);
+      });
+      this.fileMenu.append(button);
     }
+
+    this.fileButton.addEventListener("click", () =>
+      this.setOpenMenu(this.openMenu === "file" ? null : "file"),
+    );
+    this.settingsButton.addEventListener("click", () =>
+      this.setOpenMenu(this.openMenu === "settings" ? null : "settings"),
+    );
+
+    // 바깥을 누르거나 Esc를 누르면 닫는다.
+    document.addEventListener("pointerdown", (event) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".dropdown")) return;
+      this.setOpenMenu(null);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") this.setOpenMenu(null);
+    });
+  }
+
+  /** 설정 메뉴를 밖에서 열 때 쓴다. */
+  openSettings(): void {
+    this.setOpenMenu("settings");
+  }
+
+  private setOpenMenu(menu: "file" | "settings" | null): void {
+    this.openMenu = menu;
+    hideTooltip();
+
+    this.fileMenu.classList.toggle("open", menu === "file");
+    this.settingsPanel.classList.toggle("open", menu === "settings");
+    this.fileButton.classList.toggle("active", menu === "file");
+    this.settingsButton.classList.toggle("active", menu === "settings");
+    this.fileButton.setAttribute("aria-expanded", String(menu === "file"));
+    this.settingsButton.setAttribute("aria-expanded", String(menu === "settings"));
+
+    if (menu === "settings") this.renderSettings();
+  }
+
+  /**
+   * 설정 패널 다시 그리기를 다음 차례로 미룬다.
+   * 입력칸에서 포커스가 빠질 때 값이 확정되는데, 그 자리에서 칸을 통째로 갈아 끼우면
+   * 브라우저가 처리하던 blur 대상이 사라져 버린다.
+   */
+  private scheduleSettingsRender(): void {
+    if (this.settingsPending) return;
+    this.settingsPending = true;
+    setTimeout(() => {
+      this.settingsPending = false;
+      if (this.openMenu === "settings") this.renderSettings();
+    }, 0);
+  }
+
+  /**
+   * 설정 내용. 캐릭터 하나에 딸린 값들이다.
+   * 이미지를 불러오기 전에는 바꿀 것이 없다.
+   */
+  private renderSettings(): void {
+    const { project, textureUrl, pixelArtReason } = this.store.get();
+    this.settingsPanel.replaceChildren();
+
+    if (!textureUrl) {
+      const hint = document.createElement("p");
+      hint.className = "hint";
+      hint.textContent = "이미지를 불러오면 설정할 수 있습니다.";
+      this.settingsPanel.append(hint);
+      return;
+    }
+
+    this.settingsPanel.append(
+      this.textField("이름", project.character.name, (value) =>
+        this.callbacks.onCharacterSetting({ name: value.trim() || "character" }),
+      ),
+    );
+
+    const size = document.createElement("p");
+    size.className = "hint";
+    size.textContent = `${project.character.texture} · ${project.character.width} × ${project.character.height}`;
+    this.settingsPanel.append(size);
+
+    // 그림 종류 — 불러올 때 자동으로 판정하고, 틀렸으면 여기서 바꾼다. (기획서 51)
+    this.settingsPanel.append(
+      this.choiceField(
+        "그림",
+        {
+          title: "그림 종류",
+          body: "도트로 보면 확대해도 픽셀이 또렷하게 남고, 일반으로 보면 부드럽게 뭉갭니다. 불러올 때 자동으로 판정합니다.",
+          meta: "여기서 바꾸면 자동 판정을 덮어씁니다",
+        },
+        [
+          { value: false, label: "일반" },
+          { value: true, label: "도트" },
+        ],
+        project.character.pixelArt,
+        (value) => this.callbacks.onCharacterSetting({ pixelArt: value }),
+      ),
+    );
+
+    if (pixelArtReason) {
+      const reason = document.createElement("p");
+      reason.className = "hint";
+      reason.textContent = `자동 판정: ${pixelArtReason}`;
+      this.settingsPanel.append(reason);
+    }
+
+    // 격자 해상도 (기획서 15)
+    const mesh = project.mesh;
+    this.settingsPanel.append(
+      this.choiceField(
+        "격자",
+        {
+          title: "Mesh 해상도",
+          body: "이미지를 몇 칸으로 나눠 변형할지 정합니다. 촘촘할수록 섬세하게 휘지만 무거워지고, 성길수록 가볍지만 뭉툭하게 휩니다. 칠한 영역을 보여 주는 점 패턴과는 무관합니다.",
+          meta: "바꿔도 칠해 둔 영향 영역은 새 격자로 옮겨 담습니다",
+        },
+        [
+          { value: "low" as const, label: "낮음" },
+          { value: "normal" as const, label: "보통" },
+          { value: "high" as const, label: "높음" },
+        ],
+        mesh?.resolution ?? "normal",
+        (value) => {
+          this.callbacks.onCharacterSetting({ resolution: value });
+          this.renderSettings();
+        },
+      ),
+    );
+
+    if (mesh) {
+      const grid = document.createElement("p");
+      grid.className = "hint";
+      grid.textContent = `${mesh.cols} × ${mesh.rows}칸 · 정점 ${(mesh.cols + 1) * (mesh.rows + 1)}개`;
+      this.settingsPanel.append(grid);
+    }
+  }
+
+  /** 몇 갈래 중 하나를 고르는 줄. 설정에서 여러 번 쓴다. */
+  private choiceField<T>(
+    label: string,
+    tip: { title: string; body: string; meta: string },
+    options: readonly { value: T; label: string }[],
+    current: T,
+    onPick: (value: T) => void,
+  ): HTMLDivElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "field field-choice";
+
+    const labelElement = document.createElement("label");
+    labelElement.textContent = label;
+    attachTooltip(labelElement, tip);
+
+    const row = document.createElement("div");
+    row.className = "choice-row";
+    for (const option of options) {
+      const button = document.createElement("button");
+      button.type = "button";
+      const on = option.value === current;
+      button.className = on ? "choice active-fill" : "choice";
+      button.textContent = option.label;
+      button.setAttribute("aria-pressed", String(on));
+      button.addEventListener("click", () => onPick(option.value));
+      row.append(button);
+    }
+
+    wrapper.append(labelElement, row);
+    return wrapper;
   }
 
   private render(): void {
@@ -532,6 +743,7 @@ export class EditorUI {
       ? "첫 관절은 캐릭터 전체의 기준(중심)이 됩니다"
       : "추가할 파츠 고르기";
 
+    if (this.openMenu === "settings") this.scheduleSettingsRender();
     this.renderAnimations();
     this.renderAnimationSettings();
     this.renderBoneList(project.bones, selectedBoneId);
@@ -761,114 +973,49 @@ export class EditorUI {
     return button;
   }
 
-  /**
-   * 캐릭터 설정. 관절을 고르지 않았을 때 자리를 채운다.
-   * 상단의 `설정` 메뉴를 따로 두는 대신 여기에 모았다.
-   */
+  /** 관절을 고르지 않았을 때. 캐릭터 요약만 보여 주고 설정은 상단으로 넘긴다. */
   private renderCharacterSettings(): void {
-    const { project, textureUrl, pixelArtReason } = this.store.get();
+    const { project, textureUrl } = this.store.get();
 
     if (!textureUrl) {
       const hint = document.createElement("p");
       hint.className = "hint";
-      hint.textContent = "이미지를 불러오면 캐릭터 설정이 여기 나옵니다.";
+      hint.textContent = "이미지를 불러오면 여기에 캐릭터 정보가 나옵니다.";
       this.inspector.append(hint);
       return;
     }
 
     const title = document.createElement("h3");
-    title.textContent = "캐릭터";
     title.className = "inspector-title";
+    title.textContent = "캐릭터";
     this.inspector.append(title);
 
-    this.inspector.append(
-      this.textField("이름", project.character.name, (value) =>
-        this.callbacks.onCharacterSetting({ name: value.trim() || "character" }),
-      ),
-    );
+    const summary = document.createElement("p");
+    summary.className = "hint";
+    summary.textContent = [
+      project.character.name,
+      `${project.character.width} × ${project.character.height}`,
+      project.character.pixelArt ? "도트" : "일반",
+      project.mesh ? `격자 ${project.mesh.cols} × ${project.mesh.rows}` : "격자 없음",
+      `관절 ${project.bones.length}개`,
+      `애니메이션 ${Object.keys(project.animations).length}개`,
+    ].join(" · ");
+    this.inspector.append(summary);
 
-    const size = document.createElement("p");
-    size.className = "hint";
-    size.textContent = `${project.character.width} × ${project.character.height} · ${project.character.texture}`;
-    this.inspector.append(size);
-
-    // 도트 모드 — 불러올 때 자동으로 판정하고, 틀렸으면 여기서 바꾼다. (기획서 51)
-    const pixelRow = document.createElement("div");
-    pixelRow.className = "field field-choice";
-    const pixelLabel = document.createElement("label");
-    pixelLabel.textContent = "그림";
-    attachTooltip(pixelLabel, {
-      title: "그림 종류",
-      body: "도트로 보면 확대해도 픽셀이 또렷하게 남고, 일반으로 보면 부드럽게 뭉갭니다. 이미지를 불러올 때 자동으로 판정합니다.",
-      meta: pixelArtReason ? `자동 판정: ${pixelArtReason}` : "판정 근거 없음",
+    const actions = document.createElement("div");
+    actions.className = "inspector-actions";
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "outlined";
+    open.textContent = "설정 열기";
+    attachTooltip(open, {
+      title: "설정",
+      body: "이름 · 그림 종류(일반/도트) · 격자 해상도를 바꿉니다.",
+      meta: "상단 `설정` 버튼과 같은 곳입니다",
     });
-
-    const pixelChoices = document.createElement("div");
-    pixelChoices.className = "choice-row";
-    for (const [value, label] of [
-      [false, "일반"],
-      [true, "도트"],
-    ] as const) {
-      const button = document.createElement("button");
-      button.type = "button";
-      const on = project.character.pixelArt === value;
-      button.className = on ? "choice active-fill" : "choice";
-      button.textContent = label;
-      button.setAttribute("aria-pressed", String(on));
-      button.addEventListener("click", () =>
-        this.callbacks.onCharacterSetting({ pixelArt: value }),
-      );
-      pixelChoices.append(button);
-    }
-    pixelRow.append(pixelLabel, pixelChoices);
-    this.inspector.append(pixelRow);
-
-    if (pixelArtReason) {
-      const reason = document.createElement("p");
-      reason.className = "hint";
-      reason.textContent = `자동 판정: ${pixelArtReason}`;
-      this.inspector.append(reason);
-    }
-
-    // Mesh 해상도 (기획서 15)
-    const mesh = project.mesh;
-    const meshRow = document.createElement("div");
-    meshRow.className = "field field-choice";
-    const meshLabel = document.createElement("label");
-    meshLabel.textContent = "격자";
-    attachTooltip(meshLabel, {
-      title: "Mesh 해상도",
-      body: "이미지를 몇 칸으로 나눠 변형할지 정합니다. 촘촘할수록 섬세하게 휘지만 무거워지고, 성길수록 가볍지만 뭉툭하게 휩니다.",
-      meta: "바꿔도 칠해 둔 영향 영역은 새 격자로 옮겨 담습니다",
-    });
-
-    const meshChoices = document.createElement("div");
-    meshChoices.className = "choice-row";
-    for (const [value, label] of [
-      ["low", "낮음"],
-      ["normal", "보통"],
-      ["high", "높음"],
-    ] as const) {
-      const button = document.createElement("button");
-      button.type = "button";
-      const on = mesh?.resolution === value;
-      button.className = on ? "choice active-fill" : "choice";
-      button.textContent = label;
-      button.setAttribute("aria-pressed", String(on));
-      button.addEventListener("click", () =>
-        this.callbacks.onCharacterSetting({ resolution: value }),
-      );
-      meshChoices.append(button);
-    }
-    meshRow.append(meshLabel, meshChoices);
-    this.inspector.append(meshRow);
-
-    if (mesh) {
-      const gridInfo = document.createElement("p");
-      gridInfo.className = "hint";
-      gridInfo.textContent = `${mesh.cols} × ${mesh.rows}칸 · 정점 ${(mesh.cols + 1) * (mesh.rows + 1)}개`;
-      this.inspector.append(gridInfo);
-    }
+    open.addEventListener("click", () => this.openSettings());
+    actions.append(open);
+    this.inspector.append(actions);
 
     const pick = document.createElement("p");
     pick.className = "hint";

@@ -10,11 +10,18 @@
       <header class="topbar">
         <span class="brand">PuppetForge</span>
         <nav class="menu">
-          <button type="button" data-menu="new">새 프로젝트</button>
-          <button type="button" data-menu="import-image">이미지 불러오기</button>
-          <button type="button" data-menu="open">프로젝트 열기</button>
-          <button type="button" data-menu="save">프로젝트 저장</button>
-          <button type="button" data-menu="export">내보내기</button>
+          <div class="dropdown">
+            <button type="button" id="fileButton" aria-haspopup="true" aria-expanded="false">
+              파일
+            </button>
+            <div class="dropdown-panel" id="fileMenu"></div>
+          </div>
+          <div class="dropdown">
+            <button type="button" id="settingsButton" aria-haspopup="true" aria-expanded="false">
+              설정
+            </button>
+            <div class="dropdown-panel wide" id="settingsPanel"></div>
+          </div>
         </nav>
         <div class="layers" id="layerToggles" aria-label="캔버스 표시"></div>
       </header>

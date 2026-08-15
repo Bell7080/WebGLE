@@ -85,6 +85,59 @@ body {
   margin-left: auto;
 }
 
+/* 눌러서 펼치는 메뉴. 상단에 버튼을 늘어놓지 않기 위한 것이다. */
+.dropdown {
+  position: relative;
+}
+
+.dropdown-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 184px;
+  padding: 5px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+}
+
+.dropdown-panel.open {
+  display: block;
+}
+
+.dropdown-panel.wide {
+  min-width: 248px;
+  padding: 10px;
+}
+
+.dropdown-panel .hint {
+  margin: 0 0 8px;
+  padding: 0 2px;
+}
+
+.dropdown-panel .field {
+  padding: 3px 0 6px;
+}
+
+button.dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+button.dropdown-item kbd {
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
 /* ── 컨트롤 공통 ───────────────────────────── */
 button {
   background: transparent;
