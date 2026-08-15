@@ -281,7 +281,8 @@ export class EditorScene extends Phaser.Scene {
     // Phaser는 Mesh 자신의 변환이 그대로면 정점 투영을 건너뛴다.
     // 변형 중에는 매 프레임 다시 계산하게 두고, 멈추면 한 번만 갱신하고 다시 건너뛰게 한다.
     meshObject.ignoreDirtyCache = deformed !== null;
-    if (!deformed) meshObject.dirtyCache[10] = 1;
+    // dirtyCache[10]은 "뷰 행렬이 바뀌었다" 표시다. 타입 정의에는 빠져 있어 직접 접근한다.
+    if (!deformed) (meshObject as unknown as { dirtyCache: number[] }).dirtyCache[10] = 1;
 
     this.redrawOverlay();
   }
