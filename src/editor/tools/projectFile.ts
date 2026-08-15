@@ -34,6 +34,29 @@ export async function packProject(
   return new Blob([createZip(entries) as unknown as BlobPart], { type: "application/zip" });
 }
 
+/**
+ * 게임에 넘길 내보내기 묶음. (기획서 38, 76)
+ *
+ * 숨김으로 표시한 애니메이션은 빠진다. 프로젝트 파일에는 그대로 남으므로
+ * 시안을 지우지 않고도 결과물만 골라 낼 수 있다.
+ */
+export function forExport(project: PuppetProject): PuppetProject {
+  const animations = Object.fromEntries(
+    Object.entries(project.animations)
+      .filter(([, animation]) => !animation.hidden)
+      .map(([id, animation]) => {
+        const { hidden: _hidden, ...rest } = animation;
+        return [id, rest];
+      }),
+  );
+  return { ...project, animations };
+}
+
+export function exportFileName(project: PuppetProject): string {
+  const safe = (project.character.name || "character").replace(/[\\/:*?"<>|]/g, "_").trim();
+  return `${safe || "character"}.export.zip`;
+}
+
 export interface LoadedProject {
   project: PuppetProject;
   /** 프로젝트에 이미지가 들어 있으면 그 Object URL. */

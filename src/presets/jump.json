@@ -1,0 +1,18 @@
+{
+  "name": "jump",
+  "duration": 1.1,
+  "loop": false,
+  "tracks": [
+    { "target": { "kind": "tag", "tag": "root" }, "property": "y",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.18, "value": 8, "ease": "smooth" }, { "time": 0.5, "value": -46, "ease": "smooth" }, { "time": 0.82, "value": 6, "ease": "smooth" }, { "time": 1.1, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "core" }, "property": "scaleY",
+      "keys": [ { "time": 0, "value": 1 }, { "time": 0.18, "value": 0.86, "ease": "smooth" }, { "time": 0.32, "value": 1.14, "ease": "smooth" }, { "time": 0.5, "value": 1, "ease": "smooth" }, { "time": 0.82, "value": 0.84, "ease": "smooth" }, { "time": 1.1, "value": 1, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "core" }, "property": "scaleX",
+      "keys": [ { "time": 0, "value": 1 }, { "time": 0.18, "value": 1.12, "ease": "smooth" }, { "time": 0.32, "value": 0.92, "ease": "smooth" }, { "time": 0.5, "value": 1, "ease": "smooth" }, { "time": 0.82, "value": 1.16, "ease": "smooth" }, { "time": 1.1, "value": 1, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "leg" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0 }, { "time": 0.18, "value": 0.22, "ease": "smooth" }, { "time": 0.5, "value": -0.18, "ease": "smooth" }, { "time": 0.82, "value": 0.26, "ease": "smooth" }, { "time": 1.1, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "secondary" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0 }, { "time": 0.3, "value": -0.2, "ease": "smooth" }, { "time": 0.62, "value": 0.24, "ease": "smooth" }, { "time": 1.1, "value": 0, "ease": "smooth" } ] }
+  ],
+  "events": [{ "time": 0.18, "event": "takeoff" }, { "time": 0.82, "event": "land" }]
+}

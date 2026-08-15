@@ -74,6 +74,16 @@ export function suggestTags(
   return tags;
 }
 
+/**
+ * 첫 관절로 쓸 파츠. 캐릭터 전체의 기준이 되므로 `중심`으로 고정한다.
+ * 관절이 하나라도 있으면 사용자가 고른 파츠를 그대로 쓴다.
+ */
+export const ROOT_PART = "중심";
+
+export function partForNewBone(selected: string, bones: readonly PuppetBone[]): string {
+  return bones.length === 0 ? ROOT_PART : selected;
+}
+
 /** 아직 쓰지 않은 색 중 가장 앞선 것. 지웠다 다시 만들어도 색이 겹치지 않는다. */
 export function nextBoneColor(bones: readonly PuppetBone[]): string {
   const used = new Set(bones.map((bone) => bone.color));

@@ -2,7 +2,7 @@ import "./style.css";
 
 import {
   createBone,
-  type PuppetAnimation,
+  partForNewBone,
   type PuppetBone,
   type PuppetProject,
 } from "@core/format";
@@ -26,11 +26,13 @@ import { buildAlphaMap, sampleAlphaMask, type AlphaMap } from "@editor/tools/alp
 import { renderWeightOverlay } from "@editor/tools/weightOverlay";
 import {
   downloadBlob,
+  exportFileName,
+  forExport,
   packProject,
   projectFileName,
   unpackProject,
 } from "@editor/tools/projectFile";
-import idlePreset from "./presets/idle.json";
+import { findPreset, PRESETS } from "./presets";
 
 const canvasArea = document.getElementById("canvasArea") as HTMLElement;
 const imageInput = document.getElementById("imageInput") as HTMLInputElement;
@@ -42,11 +44,6 @@ let alphaMap: AlphaMap | null = null;
 const history = new UndoStack<PuppetProject>();
 const player = new AnimationPlayer();
 
-/** 기본 애니메이션 프리셋. 새 모션은 JSON 추가만으로 늘린다. (기획서 26) */
-const PRESETS: Record<string, PuppetAnimation> = {
-  idle: idlePreset as unknown as PuppetAnimation,
-};
-
 const view = await createCanvasView(canvasArea);
 
 const ui = new EditorUI(store, {
@@ -54,7 +51,10 @@ const ui = new EditorUI(store, {
     const { x, y } = view.scene.getViewCenter((store.get().project.bones.length % 6) * 14);
     commit((current) => ({
       ...current,
-      bones: [...current.bones, createBone(part, Math.round(x), Math.round(y), current.bones)],
+      bones: [
+        ...current.bones,
+        createBone(partForNewBone(part, current.bones), Math.round(x), Math.round(y), current.bones),
+      ],
     }));
     const added = store.get().project.bones.at(-1);
     if (added) {
@@ -117,6 +117,9 @@ const ui = new EditorUI(store, {
       case "save":
         void saveProject();
         break;
+      case "export":
+        void exportProject();
+        break;
       case "new":
         resetProject();
         break;
@@ -127,6 +130,45 @@ const ui = new EditorUI(store, {
 
   onPlay: (animationId) => playAnimation(animationId),
   onStop: () => stopAnimation(),
+
+  onAddAnimation: (presetId) => {
+    const preset = findPreset(presetId);
+    if (!preset) return;
+
+    commit((current) => ({
+      ...current,
+      animations: { ...current.animations, [presetId]: structuredClone(preset.animation) },
+    }));
+    ui.setStatus(`${preset.label} 추가`);
+    playAnimation(presetId);
+  },
+
+  onRemoveAnimation: (animationId) => {
+    if (store.get().playing === animationId) stopAnimation();
+    commit((current) => {
+      const { [animationId]: _removed, ...rest } = current.animations;
+      return { ...current, animations: rest };
+    });
+    ui.setStatus("애니메이션을 삭제했습니다.");
+  },
+
+  onToggleAnimationHidden: (animationId) => {
+    let hidden = false;
+    commit((current) => {
+      const animation = current.animations[animationId];
+      if (!animation) return current;
+      hidden = !animation.hidden;
+      return {
+        ...current,
+        animations: { ...current.animations, [animationId]: { ...animation, hidden } },
+      };
+    });
+    ui.setStatus(
+      hidden ? "내보내기에서 제외했습니다. 파일에는 남습니다." : "내보내기에 다시 포함합니다.",
+    );
+  },
+
+  onExport: () => void exportProject(),
 });
 
 /** 프로젝트 변경 한 번을 Undo 단위로 기록한다. (기획서 36) */
@@ -235,19 +277,18 @@ function syncPaintMode(brush: BrushState = store.get().brush): void {
 // ── 애니메이션 재생 (기획서 30, 32) ────────────────────────────
 
 function playAnimation(animationId: string): void {
-  const preset = PRESETS[animationId];
-  if (!preset) {
-    ui.setStatus("아직 준비 중인 애니메이션입니다.");
+  const { project } = store.get();
+  const animation = project.animations[animationId];
+  if (!animation) {
+    ui.setStatus("목록에 없는 애니메이션입니다.");
     return;
   }
-
-  const { project } = store.get();
   if (!project.mesh) {
     ui.setStatus("이미지를 먼저 불러오세요.");
     return;
   }
 
-  player.play(preset);
+  player.play(animation);
   view.scene.setWeightOverlay(null);
   store.set({ playing: animationId });
   ui.setStatus(`재생: ${animationId}`);
@@ -324,6 +365,11 @@ async function importImage(file: File): Promise<void> {
         height: image.height,
       },
       mesh,
+      // 처음 불러올 때는 대기 하나를 넣어 둔다. 하단에서 더하거나 빼면 된다.
+      animations:
+        Object.keys(project.animations).length === 0
+          ? { idle: structuredClone(PRESETS[0]!.animation) }
+          : project.animations,
     }));
     alphaMap = buildAlphaMap(image);
     store.set({ textureUrl: url, weights: {}, mask: sampleAlphaMask(alphaMap, mesh) });
@@ -346,6 +392,26 @@ async function saveProject(): Promise<void> {
     ui.setStatus(`저장: ${projectFileName(project)}`);
   } catch (error) {
     ui.setStatus(error instanceof Error ? error.message : "저장하지 못했습니다.");
+  }
+}
+
+/** 게임에 넘길 묶음. 숨긴 애니메이션은 빠진다. */
+async function exportProject(): Promise<void> {
+  const { project, textureUrl } = store.get();
+  const shipped = forExport(project);
+  const names = Object.keys(shipped.animations);
+
+  if (names.length === 0) {
+    ui.setStatus("내보낼 애니메이션이 없습니다. 하단에서 추가하세요.");
+    return;
+  }
+
+  try {
+    const blob = await packProject(shipped, textureUrl);
+    downloadBlob(blob, exportFileName(project));
+    ui.setStatus(`내보냄: ${names.length}개 (${names.join(", ")})`);
+  } catch (error) {
+    ui.setStatus(error instanceof Error ? error.message : "내보내지 못했습니다.");
   }
 }
 

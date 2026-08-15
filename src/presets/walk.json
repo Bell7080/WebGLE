@@ -1,0 +1,18 @@
+{
+  "name": "walk",
+  "duration": 0.8,
+  "loop": true,
+  "tracks": [
+    { "target": { "kind": "tag", "tag": "root" }, "property": "y",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.2, "value": -4, "ease": "smooth" }, { "time": 0.4, "value": 0, "ease": "smooth" }, { "time": 0.6, "value": -4, "ease": "smooth" }, { "time": 0.8, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "core" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.4, "value": 0.05, "ease": "smooth" }, { "time": 0.8, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "leg" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0.22, "ease": "smooth" }, { "time": 0.4, "value": -0.22, "ease": "smooth" }, { "time": 0.8, "value": 0.22, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "arm" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": -0.18, "ease": "smooth" }, { "time": 0.4, "value": 0.18, "ease": "smooth" }, { "time": 0.8, "value": -0.18, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "secondary" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0.08, "ease": "smooth" }, { "time": 0.45, "value": -0.08, "ease": "smooth" }, { "time": 0.8, "value": 0.08, "ease": "smooth" } ] }
+  ],
+  "events": [{ "time": 0.05, "event": "step" }, { "time": 0.45, "event": "step" }]
+}

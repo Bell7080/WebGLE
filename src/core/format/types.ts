@@ -8,8 +8,9 @@
 export const PUPPET_FORMAT = "puppetforge" as const;
 /**
  * 3: Bone 변형 방식을 움직임/찌그러짐 조합 4가지로 확장했다.
+ * 4: 애니메이션에 hidden 추가. 파일에는 남기되 내보내기에서만 뺀다.
  */
-export const PUPPET_VERSION = 3 as const;
+export const PUPPET_VERSION = 4 as const;
 
 /**
  * Bone의 변형 방식. (기획서 19 확장)
@@ -117,6 +118,11 @@ export interface PuppetAnimation {
   loop: boolean;
   tracks: AnimationTrack[];
   events?: AnimationEvent[];
+  /**
+   * 숨김. 프로젝트 파일에는 그대로 남지만 내보내기 결과에서는 빠진다.
+   * 지우기 아까운 시안을 들고 다니되 게임에는 넘기지 않을 때 쓴다.
+   */
+  hidden?: boolean;
 }
 
 export interface PuppetCharacter {

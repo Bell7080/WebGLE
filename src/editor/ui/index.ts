@@ -1,7 +1,7 @@
 import {
-  ANIMATION_BUTTONS,
   OVERLAY_LAYERS,
   PART_NAMES,
+  ROOT_PART,
   TAG_CATALOG,
   TAG_DESCRIPTIONS,
   TAG_GROUPS,
@@ -11,6 +11,12 @@ import {
 import { canReparent } from "@core/skeleton";
 import type { BrushState, EditorStore } from "../state/store";
 import { createColorWheel } from "./colorWheel";
+import { findPreset, PRESETS } from "../../presets";
+
+/** 프리셋 id의 한국어 이름. 목록에 없는 것(직접 만든 것)은 id를 그대로 쓴다. */
+function presetLabel(id: string): string {
+  return findPreset(id)?.label ?? id;
+}
 
 export interface EditorUICallbacks {
   onAddBone(part: string): void;
@@ -21,6 +27,10 @@ export interface EditorUICallbacks {
   onMenu(action: string): void;
   onPlay(animationId: string): void;
   onStop(): void;
+  onAddAnimation(presetId: string): void;
+  onRemoveAnimation(animationId: string): void;
+  onToggleAnimationHidden(animationId: string): void;
+  onExport(): void;
   onBrushChange(patch: Partial<BrushState>): void;
 }
 
@@ -64,6 +74,7 @@ export class EditorUI {
   private readonly boneHint = requireElement<HTMLParagraphElement>("boneHint");
   private readonly inspector = requireElement<HTMLDivElement>("inspector");
   private readonly animButtons = requireElement<HTMLDivElement>("animButtons");
+  private readonly animPicker = requireElement<HTMLDivElement>("animPicker");
   private readonly statusText = requireElement<HTMLSpanElement>("statusText");
   private readonly dropzone = requireElement<HTMLDivElement>("dropzone");
   private readonly addBoneButton = requireElement<HTMLButtonElement>("addBoneButton");
@@ -73,6 +84,8 @@ export class EditorUI {
   private colorOpenBoneId: string | null = null;
   /** 태그 고르기 패널을 펼쳐 둔 관절. */
   private tagPickerBoneId: string | null = null;
+  /** 애니메이션 추가 목록을 펼쳤는지. */
+  private animPickerOpen = false;
 
   constructor(
     private readonly store: EditorStore,
@@ -109,19 +122,98 @@ export class EditorUI {
   }
 
   private buildAnimButtons(): void {
-    for (const animation of ANIMATION_BUTTONS) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = animation.label;
-      button.addEventListener("click", () => this.callbacks.onPlay(animation.id));
-      this.animButtons.append(button);
-    }
-    requireElement<HTMLButtonElement>("playButton").addEventListener("click", () =>
-      this.callbacks.onPlay("idle"),
-    );
+    requireElement<HTMLButtonElement>("playButton").addEventListener("click", () => {
+      const first = Object.keys(this.store.get().project.animations)[0];
+      if (first) this.callbacks.onPlay(first);
+    });
     requireElement<HTMLButtonElement>("stopButton").addEventListener("click", () =>
       this.callbacks.onStop(),
     );
+  }
+
+  /**
+   * 하단 애니메이션 목록. 프로젝트가 가진 것만 보여 준다. (기획서 30)
+   * 각 칸: 이름을 누르면 재생, `−`는 내보내기에서만 빼기(숨김), `×`는 아예 삭제.
+   */
+  private renderAnimations(): void {
+    const { project, playing } = this.store.get();
+    this.animButtons.replaceChildren();
+
+    const entries = Object.entries(project.animations);
+    for (const [id, animation] of entries) {
+      const item = document.createElement("div");
+      item.className = "anim-item";
+      if (animation.hidden) item.classList.add("hidden-anim");
+      if (playing === id) item.classList.add("playing");
+
+      const play = document.createElement("button");
+      play.type = "button";
+      play.className = "anim-play";
+      play.textContent = presetLabel(id);
+      play.title = animation.hidden
+        ? `${presetLabel(id)} 재생 · 지금은 내보내기에서 제외됨`
+        : `${presetLabel(id)} 재생`;
+      play.addEventListener("click", () => this.callbacks.onPlay(id));
+
+      const hide = document.createElement("button");
+      hide.type = "button";
+      hide.className = "anim-hide";
+      hide.textContent = animation.hidden ? "+" : "−";
+      hide.title = animation.hidden
+        ? "내보내기에 다시 포함"
+        : "내보내기에서만 빼기 (파일에는 남는다)";
+      hide.setAttribute("aria-label", hide.title);
+      hide.addEventListener("click", () => this.callbacks.onToggleAnimationHidden(id));
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "anim-remove";
+      remove.textContent = "×";
+      remove.title = `${presetLabel(id)} 삭제`;
+      remove.setAttribute("aria-label", remove.title);
+      remove.addEventListener("click", () => this.callbacks.onRemoveAnimation(id));
+
+      item.append(play, hide, remove);
+      this.animButtons.append(item);
+    }
+
+    if (entries.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "anim-empty";
+      empty.textContent = "애니메이션 없음";
+      this.animButtons.append(empty);
+    }
+
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "anim-add";
+    add.textContent = this.animPickerOpen ? "닫기" : "+";
+    add.title = "애니메이션 추가";
+    add.addEventListener("click", () => {
+      this.animPickerOpen = !this.animPickerOpen;
+      this.render();
+    });
+    this.animButtons.append(add);
+
+    this.animPicker.replaceChildren();
+    this.animPicker.classList.toggle("open", this.animPickerOpen);
+    if (!this.animPickerOpen) return;
+
+    for (const preset of PRESETS) {
+      const already = Boolean(project.animations[preset.id]);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = already ? "outlined" : "";
+      button.disabled = already;
+      button.textContent = preset.label;
+      button.title = already ? `${preset.label} — 이미 추가됨` : preset.description;
+      button.addEventListener("click", () => {
+        this.callbacks.onAddAnimation(preset.id);
+        this.animPickerOpen = false;
+        this.render();
+      });
+      this.animPicker.append(button);
+    }
   }
 
   /** 어떤 파츠를 추가할지 고르는 목록. (기획서 9) */
@@ -157,8 +249,16 @@ export class EditorUI {
 
     this.dropzone.classList.toggle("hidden", textureUrl !== null);
     this.addBoneButton.disabled = textureUrl === null;
-    this.partSelect.disabled = textureUrl === null;
 
+    // 첫 관절은 캐릭터 전체의 기준이 되므로 `중심`으로 고정한다.
+    const firstBone = project.bones.length === 0;
+    this.partSelect.disabled = textureUrl === null || firstBone;
+    if (firstBone) this.partSelect.value = ROOT_PART;
+    this.partSelect.title = firstBone
+      ? "첫 관절은 캐릭터 전체의 기준(중심)이 됩니다"
+      : "추가할 파츠 고르기";
+
+    this.renderAnimations();
     this.renderBoneList(project.bones, selectedBoneId);
     this.renderInspector(project.bones, selectedBoneId);
   }

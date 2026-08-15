@@ -2,6 +2,7 @@ import type { MeshResolution } from "./types";
 
 /** GUI에서 고를 수 있는 기본 파츠 이름. (기획서 9) */
 export const PART_NAMES = [
+  "중심",
   "머리",
   "중심머리",
   "몸통",
@@ -121,6 +122,7 @@ export const DEFAULT_TAGS = TAG_CATALOG.map((tag) => tag.id);
  * 사용자가 수정할 수 있으며, 엔진은 태그만 신뢰한다.
  */
 export const SUGGESTED_TAGS: Record<string, string[]> = {
+  중심: ["root", "core", "body"],
   머리: ["head"],
   중심머리: ["head", "core"],
   몸통: ["body", "core"],

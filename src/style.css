@@ -650,7 +650,92 @@ button.tool .glyph {
 .transport {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
+}
+
+/* 애니메이션 한 칸: 이름(재생) + 숨김 + 삭제 */
+.anim-item {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.anim-item .anim-play {
+  border: none;
+  border-radius: 0;
+  padding: 4px 8px;
+  color: var(--text);
+}
+
+.anim-item .anim-hide,
+.anim-item .anim-remove {
+  border: none;
+  border-radius: 0;
+  padding: 4px 5px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-3);
+  border-left: 1px solid var(--line);
+}
+
+.anim-item .anim-hide:hover,
+.anim-item .anim-remove:hover {
+  color: var(--text);
+  background: var(--bg-control-hover);
+}
+
+.anim-item.playing {
+  border-color: var(--sel-line);
+}
+
+.anim-item.playing .anim-play {
+  background: var(--sel-bg);
+  font-weight: 600;
+}
+
+/* 숨김: 파일에는 남지만 내보내기에서 빠진 상태 */
+.anim-item.hidden-anim {
+  border-style: dashed;
+}
+
+.anim-item.hidden-anim .anim-play {
+  color: var(--text-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-3);
+}
+
+.anim-empty {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.anim-add {
+  border: 1px dashed var(--line-strong);
+  padding: 4px 9px;
+}
+
+/* 추가 목록은 바 위에 띄운다 */
+.anim-picker {
+  display: none;
+  position: absolute;
+  bottom: var(--animbar-h);
+  left: 12px;
+  gap: 3px;
+  padding: 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.anim-picker.open {
+  display: flex;
+}
+
+.animbar {
+  position: relative;
 }
 
 .transport {
