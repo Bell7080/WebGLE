@@ -3,6 +3,7 @@ import type { PuppetAnimation, PuppetBone } from "../src/core/format";
 import {
   AnimationPlayer,
   collectEvents,
+  deformModesFor,
   evaluateAnimation,
   resolveTargets,
   sampleTrack,
@@ -178,5 +179,58 @@ describe("재생", () => {
     player.play(idle);
     player.stop();
     expect(player.current).toBeNull();
+  });
+});
+
+describe("애니메이션별 변형 방식 덮어쓰기", () => {
+  const bones = [bone("발", ["foot"]), bone("몸통", ["body"])];
+
+  it("덮어쓰기가 없으면 Bone의 공용 값을 쓴다", () => {
+    const modes = deformModesFor(bones, { name: "attack", duration: 1, loop: false, tracks: [] });
+    expect(modes.get("발")).toBe("soft");
+    expect(modes.get("몸통")).toBe("soft");
+  });
+
+  it("적어 둔 관절만 덮어쓴다", () => {
+    const idle = {
+      name: "idle",
+      duration: 1,
+      loop: true,
+      tracks: [],
+      deform: { 발: "pinnedSoft" as const },
+    };
+    const modes = deformModesFor(bones, idle);
+    expect(modes.get("발")).toBe("pinnedSoft");
+    expect(modes.get("몸통")).toBe("soft");
+  });
+
+  it("애니메이션이 없으면 공용 값 그대로다", () => {
+    expect(deformModesFor(bones, null).get("발")).toBe("soft");
+    expect(deformModesFor(bones).get("발")).toBe("soft");
+  });
+
+  it("없는 관절의 덮어쓰기는 조용히 무시한다", () => {
+    const modes = deformModesFor(bones, {
+      name: "idle",
+      duration: 1,
+      loop: true,
+      tracks: [],
+      deform: { 지워진관절: "fixed" as const },
+    });
+    expect(modes.size).toBe(2);
+    expect(modes.has("지워진관절")).toBe(false);
+  });
+
+  it("한 애니메이션의 덮어쓰기가 다른 애니메이션에 새지 않는다", () => {
+    const idle = {
+      name: "idle",
+      duration: 1,
+      loop: true,
+      tracks: [],
+      deform: { 발: "pinnedSoft" as const },
+    };
+    const attack = { name: "attack", duration: 1, loop: false, tracks: [] };
+    expect(deformModesFor(bones, idle).get("발")).toBe("pinnedSoft");
+    expect(deformModesFor(bones, attack).get("발")).toBe("soft");
   });
 });

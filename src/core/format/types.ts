@@ -13,8 +13,9 @@ export const PUPPET_FORMAT = "puppetforge" as const;
  * 6: 애니메이션에 secondary(따라 흔들림) 추가. 없으면 1로 본다.
  * 7: Track에 stagger(대상별 시간 어긋냄) 추가. 없으면 0으로 본다.
  * 8: Track에 focus / focusOther(동작의 주인공 고르기) 추가. 없으면 전부 똑같이 움직인다.
+ * 9: 애니메이션에 deform(관절별 변형 방식 덮어쓰기) 추가. 없으면 Bone의 값을 그대로 쓴다.
  */
-export const PUPPET_VERSION = 8 as const;
+export const PUPPET_VERSION = 9 as const;
 
 /**
  * Bone의 변형 방식. (기획서 19 확장)
@@ -172,6 +173,16 @@ export interface PuppetAnimation {
    * `secondary` 태그가 붙은 관절이 몸을 한 박자 늦게 따라 흔들리는 정도다.
    */
   secondary?: number;
+
+  /**
+   * 이 애니메이션에서만 다르게 쓸 관절별 변형 방식. 키는 Bone의 id다.
+   *
+   * Bone의 `deform`은 모든 애니메이션이 함께 쓰는 값이고, 여기 적힌 관절만 그 값을 덮어쓴다.
+   * 없는 관절은 Bone의 값을 그대로 따른다.
+   *
+   * 대기에서만 발을 바닥에 묶어 두고 공격에서는 발을 떼게 하려는 것이다.
+   */
+  deform?: Record<string, DeformMode>;
 }
 
 export interface PuppetCharacter {

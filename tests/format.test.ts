@@ -59,6 +59,22 @@ describe("프로젝트 직렬화", () => {
     expect(restored).toEqual(project);
   });
 
+  it("애니메이션의 관절별 변형 덮어쓰기도 그대로 남는다", () => {
+    const project = createEmptyProject({ name: "사람", width: 256, height: 256 });
+    const 발 = createBone("발", 100, 240, project.bones);
+    project.bones.push(발);
+    project.animations["idle"] = {
+      name: "idle",
+      duration: 1,
+      loop: true,
+      tracks: [],
+      deform: { [발.id]: "pinnedSoft" },
+    };
+
+    const restored = parseProject(JSON.parse(serializeProject(project)));
+    expect(restored.animations["idle"]?.deform).toEqual({ [발.id]: "pinnedSoft" });
+  });
+
   it("PuppetForge 파일이 아니면 거부한다", () => {
     expect(() => parseProject({ format: "spine", version: 1 })).toThrow(PuppetFormatError);
   });

@@ -1,5 +1,6 @@
 import type {
   AnimationTrack,
+  DeformMode,
   Interpolation,
   Keyframe,
   PuppetAnimation,
@@ -44,6 +45,27 @@ function interpolate(from: number, to: number, t: number, ease: Interpolation): 
     default:
       return from + (to - from) * t;
   }
+}
+
+/**
+ * 지금 재생할 애니메이션에서 쓸 관절별 변형 방식.
+ *
+ * Bone의 `deform`이 모든 애니메이션이 함께 쓰는 값이고,
+ * 애니메이션에 적힌 관절만 그 값을 덮어쓴다. 애니메이션이 없으면 공용 값 그대로다.
+ * 지금 없는 관절의 덮어쓰기는 조용히 무시한다. (기획서 64)
+ */
+export function deformModesFor(
+  bones: readonly PuppetBone[],
+  animation?: PuppetAnimation | null,
+): Map<string, DeformMode> {
+  const modes = new Map(bones.map((bone) => [bone.id, bone.deform]));
+  const overrides = animation?.deform;
+  if (!overrides) return modes;
+
+  for (const [boneId, mode] of Object.entries(overrides)) {
+    if (modes.has(boneId)) modes.set(boneId, mode);
+  }
+  return modes;
 }
 
 /** 주인공이 아닌 대상이 받을 기본 비율. 멈추지는 않고 거드는 정도로 움직인다. */

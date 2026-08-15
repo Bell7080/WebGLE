@@ -5,6 +5,7 @@ import {
   TAG_CATALOG,
   TAG_DESCRIPTIONS,
   TAG_GROUPS,
+  type DeformMode,
   type OverlayLayer,
   type PuppetBone,
 } from "@core/format";
@@ -64,6 +65,10 @@ export interface EditorUICallbacks {
     animationId: string,
     patch: { speed?: number; strength?: number; secondary?: number },
   ): void;
+  /**
+   * 이 애니메이션에서만 쓸 관절 변형 방식. mode가 null이면 덮어쓰기를 지우고 공용 값을 따른다.
+   */
+  onAnimationDeform(animationId: string, boneId: string, mode: DeformMode | null): void;
   onExport(): void;
   /** 캐릭터 전체 설정. 관절을 고르지 않았을 때 속성 패널에 나온다. */
   onCharacterSetting(patch: {
@@ -189,6 +194,8 @@ export class EditorUI {
   /** 상단에서 펼쳐 둔 메뉴. */
   private openMenu: "file" | "settings" | null = null;
   private settingsPending = false;
+  /** 변형 값을 고른 애니메이션 기준으로 편집하는 중인지. 기본은 공용이다. */
+  private deformScoped = false;
   /** 마지막으로 그린 애니메이션 목록의 모양. 같으면 다시 그리지 않는다. */
   private animSignature = "";
   /** 속도 · 강도 줄이 지금 어느 애니메이션을 보여 주고 있는지. */
@@ -1386,29 +1393,123 @@ export class EditorUI {
       meta: "마우스를 각 버튼에 올리면 어떤 파츠에 맞는지 설명이 나옵니다",
     });
 
+    const { project, selectedAnimation } = this.store.get();
+    const animation = selectedAnimation ? project.animations[selectedAnimation] : undefined;
+    const override = animation?.deform?.[bone.id];
+    // 애니메이션을 고른 상태에서만 "이 동작에서만" 탭이 생긴다.
+    const scoped = Boolean(selectedAnimation && animation && this.deformScoped);
+    const current = scoped ? (override ?? bone.deform) : bone.deform;
+
     const grid = document.createElement("div");
     grid.className = "deform-grid";
 
     for (const option of DEFORM_OPTIONS) {
-      const on = bone.deform === option.id;
+      const on = current === option.id;
       const button = document.createElement("button");
       button.type = "button";
       button.className = on ? "deform-option active-fill" : "deform-option";
+      // 덮어쓰지 않고 공용 값을 따르는 중이면 옅게 표시해 구분한다.
+      if (on && scoped && !override) button.classList.add("inherited");
       button.textContent = option.short;
       button.setAttribute("aria-pressed", String(on));
       attachTooltip(button, {
         title: `${option.short} — ${option.label}`,
         body: option.help,
-        meta: `예: ${option.examples}`,
+        meta: scoped
+          ? `${selectedAnimation}에서만 이렇게 씁니다 · 예: ${option.examples}`
+          : `예: ${option.examples}`,
       });
-      button.addEventListener("click", () =>
-        this.callbacks.onUpdateBone(bone.id, { deform: option.id }),
-      );
+      button.addEventListener("click", () => {
+        if (scoped && selectedAnimation) {
+          this.callbacks.onAnimationDeform(selectedAnimation, bone.id, option.id);
+        } else {
+          this.callbacks.onUpdateBone(bone.id, { deform: option.id });
+        }
+      });
       grid.append(button);
     }
 
     wrapper.append(label, grid);
+    if (!selectedAnimation || !animation) return wrapper;
+
+    wrapper.append(this.deformScopeRow(bone, selectedAnimation, scoped, Boolean(override)));
     return wrapper;
   }
 
+  /**
+   * 변형 값을 공용으로 둘지 고른 애니메이션에서만 다르게 둘지 고르는 줄.
+   *
+   * 기본은 공용이다. 대기에서만 발을 바닥에 묶어 두고 싶을 때 탭을 옮겨 그것만 바꾼다.
+   */
+  private deformScopeRow(
+    bone: PuppetBone,
+    animationId: string,
+    scoped: boolean,
+    overridden: boolean,
+  ): HTMLDivElement {
+    const row = document.createElement("div");
+    row.className = "deform-scope";
+
+    const tabs: [label: string, on: boolean, tip: { title: string; body: string; meta: string }][] = [
+      [
+        "공용",
+        !scoped,
+        {
+          title: "모든 애니메이션 공용",
+          body: "이 관절의 기본 변형 방식입니다. 따로 정해 두지 않은 애니메이션은 전부 이 값을 씁니다.",
+          meta: "여기서 바꾸면 대기 · 이동 · 공격 전부에 반영됩니다",
+        },
+      ],
+      [
+        `${animationId}에서만`,
+        scoped,
+        {
+          title: `${animationId}에서만 다르게`,
+          body: "이 애니메이션을 재생할 때만 쓸 값입니다. 공용 값에서 시작하며, 바꾼 관절만 덮어씁니다. 다른 애니메이션은 그대로입니다.",
+          meta: "대기에서만 발을 바닥에 묶어 서 있는 느낌을 줄 때 씁니다",
+        },
+      ],
+    ];
+
+    for (const [text, on, tip] of tabs) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = on ? "deform-scope-tab active-fill" : "deform-scope-tab";
+      button.textContent = text;
+      button.setAttribute("aria-pressed", String(on));
+      attachTooltip(button, tip);
+      button.addEventListener("click", () => {
+        this.deformScoped = text !== "공용";
+        this.render();
+      });
+      row.append(button);
+    }
+
+    if (scoped) {
+      const note = document.createElement("p");
+      note.className = "hint deform-scope-note";
+      note.textContent = overridden
+        ? `${bone.name}은(는) ${animationId}에서만 따로 정해져 있습니다.`
+        : "공용 값을 따르는 중입니다. 버튼을 누르면 이 애니메이션에서만 바뀝니다.";
+      row.append(note);
+
+      if (overridden) {
+        const reset = document.createElement("button");
+        reset.type = "button";
+        reset.className = "outlined deform-scope-reset";
+        reset.textContent = "공용으로 되돌리기";
+        attachTooltip(reset, {
+          title: "덮어쓰기 지우기",
+          body: "이 애니메이션만의 값을 지우고 다시 공용 값을 따르게 합니다.",
+          meta: "다른 애니메이션과 공용 값은 건드리지 않습니다",
+        });
+        reset.addEventListener("click", () =>
+          this.callbacks.onAnimationDeform(animationId, bone.id, null),
+        );
+        row.append(reset);
+      }
+    }
+
+    return row;
+  }
 }

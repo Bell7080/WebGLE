@@ -3,6 +3,8 @@ import "./style.css";
 import {
   createBone,
   partForNewBone,
+  type DeformMode,
+  type PuppetAnimation,
   type PuppetBone,
   type PuppetProject,
 } from "@core/format";
@@ -18,7 +20,7 @@ import {
 } from "@core/weight";
 import { computeSkinMatrices, skinVertices } from "@core/skeleton/transform";
 import { hexToNumber } from "@core/format";
-import { AnimationPlayer } from "@core/animation";
+import { AnimationPlayer, deformModesFor } from "@core/animation";
 import { SecondaryMotion } from "@core/physics/secondary";
 import { createCanvasView } from "@renderer/phaser";
 import { EditorStore, type BrushState } from "@editor/state/store";
@@ -85,6 +87,14 @@ const ui = new EditorUI(store, {
             ? { ...bone, parentId: current.bones.find((b) => b.id === boneId)?.parentId ?? null }
             : bone,
         ),
+      // 이 관절만 따로 정해 둔 애니메이션이 있으면 그 항목도 같이 지운다.
+      animations: Object.fromEntries(
+        Object.entries(current.animations).map(([key, animation]) => {
+          if (!animation.deform?.[boneId]) return [key, animation];
+          const { [boneId]: _removed, ...rest } = animation.deform;
+          return [key, withDeform(animation, rest)];
+        }),
+      ),
     }));
     setWeights(removeBoneWeights(store.get().weights, boneId));
     store.set({ selectedBoneId: null });
@@ -248,6 +258,28 @@ const ui = new EditorUI(store, {
     if (patch.resolution !== undefined) changeResolution(patch.resolution, project);
   },
 
+  onAnimationDeform: (animationId, boneId, mode) => {
+    commit((current) => {
+      const animation = current.animations[animationId];
+      if (!animation) return current;
+
+      const { [boneId]: _cleared, ...rest } = animation.deform ?? {};
+      const deform = mode === null ? rest : { ...rest, [boneId]: mode };
+
+      return {
+        ...current,
+        animations: { ...current.animations, [animationId]: withDeform(animation, deform) },
+      };
+    });
+
+    const bone = store.get().project.bones.find((b) => b.id === boneId);
+    ui.setStatus(
+      mode === null
+        ? `${bone?.name ?? "관절"}: ${animationId}의 덮어쓰기를 지웠습니다.`
+        : `${bone?.name ?? "관절"}: ${animationId}에서만 다르게 씁니다.`,
+    );
+  },
+
   onExport: () => void exportProject(),
 });
 
@@ -300,6 +332,18 @@ function uniqueAnimationName(base: string, taken: Record<string, unknown>): stri
 function commit(updater: (project: PuppetProject) => PuppetProject): void {
   history.push(store.get().project);
   store.update(updater);
+}
+
+/** 애니메이션의 관절별 변형 덮어쓰기를 갈아 끼운다. 빈 값이면 키 자체를 뺀다. */
+function withDeform(
+  animation: PuppetAnimation,
+  deform: Record<string, DeformMode>,
+): PuppetAnimation {
+  if (Object.keys(deform).length === 0) {
+    const { deform: _empty, ...rest } = animation;
+    return rest;
+  }
+  return { ...animation, deform };
 }
 
 function patchBone(
@@ -455,7 +499,8 @@ function tick(now: number): void {
       // 3) 흔들림까지 반영한 최종 자세로 정점을 옮긴다
       const skin = computeSkinMatrices(project.bones, deltas);
       // 변형 모드는 정점 혼합 방식까지 결정하므로 런타임에 Bone 설정을 함께 전달한다.
-      const deformModes = new Map(project.bones.map((bone) => [bone.id, bone.deform]));
+      // 대기에서만 발을 묶어 두는 식으로 애니메이션이 관절별 값을 덮어쓸 수 있다.
+      const deformModes = deformModesFor(project.bones, player.current.animation);
       view.scene.updateMeshVertices(skinVertices(project.mesh, skin, undefined, deformModes));
     }
   } else if (overlayDirty) {

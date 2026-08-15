@@ -893,6 +893,52 @@ button.deform-option {
   cursor: help;
 }
 
+/* 덮어쓰지 않고 공용 값을 따르는 중. 고른 것과 물려받은 것을 눈으로 구분한다. */
+button.deform-option.inherited {
+  background: var(--bg-control);
+  color: var(--text-2);
+  border-style: dashed;
+}
+
+/* 공용 / 이 애니메이션에서만 */
+.field-deform {
+  flex-wrap: wrap;
+}
+
+.deform-scope {
+  /* 라벨(44px)과 간격(8px)만큼 들여쓰고, 남은 폭 안에서만 늘어난다. */
+  flex: 1 0 calc(100% - 52px);
+  margin-left: 52px;
+  margin-top: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+button.deform-scope-tab {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  padding: 3px 4px;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deform-scope-note {
+  flex: 1 0 100%;
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+button.deform-scope-reset {
+  flex: 1 0 100%;
+  margin-top: 2px;
+  font-size: 11.5px;
+}
+
 /* 애니메이션 이름 바꾸기 */
 .anim-rename {
   width: 90px;
