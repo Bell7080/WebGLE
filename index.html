@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PuppetForge - 종이인형 애니메이션 툴</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <span class="brand">PuppetForge</span>
+        <nav class="menu">
+          <button type="button" data-menu="new">새 프로젝트</button>
+          <button type="button" data-menu="import-image">이미지 불러오기</button>
+          <button type="button" data-menu="open">프로젝트 열기</button>
+          <button type="button" data-menu="save">프로젝트 저장</button>
+          <button type="button" data-menu="export">내보내기</button>
+          <button type="button" data-menu="settings">설정</button>
+        </nav>
+        <div class="modes" id="modeTabs"></div>
+      </header>
+
+      <main class="workspace">
+        <aside class="panel panel-left">
+          <div class="panel-head">
+            <h2>관절</h2>
+            <button type="button" id="addBoneButton" class="small">+ 추가</button>
+          </div>
+          <ul class="bone-list" id="boneList"></ul>
+          <p class="hint" id="boneHint">
+            이미지를 불러온 뒤 관절을 추가하세요.
+          </p>
+        </aside>
+
+        <section class="canvas-area" id="canvasArea">
+          <div class="dropzone" id="dropzone">
+            <p><strong>PNG 이미지를 여기에 끌어다 놓으세요</strong></p>
+            <p class="hint">PNG / WebP · 투명 배경 권장</p>
+          </div>
+        </section>
+
+        <aside class="panel panel-right">
+          <div class="panel-head"><h2>속성</h2></div>
+          <div id="inspector" class="inspector">
+            <p class="hint">선택된 관절이 없습니다.</p>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="animbar">
+        <div class="anim-buttons" id="animButtons"></div>
+        <div class="transport">
+          <button type="button" id="playButton" title="재생">▶</button>
+          <button type="button" id="stopButton" title="정지">■</button>
+          <span class="status" id="statusText">준비됨</span>
+        </div>
+      </footer>
+    </div>
+
+    <input type="file" id="imageInput" accept="image/png,image/webp" hidden />
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
