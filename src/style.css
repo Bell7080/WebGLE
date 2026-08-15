@@ -76,12 +76,12 @@ body {
 }
 
 .menu,
-.modes {
+.layers {
   display: flex;
   gap: 2px;
 }
 
-.modes {
+.layers {
   margin-left: auto;
 }
 
@@ -119,11 +119,30 @@ button:disabled {
   background: transparent;
 }
 
-/* 선택된 모드 / 눌린 상태: 흑백 반전 */
-.modes button.active {
-  background: var(--sel-line);
-  color: #101012;
-  font-weight: 600;
+/* 표시 토글: 켜짐은 채운 점, 꺼짐은 빈 점 + 흐린 글자 */
+.layers button {
+  border-color: var(--line);
+  color: var(--text-3);
+}
+
+.layers button::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.layers button.active {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.layers button.active::before {
+  background: currentColor;
 }
 
 button.outlined {
@@ -339,11 +358,55 @@ input:focus {
 }
 
 .inspector-actions {
-  padding: 8px 10px 0;
+  padding: 6px 10px 0;
 }
 
 .inspector-actions button {
   width: 100%;
+}
+
+/* 눌러서 켠 상태 (칠하기 / 지우개) */
+button.active-fill {
+  background: var(--sel-line);
+  border-color: var(--sel-line);
+  color: #101012;
+  font-weight: 600;
+}
+
+button.active-fill:hover {
+  background: #ffffff;
+  color: #101012;
+}
+
+.section {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.section h3 {
+  margin: 0 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--sel-line);
+  background: transparent;
+}
+
+.readout {
+  flex: none;
+  width: 28px;
+  text-align: right;
+  color: var(--text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── 캔버스 ────────────────────────────────── */

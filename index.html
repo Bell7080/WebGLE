@@ -17,7 +17,7 @@
           <button type="button" data-menu="export">내보내기</button>
           <button type="button" data-menu="settings">설정</button>
         </nav>
-        <div class="modes" id="modeTabs"></div>
+        <div class="layers" id="layerToggles" aria-label="캔버스 표시"></div>
       </header>
 
       <main class="workspace">
@@ -58,6 +58,7 @@
     </div>
 
     <input type="file" id="imageInput" accept="image/png,image/webp" hidden />
+    <input type="file" id="projectInput" accept=".zip,application/zip" hidden />
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

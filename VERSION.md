@@ -5,6 +5,60 @@ PuppetForge의 버전과 dev 로그. 최신 항목이 위에 온다.
 
 ---
 
+## v0.3.0 — 2026-08-15
+
+**Phase**: Phase 4 · 5 · 6 · 8 (Mesh · Weight · Animation Runtime · 저장/불러오기)
+
+### 추가
+
+- **Mesh** (`core/mesh`): 이미지 크기에 맞춰 격자 Mesh 자동 생성. 셀이 정사각형에 가깝게
+  긴 변 기준으로 나눈다. 해상도 낮음 16 · 보통 32 · 높음 64.
+- **Weight** (`core/weight`): 원 · 캡슐 영향 영역, Soft Falloff, 정점당 최대 4개 Bone,
+  겹친 영역 자동 정규화. 브러시는 수채화처럼 쌓인다 — `가중치` 10이면 열 번 칠해야 가득 차고
+  100이면 한 번에 최대. 지우개는 같은 크기 · 같은 양으로 깎는다.
+- **스킨 변형** (`core/skeleton/transform`): 2D 아핀 행렬, 부모 → 자식 계층 변환,
+  Linear Blend Skinning. 칠하지 않은 정점은 움직이지 않는다.
+- **Animation Runtime** (`core/animation`): 키프레임 보간(linear · step · smooth),
+  태그 기반 Track 대상 찾기, motionStrength 반영, 루프, 이벤트, `AnimationPlayer`.
+  요구한 태그가 없으면 그 Track만 건너뛴다.
+- **Idle 프리셋** (`src/presets/idle.json`): root 상하, core squash, head 회전,
+  secondary 지연 흔들림. 코드가 아니라 데이터다.
+- **프로젝트 저장 / 불러오기**: `puppet.json` + 원본 이미지를 ZIP 하나로 묶는다
+  (`character.puppet.zip`). 의존성 없이 직접 구현했고, 쓰기는 무압축 · 읽기는 deflate도 지원한다.
+  `Ctrl+S`로도 저장된다. ZIP을 캔버스에 끌어다 놓아도 열린다.
+- 우측 속성 패널에 `영향 영역` 섹션: `칠하기` 토글, 크기 · 가중치 슬라이더, `지우개`
+- 캔버스에 브러시 원과 정점별 가중치 표시(밝을수록 강함)
+
+### 변경
+
+- **상단 우측 편집 모드 탭을 표시 토글로 바꿨다.** `관절` / `연결` / `영향 영역` 3개이며
+  기본은 모두 켜짐, 끄면 캔버스에서 해당 표시만 사라진다. `애니메이션` · `미리보기`는
+  하단 바와 중복이라 제거했다. 감춘 관절은 집을 수도 없다.
+- 이미지를 불러오면 Mesh가 자동으로 만들어지고, 캔버스는 Sprite 대신 변형 가능한 Mesh를 그린다.
+  (WebGL이 없으면 원본 이미지를 그대로 표시)
+- Undo / Redo가 가중치 편집 상태까지 함께 되돌린다.
+
+### 참고
+
+- **관절 생성 방식은 `추가` 버튼 + 드래그로 확정했다.** 캔버스 클릭 생성과 별도 `연결` 모드는
+  만들지 않는다. 이 결정은 `CLAUDE.md`의 "확정된 제품 결정"에 적어 두었다.
+- Puppet JSON 포맷(v1)은 그대로다. Mesh · Weight · Animation 필드를 실제로 채우기 시작했다.
+
+### 검증
+
+- `npm test` 66개 통과 (`mesh` 6 · `weight` 15 · `transform` 8 · `animation` 15 · `zip` 7 외),
+  `npm run build` 성공
+- ZIP은 표준 `unzip -t`로 검사해 무결성을 확인한다 (테스트에 포함)
+- Chromium 전 과정 확인: 이미지 → Mesh 25×32 생성 → 관절 추가 → 캔버스에 칠하기(858개 중 194개)
+  → `대기` 재생으로 정점이 실제로 움직임 → 저장 → 새로고침 후 불러오기까지 가중치 · 텍스처 복원
+
+### 다음
+
+Phase 7 나머지 프리셋(Attack · Hit · Death · Jump), 애니메이션 파라미터 슬라이더,
+IndexedDB 자동 저장, Phase 9 · 10 (runtime-core · runtime-phaser 분리).
+
+---
+
 ## v0.2.0 — 2026-08-15
 
 **Phase**: Phase 1 마무리 + Phase 3 착수 (관절 편집)

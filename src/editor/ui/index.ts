@@ -1,12 +1,12 @@
 import {
   ANIMATION_BUTTONS,
-  EDIT_MODES,
+  OVERLAY_LAYERS,
   PART_NAMES,
-  type EditMode,
+  type OverlayLayer,
   type PuppetBone,
 } from "@core/format";
 import { canReparent } from "@core/skeleton";
-import type { EditorStore } from "../state/store";
+import type { BrushState, EditorStore } from "../state/store";
 
 export interface EditorUICallbacks {
   onAddBone(part: string): void;
@@ -17,6 +17,7 @@ export interface EditorUICallbacks {
   onMenu(action: string): void;
   onPlay(animationId: string): void;
   onStop(): void;
+  onBrushChange(patch: Partial<BrushState>): void;
 }
 
 function requireElement<T extends HTMLElement>(id: string): T {
@@ -30,7 +31,7 @@ function requireElement<T extends HTMLElement>(id: string): T {
  * 상태는 EditorStore에서만 읽고, 변경은 콜백으로 위임한다.
  */
 export class EditorUI {
-  private readonly modeTabs = requireElement<HTMLDivElement>("modeTabs");
+  private readonly layerToggles = requireElement<HTMLDivElement>("layerToggles");
   private readonly boneList = requireElement<HTMLUListElement>("boneList");
   private readonly boneHint = requireElement<HTMLParagraphElement>("boneHint");
   private readonly inspector = requireElement<HTMLDivElement>("inspector");
@@ -45,7 +46,7 @@ export class EditorUI {
     private readonly store: EditorStore,
     private readonly callbacks: EditorUICallbacks,
   ) {
-    this.buildModeTabs();
+    this.buildLayerToggles();
     this.buildAnimButtons();
     this.buildPartSelect();
     this.bindMenu();
@@ -57,15 +58,22 @@ export class EditorUI {
     this.statusText.textContent = message;
   }
 
-  private buildModeTabs(): void {
-    for (const mode of EDIT_MODES) {
+  /** 상단 우측 표시 토글. 기본은 모두 켜짐이고, 끄면 캔버스에서 감춘다. */
+  private buildLayerToggles(): void {
+    for (const layer of OVERLAY_LAYERS) {
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = mode.label;
-      button.dataset.mode = mode.id;
-      button.addEventListener("click", () => this.store.set({ mode: mode.id as EditMode }));
-      this.modeTabs.append(button);
+      button.textContent = layer.label;
+      button.dataset.layer = layer.id;
+      button.title = `${layer.label} 표시 켜기 / 끄기`;
+      button.addEventListener("click", () => this.toggleLayer(layer.id));
+      this.layerToggles.append(button);
     }
+  }
+
+  private toggleLayer(layer: OverlayLayer): void {
+    const visibility = this.store.get().visibility;
+    this.store.set({ visibility: { ...visibility, [layer]: !visibility[layer] } });
   }
 
   private buildAnimButtons(): void {
@@ -107,10 +115,12 @@ export class EditorUI {
   }
 
   private render(): void {
-    const { project, mode, selectedBoneId, textureUrl } = this.store.get();
+    const { project, visibility, selectedBoneId, textureUrl } = this.store.get();
 
-    for (const button of this.modeTabs.querySelectorAll("button")) {
-      button.classList.toggle("active", button.dataset.mode === mode);
+    for (const button of this.layerToggles.querySelectorAll("button")) {
+      const on = visibility[button.dataset.layer as OverlayLayer] ?? true;
+      button.classList.toggle("active", on);
+      button.setAttribute("aria-pressed", String(on));
     }
 
     this.dropzone.classList.toggle("hidden", textureUrl !== null);
@@ -260,7 +270,105 @@ export class EditorUI {
     const coords = document.createElement("p");
     coords.className = "hint";
     coords.textContent = `위치 ${Math.round(bone.x)}, ${Math.round(bone.y)}`;
-    this.inspector.append(coords);
+    this.inspector.append(coords, this.weightSection(bone));
+  }
+
+  /**
+   * 영향 영역 칠하기. (기획서 16, 18)
+   * 상단 토글은 표시 여부만 담당하므로, 실제 칠하는 조작은 여기에 둔다.
+   */
+  private weightSection(bone: PuppetBone): HTMLElement {
+    const { brush, project } = this.store.get();
+    const section = document.createElement("section");
+    section.className = "section";
+
+    const title = document.createElement("h3");
+    title.textContent = "영향 영역";
+    section.append(title);
+
+    if (!project.mesh) {
+      const hint = document.createElement("p");
+      hint.className = "hint";
+      hint.textContent = "이미지를 먼저 불러오세요.";
+      section.append(hint);
+      return section;
+    }
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = brush.active ? "outlined active-fill" : "outlined";
+    toggle.textContent = brush.active ? "칠하기 끄기" : "칠하기";
+    toggle.addEventListener("click", () =>
+      this.callbacks.onBrushChange({ active: !brush.active }),
+    );
+
+    const actions = document.createElement("div");
+    actions.className = "inspector-actions";
+    actions.append(toggle);
+    section.append(actions);
+
+    section.append(
+      this.sliderField("크기", brush.size, 4, 400, 1, (value) =>
+        this.callbacks.onBrushChange({ size: value }),
+      ),
+      this.sliderField("가중치", brush.amount, 1, 100, 1, (value) =>
+        this.callbacks.onBrushChange({ amount: value }),
+      ),
+    );
+
+    const erase = document.createElement("button");
+    erase.type = "button";
+    erase.className = brush.erase ? "outlined active-fill" : "outlined";
+    erase.textContent = brush.erase ? "지우개 (켜짐)" : "지우개";
+    erase.addEventListener("click", () => this.callbacks.onBrushChange({ erase: !brush.erase }));
+
+    const eraseWrap = document.createElement("div");
+    eraseWrap.className = "inspector-actions";
+    eraseWrap.append(erase);
+    section.append(eraseWrap);
+
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = brush.active
+      ? `${bone.name}에 칠하는 중 · 캔버스를 드래그하세요`
+      : "칠하기를 켜면 캔버스에서 관절 대신 영역을 칠합니다.";
+    section.append(hint);
+
+    return section;
+  }
+
+  private sliderField(
+    label: string,
+    value: number,
+    min: number,
+    max: number,
+    step: number,
+    onChange: (value: number) => void,
+  ): HTMLDivElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "field";
+
+    const labelElement = document.createElement("label");
+    labelElement.textContent = label;
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = String(min);
+    input.max = String(max);
+    input.step = String(step);
+    input.value = String(value);
+
+    const readout = document.createElement("span");
+    readout.className = "readout";
+    readout.textContent = String(value);
+
+    input.addEventListener("input", () => {
+      readout.textContent = input.value;
+      onChange(Number(input.value));
+    });
+
+    wrapper.append(labelElement, input, readout);
+    return wrapper;
   }
 
   private field(label: string, control: HTMLElement): HTMLDivElement {

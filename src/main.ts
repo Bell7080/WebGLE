@@ -1,23 +1,51 @@
 import "./style.css";
 
-import { createBone, type PuppetBone, type PuppetProject } from "@core/format";
+import {
+  createBone,
+  type PuppetAnimation,
+  type PuppetBone,
+  type PuppetProject,
+} from "@core/format";
+import { createGridMesh, vertexCount } from "@core/mesh";
+import {
+  normalizeWeights,
+  paintInfluence,
+  removeBoneWeights,
+  toWeightMap,
+  type WeightMap,
+} from "@core/weight";
+import { computeSkinMatrices, skinVertices } from "@core/skeleton/transform";
+import { AnimationPlayer } from "@core/animation";
 import { createCanvasView } from "@renderer/phaser";
-import { EditorStore } from "@editor/state/store";
+import { EditorStore, type BrushState } from "@editor/state/store";
 import { UndoStack } from "@editor/history/UndoStack";
 import { EditorUI } from "@editor/ui";
 import { attachDropTarget, loadImageFile } from "@editor/tools/imageLoader";
+import {
+  downloadBlob,
+  packProject,
+  projectFileName,
+  unpackProject,
+} from "@editor/tools/projectFile";
+import idlePreset from "./presets/idle.json";
 
 const canvasArea = document.getElementById("canvasArea") as HTMLElement;
 const imageInput = document.getElementById("imageInput") as HTMLInputElement;
+const projectInput = document.getElementById("projectInput") as HTMLInputElement;
 
 const store = new EditorStore();
 const history = new UndoStack<PuppetProject>();
+const player = new AnimationPlayer();
+
+/** 기본 애니메이션 프리셋. 새 모션은 JSON 추가만으로 늘린다. (기획서 26) */
+const PRESETS: Record<string, PuppetAnimation> = {
+  idle: idlePreset as unknown as PuppetAnimation,
+};
 
 const view = await createCanvasView(canvasArea);
 
 const ui = new EditorUI(store, {
   onAddBone: (part) => {
-    // 지금 보고 있는 화면 중앙에 만든다. 이후 캔버스에서 끌어 옮길 수 있다.
     const { x, y } = view.scene.getViewCenter((store.get().project.bones.length % 6) * 14);
     commit((current) => ({
       ...current,
@@ -42,6 +70,7 @@ const ui = new EditorUI(store, {
             : bone,
         ),
     }));
+    setWeights(removeBoneWeights(store.get().weights, boneId));
     store.set({ selectedBoneId: null });
     ui.setStatus("관절을 삭제했습니다.");
   },
@@ -66,10 +95,22 @@ const ui = new EditorUI(store, {
     ui.setStatus("관절 순서를 바꿨습니다.");
   },
 
+  onBrushChange: (patch) => {
+    const brush = { ...store.get().brush, ...patch };
+    store.set({ brush });
+    syncPaintMode(brush);
+  },
+
   onMenu: (action) => {
     switch (action) {
       case "import-image":
         imageInput.click();
+        break;
+      case "open":
+        projectInput.click();
+        break;
+      case "save":
+        void saveProject();
         break;
       case "new":
         resetProject();
@@ -79,8 +120,8 @@ const ui = new EditorUI(store, {
     }
   },
 
-  onPlay: (animationId) => ui.setStatus(`재생 예정: ${animationId} (애니메이션 런타임 준비 중)`),
-  onStop: () => ui.setStatus("정지"),
+  onPlay: (animationId) => playAnimation(animationId),
+  onStop: () => stopAnimation(),
 });
 
 /** 프로젝트 변경 한 번을 Undo 단위로 기록한다. (기획서 36) */
@@ -102,7 +143,24 @@ function patchBone(
   };
 }
 
-// 캔버스에서 관절을 직접 집어 옮긴다. 드래그 한 번이 Undo 한 단위다.
+/** 편집 중인 가중치를 정규화해서 Mesh에 반영한다. (기획서 17) */
+function setWeights(weights: WeightMap): void {
+  const { project } = store.get();
+  if (!project.mesh) {
+    store.set({ weights });
+    return;
+  }
+
+  const normalized = normalizeWeights(weights, vertexCount(project.mesh));
+  store.set({ weights });
+  store.update((current) =>
+    current.mesh ? { ...current, mesh: { ...current.mesh, weights: normalized } } : current,
+  );
+}
+
+// ── 캔버스 조작 ────────────────────────────────────────────────
+
+// 관절을 직접 집어 옮긴다. 드래그 한 번이 Undo 한 단위다.
 view.scene.setBoneHandlers({
   onSelect: (boneId) => store.set({ selectedBoneId: boneId }),
 
@@ -120,15 +178,106 @@ view.scene.setBoneHandlers({
   },
 });
 
+/** 칠하기 모드를 캔버스에 연결하거나 해제한다. */
+function syncPaintMode(brush: BrushState = store.get().brush): void {
+  const { selectedBoneId, project } = store.get();
+
+  if (!brush.active || !selectedBoneId || !project.mesh) {
+    view.scene.setPaintHandlers(null);
+    return;
+  }
+
+  view.scene.setPaintHandlers({
+    radius: brush.size,
+    onStart: () => history.push(store.get().project),
+    onPaint: (x, y) => {
+      const state = store.get();
+      if (!state.project.mesh || !state.selectedBoneId) return;
+
+      setWeights(
+        paintInfluence(
+          state.weights,
+          state.selectedBoneId,
+          state.project.mesh,
+          {
+            x1: x,
+            y1: y,
+            x2: x,
+            y2: y,
+            radius: state.brush.size,
+            strength: state.brush.amount / 100,
+            softness: 0.7,
+          },
+          state.brush.erase,
+        ),
+      );
+    },
+    onEnd: () => {
+      const bone = store.get().project.bones.find((b) => b.id === store.get().selectedBoneId);
+      ui.setStatus(bone ? `${bone.name} 영향 영역을 ${brush.erase ? "지웠" : "칠했"}습니다.` : "");
+    },
+  });
+}
+
+// ── 애니메이션 재생 (기획서 30, 32) ────────────────────────────
+
+function playAnimation(animationId: string): void {
+  const preset = PRESETS[animationId];
+  if (!preset) {
+    ui.setStatus("아직 준비 중인 애니메이션입니다.");
+    return;
+  }
+
+  const { project } = store.get();
+  if (!project.mesh) {
+    ui.setStatus("이미지를 먼저 불러오세요.");
+    return;
+  }
+
+  player.play(preset);
+  store.set({ playing: animationId });
+  ui.setStatus(`재생: ${animationId}`);
+}
+
+function stopAnimation(): void {
+  player.stop();
+  store.set({ playing: null });
+  view.scene.updateMeshVertices(null);
+  ui.setStatus("정지");
+}
+
+let lastFrame = performance.now();
+function tick(now: number): void {
+  const dt = Math.min(0.05, (now - lastFrame) / 1000);
+  lastFrame = now;
+
+  if (player.current?.playing) {
+    const { project } = store.get();
+    const deltas = player.update(dt, project.bones);
+    if (project.mesh) {
+      const skin = computeSkinMatrices(project.bones, deltas);
+      view.scene.updateMeshVertices(skinVertices(project.mesh, skin));
+    }
+  }
+
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// ── 프로젝트 입출력 ────────────────────────────────────────────
+
 function resetProject(): void {
   const { textureUrl } = store.get();
   if (textureUrl) URL.revokeObjectURL(textureUrl);
+
+  stopAnimation();
   history.clear();
   view.scene.clearTexture();
   store.set({
     project: { ...store.get().project, bones: [], mesh: null, animations: {} },
     textureUrl: null,
     selectedBoneId: null,
+    weights: {},
   });
   ui.setStatus("새 프로젝트");
 }
@@ -139,6 +288,9 @@ async function importImage(file: File): Promise<void> {
     const { image, url, fileName } = await loadImageFile(file);
     if (previous) URL.revokeObjectURL(previous);
 
+    // Mesh는 이미지 크기에 맞춰 자동으로 만든다. (기획서 73)
+    const mesh = createGridMesh(image.width, image.height, "normal");
+
     store.update((project) => ({
       ...project,
       character: {
@@ -148,17 +300,71 @@ async function importImage(file: File): Promise<void> {
         width: image.width,
         height: image.height,
       },
+      mesh,
     }));
-    store.set({ textureUrl: url });
+    store.set({ textureUrl: url, weights: {} });
 
     view.scene.showTexture(image, store.get().project.character.pixelArt);
-    ui.setStatus(`이미지 불러옴: ${fileName} (${image.width}×${image.height})`);
+    view.scene.setMesh(mesh, image.width, image.height);
+    ui.setStatus(
+      `이미지 불러옴: ${fileName} (${image.width}×${image.height}) · Mesh ${mesh.cols}×${mesh.rows}`,
+    );
   } catch (error) {
     ui.setStatus(error instanceof Error ? error.message : "이미지를 불러오지 못했습니다.");
   }
 }
 
-attachDropTarget(canvasArea, (file) => void importImage(file));
+async function saveProject(): Promise<void> {
+  const { project, textureUrl } = store.get();
+  try {
+    const blob = await packProject(project, textureUrl);
+    downloadBlob(blob, projectFileName(project));
+    ui.setStatus(`저장: ${projectFileName(project)}`);
+  } catch (error) {
+    ui.setStatus(error instanceof Error ? error.message : "저장하지 못했습니다.");
+  }
+}
+
+async function openProject(file: File): Promise<void> {
+  try {
+    const previous = store.get().textureUrl;
+    const { project, textureUrl } = await unpackProject(file);
+    if (previous) URL.revokeObjectURL(previous);
+
+    stopAnimation();
+    history.clear();
+    view.scene.clearTexture();
+
+    store.set({
+      project,
+      textureUrl,
+      selectedBoneId: null,
+      weights: project.mesh ? toWeightMap(project.mesh.weights) : {},
+    });
+
+    if (textureUrl) {
+      const image = new Image();
+      image.src = textureUrl;
+      await image.decode();
+      view.scene.showTexture(image, project.character.pixelArt);
+      if (project.mesh) {
+        view.scene.setMesh(project.mesh, project.character.width, project.character.height);
+      }
+    }
+
+    ui.setStatus(`불러옴: ${project.character.name} · 관절 ${project.bones.length}개`);
+  } catch (error) {
+    ui.setStatus(error instanceof Error ? error.message : "프로젝트를 열지 못했습니다.");
+  }
+}
+
+attachDropTarget(canvasArea, (file) => {
+  if (file.name.endsWith(".zip") || file.name.endsWith(".puppet.zip")) {
+    void openProject(file);
+  } else {
+    void importImage(file);
+  }
+});
 
 imageInput.addEventListener("change", () => {
   const file = imageInput.files?.[0];
@@ -166,12 +372,34 @@ imageInput.addEventListener("change", () => {
   imageInput.value = "";
 });
 
+projectInput.addEventListener("change", () => {
+  const file = projectInput.files?.[0];
+  if (file) void openProject(file);
+  projectInput.value = "";
+});
+
 // 캔버스 오버레이는 상태 변화에 맞춰 다시 그린다.
-store.subscribe((state) => view.scene.drawBones(state.project.bones, state.selectedBoneId));
+store.subscribe((state) => {
+  view.scene.drawBones(
+    state.project.bones,
+    state.selectedBoneId,
+    state.visibility,
+    state.selectedBoneId ? (state.weights[state.selectedBoneId] ?? null) : null,
+  );
+});
+
+// 선택이 바뀌거나 칠하기를 끄면 브러시 연결도 따라간다.
+let lastPaintKey = "";
+store.subscribe((state) => {
+  const key = `${state.brush.active}|${state.selectedBoneId}|${state.brush.size}|${state.brush.amount}|${state.brush.erase}|${state.project.mesh ? 1 : 0}`;
+  if (key === lastPaintKey) return;
+  lastPaintKey = key;
+  syncPaintMode(state.brush);
+});
 
 // 개발 중 콘솔에서 상태를 들여다보기 위한 훅. 배포 빌드에는 포함되지 않는다.
 if (import.meta.env.DEV) {
-  (window as unknown as Record<string, unknown>).__puppet = { store, view, history };
+  (window as unknown as Record<string, unknown>).__puppet = { store, view, history, player };
 }
 
 window.addEventListener("keydown", (event) => {
@@ -180,16 +408,29 @@ window.addEventListener("keydown", (event) => {
   if (key === "z" && !event.shiftKey) {
     const previous = history.undo(store.get().project);
     if (previous) {
-      store.set({ project: previous, selectedBoneId: null });
+      applyHistory(previous);
       ui.setStatus("실행 취소");
     }
     event.preventDefault();
   } else if (key === "y" || (key === "z" && event.shiftKey)) {
     const next = history.redo(store.get().project);
     if (next) {
-      store.set({ project: next, selectedBoneId: null });
+      applyHistory(next);
       ui.setStatus("다시 실행");
     }
     event.preventDefault();
+  } else if (key === "s") {
+    void saveProject();
+    event.preventDefault();
   }
 });
+
+/** Undo / Redo는 가중치 편집 상태도 함께 되돌린다. */
+function applyHistory(project: PuppetProject): void {
+  store.set({
+    project,
+    selectedBoneId: null,
+    weights: project.mesh ? toWeightMap(project.mesh.weights) : {},
+  });
+  if (project.mesh) view.scene.updateMeshVertices(null);
+}

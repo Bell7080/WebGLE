@@ -76,16 +76,26 @@ export const MESH_GRID: Record<MeshResolution, number> = {
   high: 64,
 };
 
-/** 편집 모드. (기획서 35) */
-export const EDIT_MODES = [
-  { id: "bone", label: "관절" },
-  { id: "link", label: "연결" },
-  { id: "weight", label: "영향 영역" },
-  { id: "animation", label: "애니메이션" },
-  { id: "preview", label: "미리보기" },
+/**
+ * 캔버스 표시 레이어. (기획서 35의 편집 모드를 표시 토글로 대체)
+ * 조작은 좌우 패널과 캔버스 드래그로 모두 되므로, 상단은 "무엇을 보여줄지"만 정한다.
+ * 기본은 전부 켜짐이며, 끄면 이미지 위에서 해당 표시가 사라진다.
+ */
+export const OVERLAY_LAYERS = [
+  { id: "bones", label: "관절" },
+  { id: "links", label: "연결" },
+  { id: "weights", label: "영향 영역" },
 ] as const;
 
-export type EditMode = (typeof EDIT_MODES)[number]["id"];
+export type OverlayLayer = (typeof OVERLAY_LAYERS)[number]["id"];
+
+export type OverlayVisibility = Record<OverlayLayer, boolean>;
+
+export const DEFAULT_OVERLAY_VISIBILITY: OverlayVisibility = {
+  bones: true,
+  links: true,
+  weights: true,
+};
 
 /** 하단 패널에 노출할 기본 애니메이션. (기획서 30) */
 export const ANIMATION_BUTTONS = [

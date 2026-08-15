@@ -1,0 +1,63 @@
+{
+  "name": "idle",
+  "duration": 1.6,
+  "loop": true,
+  "tracks": [
+    {
+      "target": { "kind": "tag", "tag": "root" },
+      "property": "y",
+      "keys": [
+        { "time": 0, "value": 0, "ease": "smooth" },
+        { "time": 0.8, "value": -3, "ease": "smooth" },
+        { "time": 1.6, "value": 0, "ease": "smooth" }
+      ]
+    },
+    {
+      "target": { "kind": "tag", "tag": "core" },
+      "property": "scaleY",
+      "keys": [
+        { "time": 0, "value": 1, "ease": "smooth" },
+        { "time": 0.8, "value": 1.03, "ease": "smooth" },
+        { "time": 1.6, "value": 1, "ease": "smooth" }
+      ]
+    },
+    {
+      "target": { "kind": "tag", "tag": "core" },
+      "property": "scaleX",
+      "keys": [
+        { "time": 0, "value": 1, "ease": "smooth" },
+        { "time": 0.8, "value": 0.985, "ease": "smooth" },
+        { "time": 1.6, "value": 1, "ease": "smooth" }
+      ]
+    },
+    {
+      "target": { "kind": "tag", "tag": "head" },
+      "property": "rotation",
+      "keys": [
+        { "time": 0, "value": 0, "ease": "smooth" },
+        { "time": 0.5, "value": 0.035, "ease": "smooth" },
+        { "time": 1.1, "value": -0.025, "ease": "smooth" },
+        { "time": 1.6, "value": 0, "ease": "smooth" }
+      ]
+    },
+    {
+      "target": { "kind": "tag", "tag": "secondary" },
+      "property": "rotation",
+      "keys": [
+        { "time": 0, "value": 0, "ease": "smooth" },
+        { "time": 0.45, "value": -0.05, "ease": "smooth" },
+        { "time": 1.0, "value": 0.06, "ease": "smooth" },
+        { "time": 1.6, "value": 0, "ease": "smooth" }
+      ]
+    },
+    {
+      "target": { "kind": "tag", "tag": "secondary" },
+      "property": "y",
+      "keys": [
+        { "time": 0, "value": 0, "ease": "smooth" },
+        { "time": 1.0, "value": 2, "ease": "smooth" },
+        { "time": 1.6, "value": 0, "ease": "smooth" }
+      ]
+    }
+  ]
+}

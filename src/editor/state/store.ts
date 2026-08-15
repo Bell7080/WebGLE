@@ -1,11 +1,41 @@
-import { createEmptyProject, type EditMode, type PuppetProject } from "@core/format";
+import {
+  createEmptyProject,
+  DEFAULT_OVERLAY_VISIBILITY,
+  type OverlayVisibility,
+  type PuppetProject,
+} from "@core/format";
+import type { WeightMap } from "@core/weight";
+
+/** 영향 영역 브러시. 크기와 가중치를 불투명도처럼 쓴다. */
+export interface BrushState {
+  /** 칠하기 모드가 켜져 있는지. */
+  active: boolean;
+  /** 브러시 반경(이미지 픽셀). */
+  size: number;
+  /** 한 번 칠할 때 쌓이는 양 1~100. 10이면 열 번 칠해야 가득 찬다. */
+  amount: number;
+  erase: boolean;
+}
+
+export const DEFAULT_BRUSH: BrushState = {
+  active: false,
+  size: 40,
+  amount: 25,
+  erase: false,
+};
 
 export interface EditorState {
   project: PuppetProject;
   /** 불러온 이미지의 Object URL. 이미지가 없으면 null. */
   textureUrl: string | null;
-  mode: EditMode;
+  /** 캔버스에 무엇을 표시할지. 조작 모드가 아니라 표시 여부다. */
+  visibility: OverlayVisibility;
   selectedBoneId: string | null;
+  /** 편집 중인 원본 가중치. 저장할 때 정규화해서 mesh.weights에 넣는다. */
+  weights: WeightMap;
+  brush: BrushState;
+  /** 재생 중인 애니메이션 이름. 없으면 null. */
+  playing: string | null;
 }
 
 type Listener = (state: EditorState) => void;
@@ -22,8 +52,11 @@ export class EditorStore {
     this.state = {
       project: createEmptyProject(),
       textureUrl: null,
-      mode: "bone",
+      visibility: { ...DEFAULT_OVERLAY_VISIBILITY },
       selectedBoneId: null,
+      weights: {},
+      brush: { ...DEFAULT_BRUSH },
+      playing: null,
       ...initial,
     };
   }
