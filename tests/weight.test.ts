@@ -128,3 +128,30 @@ describe("가중치 정규화", () => {
     expect(Object.keys(removeBoneWeights(map, "꼬리"))).toEqual([]);
   });
 });
+
+describe("클리핑 마스크", () => {
+  const mesh = createGridMesh(100, 100, "low");
+
+  /** 왼쪽 절반만 이미지가 있는 상황. */
+  const leftHalf = Array.from({ length: mesh.vertices.length / 2 }, (_unused, i) => {
+    const x = mesh.vertices[i * 2] ?? 0;
+    return x <= 50;
+  });
+
+  it("마스크 밖 정점은 칠해지지 않는다", () => {
+    const map = paintInfluence({}, "b1", mesh, circle(50, 50, 60, 1, 0), false, leftHalf);
+    const channel = map["b1"]!;
+
+    for (let i = 0; i < channel.length; i += 1) {
+      if (!leftHalf[i]) expect(channel[i]).toBe(0);
+    }
+    expect(Math.max(...channel)).toBeCloseTo(1);
+  });
+
+  it("영역 지정도 마스크를 지킨다", () => {
+    const map = applyInfluence({}, "b1", mesh, circle(50, 50, 60), leftHalf);
+    const painted = map["b1"]!.filter((value) => value > 0).length;
+    expect(painted).toBeGreaterThan(0);
+    expect(painted).toBeLessThanOrEqual(leftHalf.filter(Boolean).length);
+  });
+});

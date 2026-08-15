@@ -15,6 +15,7 @@ function bone(id: string, parentId: string | null, tags: string[] = []): PuppetB
     tags,
     motionStrength: 1,
     deform: "soft",
+    color: "#ffffff",
   };
 }
 

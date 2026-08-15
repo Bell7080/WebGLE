@@ -69,11 +69,14 @@ export const SUGGESTED_TAGS: Record<string, string[]> = {
   기타: [],
 };
 
-/** Mesh 해상도별 격자 셀 수. (기획서 15, 49) */
+/**
+ * Mesh 해상도별 격자 셀 수. (기획서 15, 49)
+ * 영향 영역을 촘촘하게 칠할 수 있도록 기본값을 넉넉히 잡았다.
+ */
 export const MESH_GRID: Record<MeshResolution, number> = {
-  low: 16,
-  normal: 32,
-  high: 64,
+  low: 24,
+  normal: 48,
+  high: 72,
 };
 
 /**
@@ -106,6 +109,50 @@ export const ANIMATION_BUTTONS = [
   { id: "death", label: "사망" },
   { id: "jump", label: "점프" },
 ] as const;
+
+/**
+ * 관절 색. 편집 화면에서 관절을 구분하기 위한 것이며, 위계를 뜻하지 않는다.
+ * 황금각(137.5°)으로 색상환을 돌아가며 뽑아 서로 최대한 멀어지게 한다.
+ */
+export function generateBoneColor(index: number): string {
+  const hue = (index * 137.508) % 360;
+  const saturation = 0.62;
+  const lightness = index % 2 === 0 ? 0.62 : 0.72;
+  return hslToHex(hue, saturation, lightness);
+}
+
+export function hslToHex(h: number, s: number, l: number): string {
+  const chroma = (1 - Math.abs(2 * l - 1)) * s;
+  const segment = ((h % 360) + 360) % 360 / 60;
+  const x = chroma * (1 - Math.abs((segment % 2) - 1));
+  const m = l - chroma / 2;
+
+  const [r, g, b] = (
+    segment < 1
+      ? [chroma, x, 0]
+      : segment < 2
+        ? [x, chroma, 0]
+        : segment < 3
+          ? [0, chroma, x]
+          : segment < 4
+            ? [0, x, chroma]
+            : segment < 5
+              ? [x, 0, chroma]
+              : [chroma, 0, x]
+  ) as [number, number, number];
+
+  const toHex = (value: number) =>
+    Math.round((value + m) * 255)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+/** `#rrggbb` → 0xrrggbb. 렌더러에 넘길 때 쓴다. */
+export function hexToNumber(color: string): number {
+  const parsed = Number.parseInt(color.replace("#", ""), 16);
+  return Number.isFinite(parsed) ? parsed : 0xffffff;
+}
 
 /** 지원 이미지 형식. (기획서 53) */
 export const SUPPORTED_IMAGE_TYPES = ["image/png", "image/webp"];

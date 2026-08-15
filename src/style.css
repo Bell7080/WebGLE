@@ -400,6 +400,68 @@ input[type="range"] {
   background: transparent;
 }
 
+/* 칠하기 / 지우개 아이콘 토글 */
+.tool-row {
+  display: flex;
+  gap: 6px;
+  padding: 4px 10px 8px;
+}
+
+button.tool {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-color: var(--line-strong);
+  color: var(--text-2);
+}
+
+button.tool .glyph {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* 관절 색 */
+.bone-color {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+
+.field-color .swatch {
+  flex: 1;
+  height: 22px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 0;
+}
+
+.field-color .swatch:hover {
+  border-color: var(--text-2);
+}
+
+.color-wheel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px 8px;
+}
+
+.color-wheel canvas {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.color-current {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
 .readout {
   flex: none;
   width: 28px;

@@ -15,12 +15,14 @@ import {
   type WeightMap,
 } from "@core/weight";
 import { computeSkinMatrices, skinVertices } from "@core/skeleton/transform";
+import { hexToNumber } from "@core/format";
 import { AnimationPlayer } from "@core/animation";
 import { createCanvasView } from "@renderer/phaser";
 import { EditorStore, type BrushState } from "@editor/state/store";
 import { UndoStack } from "@editor/history/UndoStack";
 import { EditorUI } from "@editor/ui";
 import { attachDropTarget, loadImageFile } from "@editor/tools/imageLoader";
+import { sampleAlphaMask } from "@editor/tools/alphaMask";
 import {
   downloadBlob,
   packProject,
@@ -178,17 +180,22 @@ view.scene.setBoneHandlers({
   },
 });
 
-/** 칠하기 모드를 캔버스에 연결하거나 해제한다. */
+/** 칠하기 · 지우개를 캔버스에 연결하거나 해제한다. */
 function syncPaintMode(brush: BrushState = store.get().brush): void {
   const { selectedBoneId, project } = store.get();
+  const bone = project.bones.find((candidate) => candidate.id === selectedBoneId);
 
-  if (!brush.active || !selectedBoneId || !project.mesh) {
+  if (!brush.tool || !bone || !project.mesh) {
     view.scene.setPaintHandlers(null);
     return;
   }
 
+  const erase = brush.tool === "eraser";
+
   view.scene.setPaintHandlers({
     radius: brush.size,
+    color: hexToNumber(bone.color),
+    erase,
     onStart: () => history.push(store.get().project),
     onPaint: (x, y) => {
       const state = store.get();
@@ -208,14 +215,13 @@ function syncPaintMode(brush: BrushState = store.get().brush): void {
             strength: state.brush.amount / 100,
             softness: 0.7,
           },
-          state.brush.erase,
+          erase,
+          // 이미지가 그려진 영역 안에서만 칠한다.
+          state.mask,
         ),
       );
     },
-    onEnd: () => {
-      const bone = store.get().project.bones.find((b) => b.id === store.get().selectedBoneId);
-      ui.setStatus(bone ? `${bone.name} 영향 영역을 ${brush.erase ? "지웠" : "칠했"}습니다.` : "");
-    },
+    onEnd: () => ui.setStatus(`${bone.name} 영향 영역을 ${erase ? "지웠" : "칠했"}습니다.`),
   });
 }
 
@@ -278,6 +284,7 @@ function resetProject(): void {
     textureUrl: null,
     selectedBoneId: null,
     weights: {},
+    mask: null,
   });
   ui.setStatus("새 프로젝트");
 }
@@ -302,7 +309,7 @@ async function importImage(file: File): Promise<void> {
       },
       mesh,
     }));
-    store.set({ textureUrl: url, weights: {} });
+    store.set({ textureUrl: url, weights: {}, mask: sampleAlphaMask(image, mesh) });
 
     view.scene.showTexture(image, store.get().project.character.pixelArt);
     view.scene.setMesh(mesh, image.width, image.height);
@@ -349,6 +356,7 @@ async function openProject(file: File): Promise<void> {
       view.scene.showTexture(image, project.character.pixelArt);
       if (project.mesh) {
         view.scene.setMesh(project.mesh, project.character.width, project.character.height);
+        store.set({ mask: sampleAlphaMask(image, project.mesh) });
       }
     }
 
@@ -385,13 +393,14 @@ store.subscribe((state) => {
     state.selectedBoneId,
     state.visibility,
     state.selectedBoneId ? (state.weights[state.selectedBoneId] ?? null) : null,
+    state.mask,
   );
 });
 
 // 선택이 바뀌거나 칠하기를 끄면 브러시 연결도 따라간다.
 let lastPaintKey = "";
 store.subscribe((state) => {
-  const key = `${state.brush.active}|${state.selectedBoneId}|${state.brush.size}|${state.brush.amount}|${state.brush.erase}|${state.project.mesh ? 1 : 0}`;
+  const key = `${state.brush.tool}|${state.selectedBoneId}|${state.brush.size}|${state.brush.amount}|${state.project.mesh ? 1 : 0}|${state.project.bones.find((b) => b.id === state.selectedBoneId)?.color ?? ""}`;
   if (key === lastPaintKey) return;
   lastPaintKey = key;
   syncPaintMode(state.brush);

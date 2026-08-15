@@ -6,22 +6,23 @@ import {
 } from "@core/format";
 import type { WeightMap } from "@core/weight";
 
+/** 영향 영역 편집 도구. 같은 버튼을 다시 누르면 꺼진다. */
+export type PaintTool = "brush" | "eraser";
+
 /** 영향 영역 브러시. 크기와 가중치를 불투명도처럼 쓴다. */
 export interface BrushState {
-  /** 칠하기 모드가 켜져 있는지. */
-  active: boolean;
+  /** 켜져 있는 도구. null이면 편집 꺼짐(관절 조작). */
+  tool: PaintTool | null;
   /** 브러시 반경(이미지 픽셀). */
   size: number;
   /** 한 번 칠할 때 쌓이는 양 1~100. 10이면 열 번 칠해야 가득 찬다. */
   amount: number;
-  erase: boolean;
 }
 
 export const DEFAULT_BRUSH: BrushState = {
-  active: false,
+  tool: null,
   size: 40,
   amount: 25,
-  erase: false,
 };
 
 export interface EditorState {
@@ -33,6 +34,8 @@ export interface EditorState {
   selectedBoneId: string | null;
   /** 편집 중인 원본 가중치. 저장할 때 정규화해서 mesh.weights에 넣는다. */
   weights: WeightMap;
+  /** 정점이 이미지의 그려진 영역 안에 있는지. 칠하기를 실루엣 안으로 제한한다. */
+  mask: boolean[] | null;
   brush: BrushState;
   /** 재생 중인 애니메이션 이름. 없으면 null. */
   playing: string | null;
@@ -55,6 +58,7 @@ export class EditorStore {
       visibility: { ...DEFAULT_OVERLAY_VISIBILITY },
       selectedBoneId: null,
       weights: {},
+      mask: null,
       brush: { ...DEFAULT_BRUSH },
       playing: null,
       ...initial,

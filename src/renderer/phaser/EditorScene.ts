@@ -1,11 +1,32 @@
 import Phaser from "phaser";
 import {
   DEFAULT_OVERLAY_VISIBILITY,
+  hexToNumber,
   type OverlayVisibility,
   type PuppetBone,
   type PuppetMesh,
 } from "@core/format";
 import { toUV } from "@core/mesh";
+
+/** 작은 점을 원 대신 육각형으로 그린다. 정점이 수천 개라 매 프레임 원을 그리면 무겁다. */
+const DOT_SHAPE = Array.from({ length: 6 }, (_unused, i) => ({
+  x: Math.cos((i / 6) * Math.PI * 2),
+  y: Math.sin((i / 6) * Math.PI * 2),
+}));
+const DOT_BUFFER = DOT_SHAPE.map(() => ({ x: 0, y: 0 }));
+
+function fillDot(
+  graphics: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  radius: number,
+): void {
+  for (let i = 0; i < DOT_SHAPE.length; i += 1) {
+    DOT_BUFFER[i]!.x = x + DOT_SHAPE[i]!.x * radius;
+    DOT_BUFFER[i]!.y = y + DOT_SHAPE[i]!.y * radius;
+  }
+  graphics.fillPoints(DOT_BUFFER, true);
+}
 
 const TEXTURE_KEY = "character";
 const BONE_RADIUS = 5;
@@ -25,6 +46,9 @@ export interface BoneInteractionHandlers {
 export interface PaintHandlers {
   /** 브러시 반경(이미지 픽셀). */
   radius: number;
+  /** 커서 링 색. 보통 지금 고른 관절의 색이다. */
+  color: number;
+  erase: boolean;
   onStart(): void;
   onPaint(x: number, y: number): void;
   onEnd(): void;
@@ -48,6 +72,8 @@ export class EditorScene extends Phaser.Scene {
   private visibility: OverlayVisibility = { ...DEFAULT_OVERLAY_VISIBILITY };
   /** 선택된 Bone의 정점별 가중치(0~1). 표시용. */
   private weightPreview: readonly number[] | null = null;
+  /** 이미지의 그려진 영역 안에 있는 정점만 true. */
+  private mask: readonly boolean[] | null = null;
   /** 화면에 그릴 정점 좌표. 변형 결과가 없으면 원본을 쓴다. */
   private deformed: Float32Array | null = null;
 
@@ -252,6 +278,11 @@ export class EditorScene extends Phaser.Scene {
       vertex.y = halfHeight - (source[index * 2 + 1] ?? 0);
     });
 
+    // Phaser는 Mesh 자신의 변환이 그대로면 정점 투영을 건너뛴다.
+    // 변형 중에는 매 프레임 다시 계산하게 두고, 멈추면 한 번만 갱신하고 다시 건너뛰게 한다.
+    meshObject.ignoreDirtyCache = deformed !== null;
+    if (!deformed) meshObject.dirtyCache[10] = 1;
+
     this.redrawOverlay();
   }
 
@@ -283,11 +314,13 @@ export class EditorScene extends Phaser.Scene {
     selectedId: string | null,
     visibility: OverlayVisibility = this.visibility,
     weightPreview: readonly number[] | null = null,
+    mask: readonly boolean[] | null = null,
   ): void {
     this.bones = bones;
     this.selectedBoneId = selectedId;
     this.visibility = visibility;
     this.weightPreview = weightPreview;
+    this.mask = mask;
     this.redrawOverlay();
   }
 
@@ -305,39 +338,59 @@ export class EditorScene extends Phaser.Scene {
     if (this.paint && this.brushWorld) this.drawBrush(overlay, zoom);
   }
 
-  /** 선택된 Bone의 영향 영역을 정점 밝기로 보여준다. (기획서 74) */
+  /**
+   * 영향 영역을 정점마다 보여준다. 색은 그 정점을 가장 많이 가진 관절의 색을 따른다.
+   * 이미지 바깥(마스크 밖) 정점은 그리지 않는다.
+   */
   private drawWeights(overlay: Phaser.GameObjects.Graphics, zoom: number): void {
     const mesh = this.meshData;
     if (!mesh) return;
 
     const source = this.deformed ?? mesh.vertices;
-    const dot = 2 / zoom;
+    const dot = 1.6 / zoom;
+    const colorOf = new Map(this.bones.map((bone) => [bone.id, hexToNumber(bone.color)]));
+    const selectedColor = this.selectedBoneId
+      ? (colorOf.get(this.selectedBoneId) ?? 0xffffff)
+      : 0xffffff;
 
     for (let i = 0; i < mesh.weights.length; i += 1) {
+      if (this.mask && !this.mask[i]) continue;
+
       const x = source[i * 2] ?? 0;
       const y = source[i * 2 + 1] ?? 0;
       const value = this.weightPreview?.[i] ?? 0;
 
       if (value > 0.01) {
-        overlay.fillStyle(0xffffff, 0.15 + value * 0.75);
-        overlay.fillCircle(x, y, dot * (0.8 + value));
-      } else if ((mesh.weights[i]?.boneIds.length ?? 0) > 0) {
-        overlay.fillStyle(0xffffff, 0.14);
-        overlay.fillCircle(x, y, dot * 0.7);
+        // 지금 고른 관절이 칠한 곳 — 진할수록 밝고 크다.
+        overlay.fillStyle(selectedColor, 0.25 + value * 0.75);
+        fillDot(overlay, x, y, dot * (0.7 + value * 0.8));
+        continue;
+      }
+
+      const owner = mesh.weights[i]?.boneIds[0];
+      if (owner) {
+        // 다른 관절이 가진 곳 — 그 관절의 색으로 옅게.
+        overlay.fillStyle(colorOf.get(owner) ?? 0xffffff, 0.3);
+        fillDot(overlay, x, y, dot * 0.6);
       } else {
-        // 아직 아무도 칠하지 않은 정점. 있다는 것만 알 정도로 옅게 둔다.
-        overlay.fillStyle(0x000000, 0.22);
-        overlay.fillCircle(x, y, dot * 0.4);
+        // 아직 아무도 칠하지 않은 곳 — 격자만 보이게.
+        overlay.fillStyle(0x000000, 0.3);
+        fillDot(overlay, x, y, dot * 0.42);
       }
     }
   }
 
+  /** 연결선은 자식 관절의 색을 따른다. */
   private drawLinks(overlay: Phaser.GameObjects.Graphics, zoom: number): void {
     const byId = new Map(this.bones.map((bone) => [bone.id, bone]));
-    overlay.lineStyle(1.5 / zoom, 0xffffff, 0.45);
     for (const bone of this.bones) {
       const parent = bone.parentId ? byId.get(bone.parentId) : undefined;
-      if (parent) overlay.lineBetween(parent.x, parent.y, bone.x, bone.y);
+      if (!parent) continue;
+
+      overlay.lineStyle(3 / zoom, 0x000000, 0.45);
+      overlay.lineBetween(parent.x, parent.y, bone.x, bone.y);
+      overlay.lineStyle(1.5 / zoom, hexToNumber(bone.color), 0.9);
+      overlay.lineBetween(parent.x, parent.y, bone.x, bone.y);
     }
   }
 
@@ -345,17 +398,19 @@ export class EditorScene extends Phaser.Scene {
     const radius = BONE_RADIUS / zoom;
     for (const bone of this.bones) {
       const selected = bone.id === this.selectedBoneId;
+      const color = hexToNumber(bone.color);
 
-      overlay.fillStyle(0x000000, 0.55);
+      overlay.fillStyle(0x000000, 0.6);
       overlay.fillCircle(bone.x, bone.y, radius + 1.5 / zoom);
 
-      overlay.fillStyle(0xffffff, selected ? 1 : 0.78);
+      overlay.fillStyle(color, selected ? 1 : 0.85);
       overlay.fillCircle(bone.x, bone.y, radius);
 
       if (selected) {
+        // 선택된 관절만 흰 링과 가운데 점으로 한 번 더 구분한다.
         overlay.fillStyle(0x111113, 1);
         overlay.fillCircle(bone.x, bone.y, radius * 0.34);
-        overlay.lineStyle(1.5 / zoom, 0xffffff, 0.85);
+        overlay.lineStyle(1.5 / zoom, 0xffffff, 0.9);
         overlay.strokeCircle(bone.x, bone.y, radius * 2);
       }
     }
@@ -366,10 +421,16 @@ export class EditorScene extends Phaser.Scene {
     const paint = this.paint;
     if (!brush || !paint) return;
 
-    overlay.lineStyle(1 / zoom, 0x000000, 0.6);
-    overlay.strokeCircle(brush.x, brush.y, paint.radius + 1 / zoom);
-    overlay.lineStyle(1 / zoom, 0xffffff, 0.9);
+    overlay.lineStyle(3 / zoom, 0x000000, 0.5);
     overlay.strokeCircle(brush.x, brush.y, paint.radius);
+    overlay.lineStyle(1.5 / zoom, paint.erase ? 0xffffff : paint.color, 0.95);
+    overlay.strokeCircle(brush.x, brush.y, paint.radius);
+
+    if (paint.erase) {
+      // 지우개는 안쪽에 점선처럼 한 겹 더 둘러 구분한다.
+      overlay.lineStyle(1 / zoom, 0xffffff, 0.4);
+      overlay.strokeCircle(brush.x, brush.y, paint.radius * 0.72);
+    }
   }
 
   clearTexture(): void {

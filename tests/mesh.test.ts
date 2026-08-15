@@ -4,14 +4,14 @@ import { createGridMesh, toUV, vertexCount } from "../src/core/mesh";
 describe("격자 Mesh 생성", () => {
   it("정사각형 이미지는 해상도만큼 나뉜다", () => {
     const mesh = createGridMesh(512, 512, "normal");
-    expect([mesh.cols, mesh.rows]).toEqual([32, 32]);
-    expect(vertexCount(mesh)).toBe(33 * 33);
+    expect([mesh.cols, mesh.rows]).toEqual([48, 48]);
+    expect(vertexCount(mesh)).toBe(49 * 49);
   });
 
   it("긴 이미지는 셀이 정사각형에 가깝게 유지된다", () => {
     const mesh = createGridMesh(200, 400, "low");
-    expect(mesh.rows).toBe(16);
-    expect(mesh.cols).toBe(8);
+    expect(mesh.rows).toBe(24);
+    expect(mesh.cols).toBe(12);
   });
 
   it("삼각형 인덱스는 셀당 2개다", () => {

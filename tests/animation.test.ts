@@ -22,6 +22,7 @@ function bone(id: string, tags: string[], parentId: string | null = null, motion
     tags,
     motionStrength: motion,
     deform: "soft",
+    color: "#ffffff",
   };
 }
 

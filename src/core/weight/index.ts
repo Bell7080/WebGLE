@@ -81,12 +81,14 @@ export function applyInfluence(
   boneId: string,
   mesh: PuppetMesh,
   influence: Influence,
+  mask?: readonly boolean[] | null,
 ): WeightMap {
   const count = vertexCount(mesh);
   const next: WeightMap = { ...map };
   const channel = [...ensureChannel(next, boneId, count)];
 
   for (let i = 0; i < count; i += 1) {
+    if (mask && !mask[i]) continue;
     const value = influenceAt(influence, mesh.vertices[i * 2] ?? 0, mesh.vertices[i * 2 + 1] ?? 0);
     channel[i] = Math.max(channel[i] ?? 0, value);
   }
@@ -108,12 +110,14 @@ export function paintInfluence(
   mesh: PuppetMesh,
   influence: Influence,
   erase = false,
+  mask?: readonly boolean[] | null,
 ): WeightMap {
   const count = vertexCount(mesh);
   const next: WeightMap = { ...map };
   const channel = [...ensureChannel(next, boneId, count)];
 
   for (let i = 0; i < count; i += 1) {
+    if (mask && !mask[i]) continue;
     const value = influenceAt(influence, mesh.vertices[i * 2] ?? 0, mesh.vertices[i * 2 + 1] ?? 0);
     if (value <= 0) continue;
 

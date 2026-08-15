@@ -4,7 +4,7 @@ import {
   type PuppetBone,
   type PuppetProject,
 } from "./types";
-import { SUGGESTED_TAGS } from "./constants";
+import { generateBoneColor, SUGGESTED_TAGS } from "./constants";
 import { createBoneId, nextPartName } from "./naming";
 
 export interface CreateProjectOptions {
@@ -52,7 +52,18 @@ export function createBone(
     tags: [...(SUGGESTED_TAGS[part] ?? [])],
     motionStrength: 1,
     deform: "soft",
+    color: nextBoneColor(bones),
   };
+}
+
+/** 아직 쓰지 않은 색 중 가장 앞선 것. 지웠다 다시 만들어도 색이 겹치지 않는다. */
+export function nextBoneColor(bones: readonly PuppetBone[]): string {
+  const used = new Set(bones.map((bone) => bone.color));
+  for (let index = 0; index < 360; index += 1) {
+    const color = generateBoneColor(index);
+    if (!used.has(color)) return color;
+  }
+  return generateBoneColor(bones.length);
 }
 
 export class PuppetFormatError extends Error {}
@@ -87,10 +98,19 @@ export function parseProject(raw: unknown): PuppetProject {
     ...data,
     version: PUPPET_VERSION,
     character: { ...base.character, ...data.character },
-    bones: data.bones as PuppetBone[],
+    bones: migrateBones(data.bones as PuppetBone[]),
     mesh: data.mesh ?? null,
     animations: data.animations ?? {},
   };
+}
+
+/** v1에는 색이 없었다. 없으면 순서대로 채워 준다. */
+function migrateBones(bones: readonly PuppetBone[]): PuppetBone[] {
+  const filled: PuppetBone[] = [];
+  for (const bone of bones) {
+    filled.push(bone.color ? bone : { ...bone, color: nextBoneColor(filled) });
+  }
+  return filled;
 }
 
 export function serializeProject(project: PuppetProject): string {

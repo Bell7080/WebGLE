@@ -1,4 +1,4 @@
-# Puppet JSON 포맷 (v1)
+# Puppet JSON 포맷 (v2)
 
 PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 이 파일 하나를 읽는다.
 타입 정의는 [`src/core/format/types.ts`](../src/core/format/types.ts)에 있다.
@@ -8,7 +8,7 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 ```json
 {
   "format": "puppetforge",
-  "version": 1,
+  "version": 2,
   "character": { },
   "bones": [],
   "mesh": null,
@@ -54,7 +54,8 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
   "scaleY": 1,
   "tags": ["tail", "secondary"],
   "motionStrength": 1,
-  "deform": "soft"
+  "deform": "soft",
+  "color": "#7fd4a2"
 }
 ```
 
@@ -63,6 +64,8 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 - `tags`는 범용 애니메이션이 대상을 찾는 유일한 수단이다. 이름에 의존하지 않는다.
 - `motionStrength`는 애니메이션 움직임 크기에 곱하는 배율이다 (기본 `1`).
 - `deform`은 `"soft"`(Mesh 변형) 또는 `"rigid"`(위치 · 회전 · 크기만).
+- `color`는 편집 화면에서 관절을 알아보기 위한 색(`#rrggbb`)이다. 관절점 · 연결선 · 영향 영역
+  표시가 모두 이 색을 따른다. 런타임 동작에는 영향을 주지 않는다.
 
 좌우 구분이나 파츠 종류는 포맷에 없다. 필요하면 사용자가 이름이나 태그로 표현한다.
 
@@ -135,3 +138,10 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 
 포맷이 바뀌면 `version`을 올리고 읽는 쪽에 Migration을 추가한다.
 `parseProject()`가 검증과 Migration의 단일 진입점이다.
+
+| 버전 | 변경 |
+| --- | --- |
+| 1 | 최초 포맷 |
+| 2 | Bone에 `color` 추가. v1 파일은 열 때 색을 자동으로 채운다. |
+
+읽는 쪽보다 높은 버전은 거부하고, 낮은 버전은 조용히 올려서 연다.

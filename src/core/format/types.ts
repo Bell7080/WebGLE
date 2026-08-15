@@ -6,7 +6,10 @@
  */
 
 export const PUPPET_FORMAT = "puppetforge" as const;
-export const PUPPET_VERSION = 1 as const;
+/**
+ * 2: Bone에 color 추가. v1 파일은 불러올 때 색을 자동으로 채운다.
+ */
+export const PUPPET_VERSION = 2 as const;
 
 /** Bone의 변형 방식. (기획서 19) */
 export type DeformMode = "soft" | "rigid";
@@ -36,6 +39,12 @@ export interface PuppetBone {
   motionStrength: number;
 
   deform: DeformMode;
+
+  /**
+   * 편집 화면에서 이 관절을 알아보기 위한 색. `#rrggbb`.
+   * 관절점 · 연결선 · 영향 영역 표시가 모두 이 색을 따른다.
+   */
+  color: string;
 }
 
 /** Mesh 해상도 프리셋. (기획서 15) */

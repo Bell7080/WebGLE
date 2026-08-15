@@ -26,6 +26,7 @@ function bone(id: string, x: number, y: number, parentId: string | null = null):
     tags: [],
     motionStrength: 1,
     deform: "soft",
+    color: "#ffffff",
   };
 }
 
@@ -101,7 +102,8 @@ describe("정점 변형", () => {
     const bones = [bone("root", 50, 50)];
     const skin = computeSkinMatrices(bones, new Map([["root", delta({ x: 20 })]]));
     const result = skinVertices(mesh, skin);
-    expect(Array.from(result)).toEqual(mesh.vertices);
+    // Float32Array라 미세한 반올림 차이는 허용한다.
+    result.forEach((value, index) => expect(value).toBeCloseTo(mesh.vertices[index] ?? 0, 3));
   });
 
   it("칠한 곳만 따라 움직인다", () => {

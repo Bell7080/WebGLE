@@ -7,6 +7,7 @@ import {
 } from "@core/format";
 import { canReparent } from "@core/skeleton";
 import type { BrushState, EditorStore } from "../state/store";
+import { createColorWheel } from "./colorWheel";
 
 export interface EditorUICallbacks {
   onAddBone(part: string): void;
@@ -41,6 +42,8 @@ export class EditorUI {
   private readonly addBoneButton = requireElement<HTMLButtonElement>("addBoneButton");
   private partSelect!: HTMLSelectElement;
   private draggingBoneId: string | null = null;
+  /** 원형 팔레트를 펼쳐 둔 관절. */
+  private colorOpenBoneId: string | null = null;
 
   constructor(
     private readonly store: EditorStore,
@@ -172,6 +175,10 @@ export class EditorUI {
     grip.textContent = "⠿";
     grip.setAttribute("aria-hidden", "true");
 
+    const dot = document.createElement("span");
+    dot.className = "bone-color";
+    dot.style.background = bone.color;
+
     const name = document.createElement("span");
     name.className = "name";
     name.textContent = bone.name;
@@ -187,7 +194,7 @@ export class EditorUI {
       this.callbacks.onDeleteBone(bone.id);
     });
 
-    row.append(grip, name, remove);
+    row.append(grip, dot, name, remove);
     this.bindRowDrag(row, bone.id);
     return row;
   }
@@ -252,6 +259,7 @@ export class EditorUI {
       this.textField("이름", bone.name, (value) =>
         this.callbacks.onUpdateBone(bone.id, { name: value }),
       ),
+      this.colorField(bone),
       this.parentField(bones, bone),
       this.textField("태그", bone.tags.join(", "), (value) =>
         this.callbacks.onUpdateBone(bone.id, {
@@ -266,6 +274,14 @@ export class EditorUI {
       ),
       this.deformField(bone),
     );
+
+    if (this.colorOpenBoneId === bone.id) {
+      this.inspector.append(
+        createColorWheel(bone.color, (color) =>
+          this.callbacks.onUpdateBone(bone.id, { color }),
+        ),
+      );
+    }
 
     const coords = document.createElement("p");
     coords.className = "hint";
@@ -294,18 +310,15 @@ export class EditorUI {
       return section;
     }
 
-    const toggle = document.createElement("button");
-    toggle.type = "button";
-    toggle.className = brush.active ? "outlined active-fill" : "outlined";
-    toggle.textContent = brush.active ? "칠하기 끄기" : "칠하기";
-    toggle.addEventListener("click", () =>
-      this.callbacks.onBrushChange({ active: !brush.active }),
+    // 칠하기 / 지우개는 한 줄에 모은 아이콘 토글이다.
+    // 같은 것을 다시 누르면 꺼지고, 다른 것을 누르면 그쪽으로 바뀐다.
+    const tools = document.createElement("div");
+    tools.className = "tool-row";
+    tools.append(
+      this.toolButton("brush", "✎", "칠하기", brush.tool === "brush"),
+      this.toolButton("eraser", "⌫", "지우개", brush.tool === "eraser"),
     );
-
-    const actions = document.createElement("div");
-    actions.className = "inspector-actions";
-    actions.append(toggle);
-    section.append(actions);
+    section.append(tools);
 
     section.append(
       this.sliderField("크기", brush.size, 4, 400, 1, (value) =>
@@ -316,25 +329,67 @@ export class EditorUI {
       ),
     );
 
-    const erase = document.createElement("button");
-    erase.type = "button";
-    erase.className = brush.erase ? "outlined active-fill" : "outlined";
-    erase.textContent = brush.erase ? "지우개 (켜짐)" : "지우개";
-    erase.addEventListener("click", () => this.callbacks.onBrushChange({ erase: !brush.erase }));
-
-    const eraseWrap = document.createElement("div");
-    eraseWrap.className = "inspector-actions";
-    eraseWrap.append(erase);
-    section.append(eraseWrap);
-
     const hint = document.createElement("p");
     hint.className = "hint";
-    hint.textContent = brush.active
-      ? `${bone.name}에 칠하는 중 · 캔버스를 드래그하세요`
-      : "칠하기를 켜면 캔버스에서 관절 대신 영역을 칠합니다.";
+    hint.textContent =
+      brush.tool === "brush"
+        ? `${bone.name}에 칠하는 중 · 캔버스를 드래그하세요`
+        : brush.tool === "eraser"
+          ? `${bone.name}에서 지우는 중 · 캔버스를 드래그하세요`
+          : "칠하기나 지우개를 켜면 캔버스 드래그가 영역 편집으로 바뀝니다.";
     section.append(hint);
 
     return section;
+  }
+
+  private toolButton(
+    tool: "brush" | "eraser",
+    icon: string,
+    label: string,
+    active: boolean,
+  ): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = active ? "tool active-fill" : "tool";
+    button.title = active ? `${label} 끄기` : label;
+    button.setAttribute("aria-pressed", String(active));
+    button.setAttribute("aria-label", label);
+
+    const glyph = document.createElement("span");
+    glyph.className = "glyph";
+    glyph.textContent = icon;
+    const text = document.createElement("span");
+    text.textContent = label;
+    button.append(glyph, text);
+
+    button.addEventListener("click", () =>
+      this.callbacks.onBrushChange({ tool: active ? null : tool }),
+    );
+    return button;
+  }
+
+  /** 관절 색. 원형 팔레트는 색 견본을 누를 때만 펼친다. */
+  private colorField(bone: PuppetBone): HTMLDivElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "field field-color";
+
+    const label = document.createElement("label");
+    label.textContent = "색";
+
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className = "swatch";
+    swatch.style.background = bone.color;
+    swatch.title = "색 고르기";
+    swatch.setAttribute("aria-expanded", String(this.colorOpenBoneId === bone.id));
+
+    swatch.addEventListener("click", () => {
+      this.colorOpenBoneId = this.colorOpenBoneId === bone.id ? null : bone.id;
+      this.render();
+    });
+
+    wrapper.append(label, swatch);
+    return wrapper;
   }
 
   private sliderField(
