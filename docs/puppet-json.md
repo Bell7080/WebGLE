@@ -8,7 +8,7 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 ```json
 {
   "format": "puppetforge",
-  "version": 6,
+  "version": 7,
   "character": { },
   "bones": [],
   "mesh": null,
@@ -117,6 +117,7 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
       {
         "target": { "kind": "tag", "tag": "head" },
         "property": "rotation",
+        "stagger": 0,
         "keys": [
           { "time": 0, "value": 0 },
           { "time": 0.75, "value": 0.06, "ease": "smooth" },
@@ -131,6 +132,10 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 
 - Track의 `target`은 Bone 하나(`{"kind":"bone","boneId":"..."}`) 또는 태그(`{"kind":"tag","tag":"head"}`)다.
 - 태그를 대상으로 하면 그 태그를 가진 **모든** Bone에 적용된다. 머리가 셋이면 셋 다 움직인다.
+- Track의 `stagger`는 대상이 여러 개일 때 시간을 얼마나 벌릴지다(기본 0 = 모두 동시).
+  n개 중 i번째는 `time + duration × stagger × i / n`의 값을 쓰며, 순서는 관절 목록 순서다.
+  `1`이면 대상들이 한 주기에 고르게 퍼진다 — 다리 둘은 좌우 교대로, 스무 개는 흐르는 파도가 된다.
+  반복 애니메이션은 주기를 감아 이어 붙이고, 한 번짜리는 끝에서 멈춘다.
 - 해당 태그를 가진 Bone이 하나도 없으면 그 Track만 건너뛴다. 오류를 내지 않고 나머지는 계속 재생한다.
 - `time`은 초 단위이며 `0`부터 `duration`까지다.
 - `events`는 게임 쪽에서 받는 신호다 (공격 판정, 효과음, 이펙트 등).
@@ -167,5 +172,6 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 | 4 | 애니메이션에 `hidden` 추가. 파일에는 남기되 내보내기에서만 제외한다. |
 | 5 | 애니메이션에 `speed` · `strength` 추가. 없으면 둘 다 1로 본다. |
 | 6 | 애니메이션에 `secondary`(따라 흔들림) 추가. 없으면 1로 본다. |
+| 7 | Track에 `stagger`(대상별 시간 어긋냄) 추가. 없으면 0으로 본다. |
 
 읽는 쪽보다 높은 버전은 거부하고, 낮은 버전은 조용히 올려서 연다.

@@ -7,9 +7,9 @@
       "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.2, "value": -4, "ease": "smooth" }, { "time": 0.4, "value": 0, "ease": "smooth" }, { "time": 0.6, "value": -4, "ease": "smooth" }, { "time": 0.8, "value": 0, "ease": "smooth" } ] },
     { "target": { "kind": "tag", "tag": "core" }, "property": "rotation",
       "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.4, "value": 0.05, "ease": "smooth" }, { "time": 0.8, "value": 0, "ease": "smooth" } ] },
-    { "target": { "kind": "tag", "tag": "leg" }, "property": "rotation",
+    { "target": { "kind": "tag", "tag": "leg" }, "property": "rotation", "stagger": 1,
       "keys": [ { "time": 0, "value": 0.22, "ease": "smooth" }, { "time": 0.4, "value": -0.22, "ease": "smooth" }, { "time": 0.8, "value": 0.22, "ease": "smooth" } ] },
-    { "target": { "kind": "tag", "tag": "arm" }, "property": "rotation",
+    { "target": { "kind": "tag", "tag": "arm" }, "property": "rotation", "stagger": 1,
       "keys": [ { "time": 0, "value": -0.18, "ease": "smooth" }, { "time": 0.4, "value": 0.18, "ease": "smooth" }, { "time": 0.8, "value": -0.18, "ease": "smooth" } ] },
     { "target": { "kind": "tag", "tag": "secondary" }, "property": "rotation",
       "keys": [ { "time": 0, "value": 0.08, "ease": "smooth" }, { "time": 0.45, "value": -0.08, "ease": "smooth" }, { "time": 0.8, "value": 0.08, "ease": "smooth" } ] }

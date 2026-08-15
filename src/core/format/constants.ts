@@ -29,6 +29,7 @@ export const PART_NAMES = [
   "입",
   "턱",
   "집게",
+  "독침",
   "무기",
   "방패",
   "장식",
@@ -162,6 +163,8 @@ export const SUGGESTED_TAGS: Record<string, string[]> = {
   입: ["mouth", "head"],
   턱: ["jaw", "mouth"],
   집게: ["arm", "weapon", "attack"],
+  // 꼬리 끝에 달려 찌르는 부위. 꼬리를 부모로 두면 꼬리째 휘둘러 찌른다.
+  독침: ["attack", "weapon", "stiff"],
   무기: ["weapon", "attack", "stiff"],
   방패: ["shield", "stiff"],
   장식: ["decoration", "secondary"],

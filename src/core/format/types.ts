@@ -11,8 +11,9 @@ export const PUPPET_FORMAT = "puppetforge" as const;
  * 4: 애니메이션에 hidden 추가. 파일에는 남기되 내보내기에서만 뺀다.
  * 5: 애니메이션에 speed / strength 추가. 없으면 둘 다 1로 본다.
  * 6: 애니메이션에 secondary(따라 흔들림) 추가. 없으면 1로 본다.
+ * 7: Track에 stagger(대상별 시간 어긋냄) 추가. 없으면 0으로 본다.
  */
-export const PUPPET_VERSION = 6 as const;
+export const PUPPET_VERSION = 7 as const;
 
 /**
  * Bone의 변형 방식. (기획서 19 확장)
@@ -106,6 +107,18 @@ export interface AnimationTrack {
   target: TrackTarget;
   property: TrackProperty;
   keys: Keyframe[];
+
+  /**
+   * 대상이 여러 개일 때 시간을 얼마나 벌려서 적용할지. 주기 대비 비율이며 없으면 0(모두 동시).
+   *
+   * n개의 대상 중 i번째는 `time + duration * stagger * i / n` 시각의 값을 쓴다.
+   * 1이면 대상들이 한 주기에 고르게 퍼진다.
+   * - 다리 2개 → 반 주기씩 어긋나 좌우가 번갈아 나간다
+   * - 지네 다리 20개 → 앞에서 뒤로 흐르는 파도가 된다
+   *
+   * 순서는 관절 목록 순서다. 좌측 패널에서 끌어 정리하면 파도 방향이 바뀐다.
+   */
+  stagger?: number;
 }
 
 /** 게임 이벤트. (기획서 42) */

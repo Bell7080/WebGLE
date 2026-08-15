@@ -46,6 +46,16 @@ function interpolate(from: number, to: number, t: number, ease: Interpolation): 
   }
 }
 
+/**
+ * 어긋낸 시각을 애니메이션 길이 안으로 되돌린다.
+ * 반복이면 주기를 감고, 한 번짜리면 끝에서 멈춘다(뒤쪽 대상이 먼저 자세를 잡고 기다린다).
+ */
+function wrap(time: number, duration: number, loop: boolean): number {
+  if (!loop) return Math.min(time, duration);
+  const wrapped = time % duration;
+  return wrapped < 0 ? wrapped + duration : wrapped;
+}
+
 /** Track이 가리키는 Bone들. 대상이 없으면 빈 배열이고, 호출부는 그냥 건너뛴다. (기획서 64) */
 export function resolveTargets(
   track: AnimationTrack,
@@ -96,14 +106,29 @@ export function evaluateAnimation(
 ): Map<string, BoneDelta> {
   const deltas = new Map<string, BoneDelta>();
 
+  const duration = Math.max(0.0001, animation.duration);
+
   for (const track of animation.tracks) {
     const targets = resolveTargets(track, bones);
     if (targets.length === 0) continue;
 
     const base = track.property === "scaleX" || track.property === "scaleY" ? 1 : 0;
-    const value = sampleTrack(track.keys, time, base);
+    const stagger = track.stagger ?? 0;
+    // 어긋냄이 없으면 모든 대상이 같은 값을 쓰므로 한 번만 뽑는다.
+    const shared = stagger === 0 ? sampleTrack(track.keys, time, base) : 0;
 
-    for (const bone of targets) {
+    for (let i = 0; i < targets.length; i += 1) {
+      const bone = targets[i]!;
+      const value =
+        stagger === 0
+          ? shared
+          : sampleTrack(
+              track.keys,
+              // 반복 애니메이션은 주기를 감아서 이어 붙이고, 한 번짜리는 끝에 머문다.
+              wrap(time + (duration * stagger * i) / targets.length, duration, animation.loop),
+              base,
+            );
+
       let delta = deltas.get(bone.id);
       if (!delta) {
         delta = { ...NO_DELTA };
