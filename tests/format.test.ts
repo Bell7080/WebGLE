@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   createBone,
   createEmptyProject,
+  PART_NAMES,
   generateBoneColor,
+  suggestTags,
+  TAG_CATALOG,
+  TAG_DESCRIPTIONS,
+  TAG_GROUPS,
   hexToNumber,
   hslToHex,
   nextBoneColor,
@@ -30,8 +35,10 @@ describe("이름 자동 번호", () => {
 
 describe("Bone 기본값", () => {
   it("파츠에 맞는 태그가 자동으로 붙는다", () => {
-    expect(createBone("꼬리", 10, 20, []).tags).toContain("secondary");
-    expect(createBone("기타", 0, 0, []).tags).toEqual([]);
+    const root = createBone("몸통", 0, 0, []);
+    expect(createBone("꼬리", 10, 20, [root]).tags).toContain("secondary");
+    // 추천 태그가 없는 파츠는 비어 있다 (root가 이미 있는 상태 기준).
+    expect(createBone("기타", 0, 0, [root]).tags).toEqual([]);
   });
 
   it("motionStrength 기본값은 1이다", () => {
@@ -127,4 +134,57 @@ describe("포맷 마이그레이션", () => {
       expect(parseProject(JSON.parse(serializeProject(project))).bones[0]!.deform).toBe(deform);
     },
   );
+});
+
+describe("태그 목록", () => {
+  it("id가 중복되지 않는다", () => {
+    const ids = TAG_CATALOG.map((tag) => tag.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("모든 태그에 설명이 있다", () => {
+    for (const tag of TAG_CATALOG) {
+      expect(tag.description.length).toBeGreaterThan(5);
+      expect(TAG_DESCRIPTIONS[tag.id]).toBe(tag.description);
+    }
+  });
+
+  it("모든 태그가 실제 묶음에 속한다", () => {
+    const groups = new Set(TAG_GROUPS.map((group) => group.id));
+    for (const tag of TAG_CATALOG) expect(groups.has(tag.group)).toBe(true);
+  });
+
+  it("대기 프리셋이 찾는 태그가 목록에 다 있다", () => {
+    for (const id of ["root", "core", "head", "secondary"]) {
+      expect(TAG_CATALOG.some((tag) => tag.id === id)).toBe(true);
+    }
+  });
+
+  it("파츠 추천 태그는 모두 목록 안의 태그다", () => {
+    const known = new Set(TAG_CATALOG.map((tag) => tag.id));
+    for (const part of PART_NAMES) {
+      for (const tag of suggestTags(part, [{ tags: ["root"] } as never])) {
+        expect(known.has(tag)).toBe(true);
+      }
+    }
+  });
+});
+
+describe("root 태그 자동 배정", () => {
+  it("첫 루트 관절에는 root가 붙는다", () => {
+    const first = createBone("몸통", 0, 0, []);
+    expect(first.tags).toContain("root");
+    expect(first.tags).toContain("core");
+  });
+
+  it("이미 root가 있으면 더 붙이지 않는다", () => {
+    const first = createBone("몸통", 0, 0, []);
+    const second = createBone("머리", 0, 0, [first]);
+    expect(second.tags).not.toContain("root");
+  });
+
+  it("부모가 있는 관절에는 붙지 않는다", () => {
+    const child = createBone("머리", 0, 0, [], "어떤부모");
+    expect(child.tags).not.toContain("root");
+  });
 });

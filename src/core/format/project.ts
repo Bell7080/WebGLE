@@ -49,11 +49,29 @@ export function createBone(
     rotation: 0,
     scaleX: 1,
     scaleY: 1,
-    tags: [...(SUGGESTED_TAGS[part] ?? [])],
+    tags: suggestTags(part, bones, parentId),
     motionStrength: 1,
     deform: "soft",
     color: nextBoneColor(bones),
   };
+}
+
+/**
+ * 파츠에 맞는 추천 태그.
+ *
+ * 부모가 없고 아직 아무도 `root`를 달고 있지 않으면 `root`도 함께 붙인다.
+ * 대기 · 점프처럼 캐릭터 전체를 움직이는 프리셋이 기준으로 삼을 관절이 없으면
+ * 그 트랙이 통째로 건너뛰어지기 때문이다. (기획서 22, 64 · 73의 "자동값 우선")
+ */
+export function suggestTags(
+  part: string,
+  bones: readonly PuppetBone[],
+  parentId: string | null = null,
+): string[] {
+  const tags = [...(SUGGESTED_TAGS[part] ?? [])];
+  const hasRoot = bones.some((bone) => bone.tags.includes("root"));
+  if (!hasRoot && parentId === null && !tags.includes("root")) tags.unshift("root");
+  return tags;
 }
 
 /** 아직 쓰지 않은 색 중 가장 앞선 것. 지웠다 다시 만들어도 색이 겹치지 않는다. */

@@ -25,23 +25,96 @@ export const PART_NAMES = [
 
 export type PartName = (typeof PART_NAMES)[number];
 
-/** 기본 태그. 사용자가 자유롭게 추가할 수 있다. (기획서 11) */
-export const DEFAULT_TAGS = [
-  "root",
-  "body",
-  "core",
-  "head",
-  "neck",
-  "arm",
-  "hand",
-  "leg",
-  "foot",
-  "tail",
-  "wing",
-  "weapon",
-  "attack",
-  "secondary",
+/** 태그 묶음. 속성 패널에서 이 순서대로 보여 준다. */
+export const TAG_GROUPS = [
+  { id: "structure", label: "중심 · 구조" },
+  { id: "limb", label: "팔다리" },
+  { id: "appendage", label: "부속" },
+  { id: "face", label: "얼굴" },
+  { id: "role", label: "역할" },
+  { id: "motion", label: "움직임 성격" },
+  { id: "position", label: "위치 구분" },
 ] as const;
+
+export type TagGroup = (typeof TAG_GROUPS)[number]["id"];
+
+export interface TagInfo {
+  id: string;
+  group: TagGroup;
+  /** 이 태그를 붙이면 무슨 일이 일어나는지. 버튼 툴팁으로 그대로 보여 준다. */
+  description: string;
+}
+
+/**
+ * 기본 태그 목록. (기획서 11)
+ *
+ * 애니메이션은 오직 태그로 대상을 찾는다. 여기 없는 태그도 직접 적어 넣을 수 있고,
+ * 프리셋이 찾는 태그가 캐릭터에 없으면 그 부분만 조용히 건너뛴다. (기획서 64)
+ */
+export const TAG_CATALOG: readonly TagInfo[] = [
+  // 중심 · 구조
+  { id: "root", group: "structure", description: "캐릭터 전체의 기준. 대기의 상하 흔들림, 점프의 도약과 착지가 이 관절을 움직인다. 보통 캐릭터당 하나." },
+  { id: "core", group: "structure", description: "몸의 중심. 숨쉬기, 찌그러짐(squash), 피격 반동의 기준이 된다." },
+  { id: "body", group: "structure", description: "몸통 부위 표시. 몸통 전체를 대상으로 하는 동작이 참고한다." },
+  { id: "spine", group: "structure", description: "허리 · 등뼈. 몸을 젖히거나 웅크리는 동작이 쓴다." },
+  { id: "hip", group: "structure", description: "골반 · 하체 시작점. 걷기와 착지에서 무게 중심 역할." },
+  { id: "neck", group: "structure", description: "목. 머리와 몸통 사이 완충. 머리 회전을 조금 나눠 받는다." },
+
+  // 팔다리
+  { id: "arm", group: "limb", description: "팔. 공격 · 대기의 팔 흔들림 대상." },
+  { id: "hand", group: "limb", description: "손. 팔 끝에서 조금 늦게 따라오는 움직임." },
+  { id: "leg", group: "limb", description: "다리. 걷기 · 점프에서 접히고 펴진다." },
+  { id: "foot", group: "limb", description: "발. 착지 충격을 받는 지점. 바닥에 붙여 두려면 변형을 위치 고정으로." },
+  { id: "claw", group: "limb", description: "발톱 · 갈퀴. 할퀴기 동작의 끝점." },
+  { id: "finger", group: "limb", description: "손가락. 세밀하게 움직일 끝 부분." },
+
+  // 부속
+  { id: "tail", group: "appendage", description: "꼬리. 몸을 따라 늦게 출렁인다." },
+  { id: "wing", group: "appendage", description: "날개. 퍼덕임과 활공 동작 대상." },
+  { id: "tentacle", group: "appendage", description: "촉수. 물속처럼 느리게 흐느적거린다." },
+  { id: "hair", group: "appendage", description: "머리카락 · 갈기. 관성으로 흔들린다." },
+  { id: "ear", group: "appendage", description: "귀. 작게 쫑긋거리거나 늦게 따라온다." },
+  { id: "horn", group: "appendage", description: "뿔. 머리를 따라 단단히 움직인다." },
+  { id: "fin", group: "appendage", description: "지느러미. 물결치듯 흔들린다." },
+  { id: "cloth", group: "appendage", description: "천 · 망토 · 옷자락. 몸을 늦게 따라오며 펄럭인다." },
+  { id: "antenna", group: "appendage", description: "더듬이. 아주 가볍게 떨린다." },
+
+  // 얼굴
+  { id: "head", group: "face", description: "머리. 대기에서 갸웃거리고 피격에서 뒤로 젖혀진다. 여러 개여도 전부 움직인다." },
+  { id: "eye", group: "face", description: "눈. 표정 · 깜빡임 용도로 따로 움직일 때." },
+  { id: "mouth", group: "face", description: "입 · 턱. 물기와 포효 동작이 연다." },
+  { id: "jaw", group: "face", description: "아래턱. 무는 동작에서 벌어지는 쪽." },
+
+  // 역할
+  { id: "attack", group: "role", description: "공격에 쓰이는 부위. 찌르기 · 할퀴기 같은 동작이 이 태그를 찾아 앞으로 내민다." },
+  { id: "weapon", group: "role", description: "무기 · 도구. 보통 형태를 유지해야 하므로 변형을 형태 유지로 두면 좋다." },
+  { id: "shield", group: "role", description: "방패 · 막는 파츠. 방어 동작에서 앞으로 세운다." },
+  { id: "prop", group: "role", description: "들고 있는 소품. 손을 따라다닌다." },
+  { id: "decoration", group: "role", description: "장식. 움직임에 곁들여 흔들리기만 한다." },
+  { id: "ground", group: "role", description: "바닥에 닿아 있는 부분. 위치를 고정할 때 표시해 둔다." },
+
+  // 움직임 성격
+  { id: "secondary", group: "motion", description: "따라 움직이는 부위. 부모보다 한 박자 늦게, 관성으로 흔들린다." },
+  { id: "float", group: "motion", description: "떠 있는 느낌. 천천히 위아래로 부유한다." },
+  { id: "heavy", group: "motion", description: "무겁게. 움직임이 둔하고 크게 흔들리지 않는다." },
+  { id: "light", group: "motion", description: "가볍게. 작은 움직임에도 민감하게 반응한다." },
+  { id: "bounce", group: "motion", description: "탄력 있게. 착지나 충격에서 통통 튄다." },
+  { id: "stiff", group: "motion", description: "뻣뻣하게. 거의 흔들리지 않는 부위." },
+
+  // 위치 구분 (좌우를 강제하지 않는다 — 기획서 10)
+  { id: "front", group: "position", description: "앞쪽. 앞뒤를 나눠 다르게 움직이고 싶을 때." },
+  { id: "back", group: "position", description: "뒤쪽. 앞쪽보다 조금 늦게 따라오게 할 때." },
+  { id: "upper", group: "position", description: "위쪽 부위 구분." },
+  { id: "lower", group: "position", description: "아래쪽 부위 구분." },
+];
+
+/** 태그 id → 설명. 툴팁에 쓴다. */
+export const TAG_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
+  TAG_CATALOG.map((tag) => [tag.id, tag.description]),
+);
+
+/** 기본 태그 id 목록. */
+export const DEFAULT_TAGS = TAG_CATALOG.map((tag) => tag.id);
 
 /**
  * 파츠 이름 → 자동으로 붙일 태그 추천값.
@@ -54,20 +127,21 @@ export const SUGGESTED_TAGS: Record<string, string[]> = {
   팔: ["arm", "attack"],
   다리: ["leg"],
   손: ["hand"],
-  발: ["foot"],
+  발: ["foot", "ground"],
   꼬리: ["tail", "secondary"],
   날개: ["wing", "secondary"],
   목: ["neck"],
-  뿔: ["head"],
-  귀: ["head", "secondary"],
-  눈: ["head"],
-  입: ["head"],
-  촉수: ["secondary", "attack"],
+  뿔: ["horn", "stiff"],
+  귀: ["ear", "secondary"],
+  눈: ["eye", "head"],
+  입: ["mouth", "head"],
+  촉수: ["tentacle", "secondary", "attack"],
   집게: ["arm", "weapon", "attack"],
-  무기: ["weapon", "attack"],
-  장식: ["secondary"],
+  무기: ["weapon", "attack", "stiff"],
+  장식: ["decoration", "secondary"],
   기타: [],
 };
+
 
 /**
  * Mesh 해상도별 격자 셀 수. (기획서 15, 49)

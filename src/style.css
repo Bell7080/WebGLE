@@ -400,6 +400,126 @@ input[type="range"] {
   background: transparent;
 }
 
+/* 태그 칩 */
+.field-tags {
+  align-items: flex-start;
+}
+
+.field-tags label {
+  padding-top: 3px;
+}
+
+.tag-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 3px 1px 7px;
+  background: var(--bg-control);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--text);
+  cursor: help;
+}
+
+.tag-remove {
+  padding: 0;
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-3);
+}
+
+.tag-remove:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text);
+}
+
+.tag-empty {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.tag-add {
+  padding: 1px 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+/* 태그 고르기 패널 */
+.tag-picker {
+  margin: 6px 10px 2px;
+  padding: 8px;
+  background: var(--bg-app);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.tag-picker h4 {
+  margin: 8px 0 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+}
+
+.tag-picker h4:first-child {
+  margin-top: 0;
+}
+
+.tag-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+button.tag-option {
+  padding: 2px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--text-2);
+  cursor: help;
+}
+
+.tag-custom {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.tag-custom input {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  padding: 2px 6px;
+}
+
+.tag-custom button {
+  flex: none;
+  font-size: 11.5px;
+  padding: 2px 8px;
+}
+
 /* 칠하기 / 지우개 아이콘 토글 */
 .tool-row {
   display: flex;

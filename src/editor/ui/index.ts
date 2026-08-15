@@ -2,6 +2,9 @@ import {
   ANIMATION_BUTTONS,
   OVERLAY_LAYERS,
   PART_NAMES,
+  TAG_CATALOG,
+  TAG_DESCRIPTIONS,
+  TAG_GROUPS,
   type OverlayLayer,
   type PuppetBone,
 } from "@core/format";
@@ -20,6 +23,30 @@ export interface EditorUICallbacks {
   onStop(): void;
   onBrushChange(patch: Partial<BrushState>): void;
 }
+
+/** 변형 방식 선택지와 설명. 툴팁으로 그대로 보여 준다. */
+const DEFORM_OPTIONS = [
+  [
+    "soft",
+    "부드럽게 · 움직임",
+    "몸통 · 팔 · 꼬리처럼 자연스럽게 휘는 부위. 이웃 관절과 가중치를 섞어 부드럽게 찌그러진다.",
+  ],
+  [
+    "rigid",
+    "형태 유지 · 움직임",
+    "검 · 왕관 · 안경처럼 찌그러지면 안 되는 파츠. 위치 · 회전 · 크기만 따라가고 형태는 그대로.",
+  ],
+  [
+    "pinnedSoft",
+    "부드럽게 · 위치 고정",
+    "발처럼 제자리에 붙여 두고 싶은 부위. 자기와 부모의 움직임은 무시하지만 이웃과의 경계는 부드럽게 휜다.",
+  ],
+  [
+    "fixed",
+    "형태·위치 모두 고정",
+    "바닥 접점처럼 절대 움직이면 안 되는 영역. 다른 관절이 겹쳐 칠해도 원래 자리를 지킨다.",
+  ],
+] as const;
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -44,6 +71,8 @@ export class EditorUI {
   private draggingBoneId: string | null = null;
   /** 원형 팔레트를 펼쳐 둔 관절. */
   private colorOpenBoneId: string | null = null;
+  /** 태그 고르기 패널을 펼쳐 둔 관절. */
+  private tagPickerBoneId: string | null = null;
 
   constructor(
     private readonly store: EditorStore,
@@ -261,19 +290,16 @@ export class EditorUI {
       ),
       this.colorField(bone),
       this.parentField(bones, bone),
-      this.textField("태그", bone.tags.join(", "), (value) =>
-        this.callbacks.onUpdateBone(bone.id, {
-          tags: value
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean),
-        }),
-      ),
+      this.tagsField(bone),
       this.numberField("강도", bone.motionStrength, (value) =>
         this.callbacks.onUpdateBone(bone.id, { motionStrength: value }),
       ),
       this.deformField(bone),
     );
+
+    if (this.tagPickerBoneId === bone.id) {
+      this.inspector.append(this.tagPicker(bone));
+    }
 
     if (this.colorOpenBoneId === bone.id) {
       this.inspector.append(
@@ -498,20 +524,156 @@ export class EditorUI {
     return this.field("부모", select);
   }
 
+  /**
+   * 태그 편집. (기획서 11, 12)
+   * 붙어 있는 태그는 칩으로 보여 주고, 목록에서 눌러 추가한다.
+   * 각 버튼에 마우스를 올리면 그 태그가 애니메이션에서 무슨 일을 하는지 알려 준다.
+   */
+  private tagsField(bone: PuppetBone): HTMLDivElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "field field-tags";
+
+    const label = document.createElement("label");
+    label.textContent = "태그";
+    label.title = "애니메이션은 관절 이름이 아니라 태그로 대상을 찾는다.";
+
+    const body = document.createElement("div");
+    body.className = "tag-body";
+
+    const chips = document.createElement("div");
+    chips.className = "tag-chips";
+
+    for (const tag of bone.tags) {
+      chips.append(this.tagChip(bone, tag));
+    }
+
+    if (bone.tags.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "tag-empty";
+      empty.textContent = "없음 · 이 관절은 어떤 애니메이션에도 반응하지 않습니다";
+      chips.append(empty);
+    }
+
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "tag-add";
+    more.textContent = this.tagPickerBoneId === bone.id ? "닫기" : "+ 태그";
+    more.title = "붙일 태그 고르기";
+    more.addEventListener("click", () => {
+      this.tagPickerBoneId = this.tagPickerBoneId === bone.id ? null : bone.id;
+      this.render();
+    });
+    chips.append(more);
+
+    body.append(chips);
+    wrapper.append(label, body);
+    return wrapper;
+  }
+
+  private tagChip(bone: PuppetBone, tag: string): HTMLSpanElement {
+    const chip = document.createElement("span");
+    chip.className = "tag-chip";
+    chip.title = TAG_DESCRIPTIONS[tag] ?? "직접 추가한 태그. 프리셋이 찾으면 그때 쓰인다.";
+
+    const name = document.createElement("span");
+    name.textContent = tag;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "tag-remove";
+    remove.textContent = "×";
+    remove.title = `${tag} 떼기`;
+    remove.setAttribute("aria-label", `${tag} 떼기`);
+    remove.addEventListener("click", () =>
+      this.callbacks.onUpdateBone(bone.id, {
+        tags: bone.tags.filter((candidate) => candidate !== tag),
+      }),
+    );
+
+    chip.append(name, remove);
+    return chip;
+  }
+
+  /** 태그 고르기 패널. 묶음별로 나열하고, 이미 붙은 태그는 켜진 상태로 보인다. */
+  private tagPicker(bone: PuppetBone): HTMLElement {
+    const picker = document.createElement("div");
+    picker.className = "tag-picker";
+
+    for (const group of TAG_GROUPS) {
+      const tags = TAG_CATALOG.filter((tag) => tag.group === group.id);
+      if (tags.length === 0) continue;
+
+      const title = document.createElement("h4");
+      title.textContent = group.label;
+      picker.append(title);
+
+      const row = document.createElement("div");
+      row.className = "tag-options";
+
+      for (const tag of tags) {
+        const on = bone.tags.includes(tag.id);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = on ? "tag-option active-fill" : "tag-option";
+        button.textContent = tag.id;
+        button.title = tag.description;
+        button.setAttribute("aria-pressed", String(on));
+        button.addEventListener("click", () =>
+          this.callbacks.onUpdateBone(bone.id, {
+            tags: on
+              ? bone.tags.filter((candidate) => candidate !== tag.id)
+              : [...bone.tags, tag.id],
+          }),
+        );
+        row.append(button);
+      }
+
+      picker.append(row);
+    }
+
+    // 목록에 없는 태그도 직접 만들 수 있다. (기획서 11)
+    const custom = document.createElement("div");
+    custom.className = "tag-custom";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "직접 입력";
+
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "outlined";
+    add.textContent = "추가";
+    add.title = "목록에 없는 태그를 직접 만든다";
+
+    const submit = () => {
+      const value = input.value.trim();
+      if (!value || bone.tags.includes(value)) return;
+      input.value = "";
+      this.callbacks.onUpdateBone(bone.id, { tags: [...bone.tags, value] });
+    };
+    add.addEventListener("click", submit);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") submit();
+    });
+
+    custom.append(input, add);
+    picker.append(custom);
+    return picker;
+  }
+
   private deformField(bone: PuppetBone): HTMLDivElement {
     const select = document.createElement("select");
-    for (const [value, label] of [
-      ["soft", "부드럽게 · 움직임"],
-      ["rigid", "형태 유지 · 움직임"],
-      ["pinnedSoft", "부드럽게 · 위치 고정"],
-      ["fixed", "형태·위치 모두 고정"],
-    ] as const) {
+    for (const [value, label, help] of DEFORM_OPTIONS) {
       const option = document.createElement("option");
       option.value = value;
       option.textContent = label;
+      option.title = help;
       select.append(option);
     }
     select.value = bone.deform;
+    select.title =
+      DEFORM_OPTIONS.find(([value]) => value === bone.deform)?.[2] ??
+      "이 관절이 칠한 영역을 어떻게 변형할지 정한다.";
     select.addEventListener("change", () =>
       this.callbacks.onUpdateBone(bone.id, { deform: select.value as PuppetBone["deform"] }),
     );
