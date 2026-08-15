@@ -278,6 +278,7 @@ function syncPaintMode(brush: BrushState = store.get().brush): void {
   view.scene.setPaintHandlers({
     radius: brush.size,
     color: hexToNumber(bone.color),
+    amount: brush.amount / 100,
     erase,
     onStart: () => history.push(store.get().project),
     onPaint: (x, y) => {

@@ -95,8 +95,11 @@ const DEFORM_OPTIONS = [
   },
 ] as const satisfies readonly { id: PuppetBone["deform"]; short: string; label: string; help: string; examples: string }[];
 
-/** 브러시 크기 선택지(이미지 픽셀). 그림 도구처럼 점 크기로 고른다. */
-const BRUSH_SIZES = [8, 16, 28, 45, 70, 110, 170, 250] as const;
+/**
+ * 브러시 크기 선택지(이미지 픽셀). 그림 도구처럼 점 크기로 고른다.
+ * 한 줄에 일곱 개씩 두 줄로 놓이도록 열네 단계로 나눴다.
+ */
+const BRUSH_SIZES = [6, 10, 15, 22, 30, 40, 52, 68, 88, 112, 145, 185, 230, 290] as const;
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -558,7 +561,7 @@ export class EditorUI {
     section.append(tools);
 
     // 가중치가 먼저다. 한 번에 얼마나 쌓을지가 크기보다 자주 바뀐다.
-    section.append(this.weightMeter(brush.amount), this.brushSizes(brush.size));
+    section.append(this.weightMeter(brush.amount), this.brushSizes(brush.size, brush.amount));
 
     const hint = document.createElement("p");
     hint.className = "hint";
@@ -681,7 +684,7 @@ export class EditorUI {
    * 브러시 크기. 그림 도구처럼 실제 크기에 맞는 점을 눌러 고른다.
    * 숫자보다 점 크기를 보고 고르는 편이 빠르다.
    */
-  private brushSizes(current: number): HTMLDivElement {
+  private brushSizes(current: number, amount: number): HTMLDivElement {
     const wrapper = document.createElement("div");
     wrapper.className = "field field-sizes";
 
@@ -711,20 +714,25 @@ export class EditorUI {
       const dot = document.createElement("span");
       dot.className = "size-dot";
       // 지름은 크기의 제곱근에 비례시킨다. 그대로 쓰면 큰 값이 화면을 다 먹는다.
-      const diameter = Math.round(4 + Math.sqrt(size) * 1.7);
+      const diameter = Math.round(3 + Math.sqrt(size) * 1.35);
       dot.style.width = `${diameter}px`;
       dot.style.height = `${diameter}px`;
+      // 가중치가 낮으면 점도 옅게. 한 번 칠했을 때 얼마나 묻는지를 그대로 보여 준다.
+      // 가장 낮을 때도 어느 크기인지는 보여야 하므로 0.35 아래로는 내리지 않는다.
+      dot.style.opacity = String(0.35 + (amount / 100) * 0.65);
 
       button.append(dot);
       attachTooltip(button, {
         title: `${size}px`,
         body:
-          size <= 16
+          size <= 15
             ? "가는 브러시. 경계나 좁은 부위를 다듬을 때."
-            : size <= 60
+            : size <= 68
               ? "보통 브러시. 팔 · 다리 · 머리 같은 부위에."
               : "굵은 브러시. 몸통을 한 번에 덮을 때.",
-        meta: selected ? "지금 쓰는 크기" : "눌러서 이 크기로 바꾸기",
+        meta: selected
+          ? `지금 쓰는 크기 · 점 진하기는 가중치 ${amount}를 나타냅니다`
+          : "눌러서 이 크기로 바꾸기",
       });
       button.addEventListener("click", () => this.callbacks.onBrushChange({ size }));
       row.append(button);

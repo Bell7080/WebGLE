@@ -29,6 +29,8 @@ export interface PaintHandlers {
   radius: number;
   /** 커서 링 색. 보통 지금 고른 관절의 색이다. */
   color: number;
+  /** 한 번 칠할 때 쌓이는 양 0~1. 커서 진하기로 그대로 보여 준다. */
+  amount: number;
   erase: boolean;
   onStart(): void;
   onPaint(x: number, y: number): void;
@@ -362,22 +364,40 @@ export class EditorScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * 브러시 커서. 크기뿐 아니라 가중치도 보여 준다.
+   * 한 번 칠했을 때 얼마나 묻는지(진하기)와 가장자리가 얼마나 옅어지는지를 그대로 그린다.
+   */
   private drawBrush(overlay: Phaser.GameObjects.Graphics, zoom: number): void {
     const brush = this.brushWorld;
     const paint = this.paint;
     if (!brush || !paint) return;
 
-    overlay.lineStyle(3 / zoom, 0x000000, 0.5);
+    const amount = Math.max(0, Math.min(1, paint.amount));
+    const color = paint.erase ? 0xffffff : paint.color;
+
+    // 안쪽에서 바깥으로 갈수록 옅어지는 falloff를 고리 몇 겹으로 흉내 낸다.
+    const RINGS = 5;
+    for (let i = RINGS; i >= 1; i -= 1) {
+      const t = i / RINGS;
+      const falloff = 1 - t * t * (3 - 2 * t); // 중심 1 → 가장자리 0
+      overlay.fillStyle(color, falloff * amount * (paint.erase ? 0.18 : 0.3));
+      overlay.fillCircle(brush.x, brush.y, paint.radius * t);
+    }
+
+    // 테두리도 가중치만큼 또렷해진다.
+    overlay.lineStyle(2.5 / zoom, 0x000000, 0.45);
     overlay.strokeCircle(brush.x, brush.y, paint.radius);
-    overlay.lineStyle(1.5 / zoom, paint.erase ? 0xffffff : paint.color, 0.95);
+    overlay.lineStyle(1.5 / zoom, color, 0.3 + amount * 0.65);
     overlay.strokeCircle(brush.x, brush.y, paint.radius);
 
     if (paint.erase) {
-      // 지우개는 안쪽에 점선처럼 한 겹 더 둘러 구분한다.
-      overlay.lineStyle(1 / zoom, 0xffffff, 0.4);
+      // 지우개는 안쪽에 고리를 하나 더 둘러 구분한다.
+      overlay.lineStyle(1 / zoom, 0xffffff, 0.35);
       overlay.strokeCircle(brush.x, brush.y, paint.radius * 0.72);
     }
   }
+
 
   clearTexture(): void {
     this.setWeightOverlay(null);
