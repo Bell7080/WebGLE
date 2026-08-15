@@ -22,6 +22,7 @@ export const PART_NAMES = [
   "무기",
   "장식",
   "기타",
+  "자유",
 ] as const;
 
 export type PartName = (typeof PART_NAMES)[number];
@@ -142,6 +143,8 @@ export const SUGGESTED_TAGS: Record<string, string[]> = {
   무기: ["weapon", "attack", "stiff"],
   장식: ["decoration", "secondary"],
   기타: [],
+  // 아무것도 붙지 않은 맨 뼈대. 필요한 태그를 직접 골라 쓰라는 뜻이다.
+  자유: [],
 };
 
 

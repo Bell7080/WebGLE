@@ -1,0 +1,20 @@
+{
+  "name": "slam",
+  "duration": 1.1,
+  "loop": false,
+  "tracks": [
+    { "target": { "kind": "tag", "tag": "root" }, "property": "x",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.4, "value": -14, "ease": "smooth" }, { "time": 0.62, "value": 30 }, { "time": 1.1, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "root" }, "property": "y",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.4, "value": 6, "ease": "smooth" }, { "time": 0.62, "value": -4 }, { "time": 1.1, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "core" }, "property": "scaleX",
+      "keys": [ { "time": 0, "value": 1, "ease": "smooth" }, { "time": 0.4, "value": 0.88, "ease": "smooth" }, { "time": 0.62, "value": 1.22 }, { "time": 0.85, "value": 0.96, "ease": "smooth" }, { "time": 1.1, "value": 1, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "core" }, "property": "scaleY",
+      "keys": [ { "time": 0, "value": 1, "ease": "smooth" }, { "time": 0.4, "value": 1.14, "ease": "smooth" }, { "time": 0.62, "value": 0.82 }, { "time": 0.85, "value": 1.04, "ease": "smooth" }, { "time": 1.1, "value": 1, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "head" }, "property": "x",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.4, "value": -10, "ease": "smooth" }, { "time": 0.66, "value": 22 }, { "time": 1.1, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "secondary" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.45, "value": -0.24, "ease": "smooth" }, { "time": 0.75, "value": 0.3, "ease": "smooth" }, { "time": 1.1, "value": 0, "ease": "smooth" } ] }
+  ],
+  "events": [{ "time": 0.62, "event": "impact" }]
+}

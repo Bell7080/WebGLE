@@ -839,3 +839,35 @@ button.deform-option {
   color: var(--text-2);
   cursor: help;
 }
+
+/* 애니메이션 이름 바꾸기 */
+.anim-rename {
+  width: 90px;
+  padding: 3px 6px;
+  font-size: 12.5px;
+}
+
+/* 추가 목록: 기본 / 공격 갈래로 나눠 보여 준다 */
+.anim-picker {
+  flex-direction: column;
+  gap: 8px;
+  max-width: 520px;
+}
+
+.anim-group h4 {
+  margin: 0 0 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+}
+
+.anim-group-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.anim-group-items button {
+  cursor: help;
+}

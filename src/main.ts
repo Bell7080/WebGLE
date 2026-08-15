@@ -135,12 +135,38 @@ const ui = new EditorUI(store, {
     const preset = findPreset(presetId);
     if (!preset) return;
 
+    // 같은 프리셋을 두 번 넣을 수 있게 이름 뒤에 번호를 붙인다.
+    const name = uniqueAnimationName(presetId, store.get().project.animations);
     commit((current) => ({
       ...current,
-      animations: { ...current.animations, [presetId]: structuredClone(preset.animation) },
+      animations: {
+        ...current.animations,
+        [name]: { ...structuredClone(preset.animation), name },
+      },
     }));
-    ui.setStatus(`${preset.label} 추가`);
-    playAnimation(presetId);
+    ui.setStatus(`${preset.label} 추가 · 이름 "${name}" (더블클릭해서 바꿀 수 있습니다)`);
+    playAnimation(name);
+  },
+
+  onRenameAnimation: (animationId, name) => {
+    const taken = Object.keys(store.get().project.animations);
+    if (taken.includes(name)) {
+      ui.setStatus(`"${name}"은 이미 쓰고 있는 이름입니다.`);
+      return;
+    }
+
+    const wasPlaying = store.get().playing === animationId;
+    commit((current) => {
+      // 키 순서를 지키면서 이름만 바꾼다. 이 키가 곧 게임에서 부를 이름이다.
+      const animations = Object.fromEntries(
+        Object.entries(current.animations).map(([key, animation]) =>
+          key === animationId ? [name, { ...animation, name }] : [key, animation],
+        ),
+      );
+      return { ...current, animations };
+    });
+    if (wasPlaying) store.set({ playing: name });
+    ui.setStatus(`이름 변경: ${animationId} → ${name}`);
   },
 
   onRemoveAnimation: (animationId) => {
@@ -170,6 +196,14 @@ const ui = new EditorUI(store, {
 
   onExport: () => void exportProject(),
 });
+
+/** 이미 쓰는 이름이면 뒤에 번호를 붙인다. */
+function uniqueAnimationName(base: string, taken: Record<string, unknown>): string {
+  if (!(base in taken)) return base;
+  let index = 2;
+  while (`${base}${index}` in taken) index += 1;
+  return `${base}${index}`;
+}
 
 /** 프로젝트 변경 한 번을 Undo 단위로 기록한다. (기획서 36) */
 function commit(updater: (project: PuppetProject) => PuppetProject): void {

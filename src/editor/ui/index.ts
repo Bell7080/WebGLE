@@ -32,6 +32,20 @@ function presetLabel(id: string): string {
   return findPreset(id)?.label ?? id;
 }
 
+/** 길이 · 반복 · 트랙 수를 한 줄로. */
+function describeAnimation(animation: { duration: number; loop: boolean; tracks: unknown[] }): string {
+  return `${animation.duration}초 · ${animation.loop ? "반복" : "한 번"} · 트랙 ${animation.tracks.length}개`;
+}
+
+/** 이 애니메이션이 찾는 태그들. */
+function usedTags(animation: { tracks: { target: { kind: string; tag?: string } }[] }): string {
+  const tags = new Set<string>();
+  for (const track of animation.tracks) {
+    if (track.target.kind === "tag" && track.target.tag) tags.add(track.target.tag);
+  }
+  return [...tags].join(" ");
+}
+
 export interface EditorUICallbacks {
   onAddBone(part: string): void;
   onDeleteBone(boneId: string): void;
@@ -42,6 +56,7 @@ export interface EditorUICallbacks {
   onPlay(animationId: string): void;
   onStop(): void;
   onAddAnimation(presetId: string): void;
+  onRenameAnimation(animationId: string, name: string): void;
   onRemoveAnimation(animationId: string): void;
   onToggleAnimationHidden(animationId: string): void;
   onExport(): void;
@@ -108,6 +123,8 @@ export class EditorUI {
   private tagPickerBoneId: string | null = null;
   /** 애니메이션 추가 목록을 펼쳤는지. */
   private animPickerOpen = false;
+  /** 마지막으로 그린 애니메이션 목록의 모양. 같으면 다시 그리지 않는다. */
+  private animSignature = "";
 
   constructor(
     private readonly store: EditorStore,
@@ -157,25 +174,76 @@ export class EditorUI {
    * 하단 애니메이션 목록. 프로젝트가 가진 것만 보여 준다. (기획서 30)
    * 각 칸: 이름을 누르면 재생, `−`는 내보내기에서만 빼기(숨김), `×`는 아예 삭제.
    */
+  /** 이름 칸을 입력창으로 바꿔 즉석에서 고친다. */
+  private startRename(anchor: HTMLElement, id: string): void {
+    hideTooltip();
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "anim-rename";
+    input.value = id;
+    input.size = Math.max(6, id.length);
+
+    let done = false;
+    const finish = (commit: boolean) => {
+      if (done) return;
+      done = true;
+      const value = input.value.trim();
+      input.replaceWith(anchor);
+      this.animSignature = "";
+      if (commit && value && value !== id) this.callbacks.onRenameAnimation(id, value);
+      else this.render();
+    };
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") finish(true);
+      if (event.key === "Escape") finish(false);
+    });
+    input.addEventListener("blur", () => finish(true));
+
+    anchor.replaceWith(input);
+    input.focus();
+    input.select();
+  }
+
   private renderAnimations(): void {
     const { project, playing } = this.store.get();
-    this.animButtons.replaceChildren();
-
     const entries = Object.entries(project.animations);
+
+    // 목록 구성이 그대로면 재생 표시만 바꾼다.
+    // 통째로 다시 그리면 그 사이에 눌린 더블클릭이 사라져 이름 바꾸기가 안 된다.
+    const signature = `${entries
+      .map(([id, animation]) => `${id}:${animation.hidden ? 1 : 0}`)
+      .join(",")}|${this.animPickerOpen}`;
+
+    if (signature === this.animSignature) {
+      for (const item of this.animButtons.querySelectorAll<HTMLElement>(".anim-item")) {
+        item.classList.toggle("playing", item.dataset.animId === playing);
+      }
+      return;
+    }
+    this.animSignature = signature;
+    this.animButtons.replaceChildren();
     for (const [id, animation] of entries) {
       const item = document.createElement("div");
       item.className = "anim-item";
+      item.dataset.animId = id;
       if (animation.hidden) item.classList.add("hidden-anim");
       if (playing === id) item.classList.add("playing");
 
       const play = document.createElement("button");
       play.type = "button";
       play.className = "anim-play";
-      play.textContent = presetLabel(id);
-      play.title = animation.hidden
-        ? `${presetLabel(id)} 재생 · 지금은 내보내기에서 제외됨`
-        : `${presetLabel(id)} 재생`;
+      play.textContent = id;
+      attachTooltip(play, {
+        title: id,
+        body: `${describeAnimation(animation)}${
+          animation.hidden ? " · 지금은 내보내기에서 제외됨" : ""
+        }`,
+        meta: "누르면 재생 · 더블클릭하면 이름 변경 (게임에서 부를 이름입니다)",
+      });
       play.addEventListener("click", () => this.callbacks.onPlay(id));
+      play.addEventListener("dblclick", () => this.startRename(play, id));
 
       const hide = document.createElement("button");
       hide.type = "button";
@@ -221,20 +289,37 @@ export class EditorUI {
     this.animPicker.classList.toggle("open", this.animPickerOpen);
     if (!this.animPickerOpen) return;
 
-    for (const preset of PRESETS) {
-      const already = Boolean(project.animations[preset.id]);
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = already ? "outlined" : "";
-      button.disabled = already;
-      button.textContent = preset.label;
-      button.title = already ? `${preset.label} — 이미 추가됨` : preset.description;
-      button.addEventListener("click", () => {
-        this.callbacks.onAddAnimation(preset.id);
-        this.animPickerOpen = false;
-        this.render();
-      });
-      this.animPicker.append(button);
+    for (const group of ["기본", "공격"] as const) {
+      const column = document.createElement("div");
+      column.className = "anim-group";
+
+      const title = document.createElement("h4");
+      title.textContent = group;
+      column.append(title);
+
+      const row = document.createElement("div");
+      row.className = "anim-group-items";
+
+      for (const preset of PRESETS.filter((candidate) => candidate.group === group)) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "outlined";
+        button.textContent = preset.label;
+        attachTooltip(button, {
+          title: `${preset.label} (${preset.id})`,
+          body: preset.description,
+          meta: `${describeAnimation(preset.animation)} · 쓰는 태그: ${usedTags(preset.animation)}`,
+        });
+        button.addEventListener("click", () => {
+          this.callbacks.onAddAnimation(preset.id);
+          this.animPickerOpen = false;
+          this.render();
+        });
+        row.append(button);
+      }
+
+      column.append(row);
+      this.animPicker.append(column);
     }
   }
 

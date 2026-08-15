@@ -1,0 +1,18 @@
+{
+  "name": "stab",
+  "duration": 0.6,
+  "loop": false,
+  "tracks": [
+    { "target": { "kind": "tag", "tag": "root" }, "property": "x",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.22, "value": -7, "ease": "smooth" }, { "time": 0.32, "value": 20 }, { "time": 0.6, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "attack" }, "property": "x",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.22, "value": -14, "ease": "smooth" }, { "time": 0.32, "value": 34 }, { "time": 0.6, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "weapon" }, "property": "x",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.22, "value": -10, "ease": "smooth" }, { "time": 0.32, "value": 26 }, { "time": 0.6, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "core" }, "property": "scaleX",
+      "keys": [ { "time": 0, "value": 1, "ease": "smooth" }, { "time": 0.22, "value": 0.93, "ease": "smooth" }, { "time": 0.32, "value": 1.1 }, { "time": 0.6, "value": 1, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "secondary" }, "property": "x",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.36, "value": -8, "ease": "smooth" }, { "time": 0.6, "value": 0, "ease": "smooth" } ] }
+  ],
+  "events": [{ "time": 0.32, "event": "impact" }]
+}

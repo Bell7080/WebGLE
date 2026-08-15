@@ -1,0 +1,22 @@
+{
+  "name": "cast",
+  "duration": 1.6,
+  "loop": false,
+  "tracks": [
+    { "target": { "kind": "tag", "tag": "root" }, "property": "y",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.7, "value": -10, "ease": "smooth" }, { "time": 1.05, "value": -6, "ease": "smooth" }, { "time": 1.6, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "core" }, "property": "scaleY",
+      "keys": [ { "time": 0, "value": 1, "ease": "smooth" }, { "time": 0.7, "value": 1.06, "ease": "smooth" }, { "time": 1.05, "value": 0.96, "ease": "smooth" }, { "time": 1.6, "value": 1, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "arm" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.7, "value": -0.85, "ease": "smooth" }, { "time": 1.0, "value": 0.35 }, { "time": 1.6, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "hand" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.7, "value": -0.4, "ease": "smooth" }, { "time": 1.0, "value": 0.3 }, { "time": 1.6, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "weapon" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.7, "value": -0.5, "ease": "smooth" }, { "time": 1.0, "value": 0.2 }, { "time": 1.6, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "head" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.7, "value": -0.16, "ease": "smooth" }, { "time": 1.05, "value": 0.1, "ease": "smooth" }, { "time": 1.6, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "secondary" }, "property": "y",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.8, "value": -6, "ease": "smooth" }, { "time": 1.6, "value": 0, "ease": "smooth" } ] }
+  ],
+  "events": [{ "time": 0.7, "event": "charge" }, { "time": 1.0, "event": "release" }]
+}

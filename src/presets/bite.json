@@ -1,0 +1,22 @@
+{
+  "name": "bite",
+  "duration": 0.7,
+  "loop": false,
+  "tracks": [
+    { "target": { "kind": "tag", "tag": "root" }, "property": "x",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.2, "value": -5, "ease": "smooth" }, { "time": 0.34, "value": 16, "ease": "smooth" }, { "time": 0.7, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "head" }, "property": "x",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.2, "value": -8, "ease": "smooth" }, { "time": 0.34, "value": 22, "ease": "smooth" }, { "time": 0.7, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "head" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.2, "value": -0.18, "ease": "smooth" }, { "time": 0.36, "value": 0.22, "ease": "smooth" }, { "time": 0.7, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "jaw" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.22, "value": 0.5, "ease": "smooth" }, { "time": 0.36, "value": -0.05 }, { "time": 0.45, "value": 0.08, "ease": "smooth" }, { "time": 0.7, "value": 0, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "mouth" }, "property": "scaleY",
+      "keys": [ { "time": 0, "value": 1, "ease": "smooth" }, { "time": 0.22, "value": 1.45, "ease": "smooth" }, { "time": 0.36, "value": 0.9 }, { "time": 0.7, "value": 1, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "core" }, "property": "scaleX",
+      "keys": [ { "time": 0, "value": 1, "ease": "smooth" }, { "time": 0.2, "value": 0.94, "ease": "smooth" }, { "time": 0.34, "value": 1.08, "ease": "smooth" }, { "time": 0.7, "value": 1, "ease": "smooth" } ] },
+    { "target": { "kind": "tag", "tag": "secondary" }, "property": "rotation",
+      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.3, "value": 0.16, "ease": "smooth" }, { "time": 0.5, "value": -0.1, "ease": "smooth" }, { "time": 0.7, "value": 0, "ease": "smooth" } ] }
+  ],
+  "events": [{ "time": 0.34, "event": "impact" }]
+}
