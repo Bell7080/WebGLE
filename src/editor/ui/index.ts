@@ -281,6 +281,17 @@ export class EditorUI {
     this.animSettingsId = id;
     this.animSettings.replaceChildren();
 
+    // 어느 애니메이션을 조절하는지 적어 둔다. 목록에서 떨어져 떠 있기 때문이다.
+    const title = document.createElement("span");
+    title.className = "anim-settings-title";
+    title.textContent = id;
+    attachTooltip(title, {
+      title: "조절 대상",
+      body: "아래 목록에서 고른 애니메이션입니다. 다른 이름을 누르면 그쪽 값으로 바뀝니다.",
+      meta: "값은 이 애니메이션에 저장되어 내보내기까지 따라갑니다",
+    });
+    this.animSettings.append(title);
+
     this.animSettings.append(
       this.animKnob("속도", speed, 0.1, 3, `${speed.toFixed(2)}배`, {
         title: "재생 속도",
