@@ -104,7 +104,10 @@ export function parseProject(raw: unknown): PuppetProject {
   };
 }
 
-/** v1에는 색이 없었다. 없으면 순서대로 채워 준다. */
+/**
+ * 구버전 Bone을 현재 포맷으로 올린다.
+ * v1에는 색이 없었고, v2까지의 soft/rigid 값은 v3에서도 같은 의미로 유지된다.
+ */
 function migrateBones(bones: readonly PuppetBone[]): PuppetBone[] {
   const filled: PuppetBone[] = [];
   for (const bone of bones) {

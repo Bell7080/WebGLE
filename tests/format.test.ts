@@ -37,6 +37,10 @@ describe("Bone 기본값", () => {
   it("motionStrength 기본값은 1이다", () => {
     expect(createBone("몸통", 0, 0, []).motionStrength).toBe(1);
   });
+
+  it("새 관절은 움직이며 부드럽게 변형되는 모드다", () => {
+    expect(createBone("몸통", 0, 0, []).deform).toBe("soft");
+  });
 });
 
 describe("프로젝트 직렬화", () => {
@@ -113,4 +117,14 @@ describe("포맷 마이그레이션", () => {
     });
     expect(project.bones[0]!.color).toBe("#123456");
   });
+
+  it.each(["soft", "rigid", "pinnedSoft", "fixed"] as const)(
+    "v3의 %s 변형 모드를 저장하고 다시 읽는다",
+    (deform) => {
+      const project = createEmptyProject();
+      project.bones.push({ ...createBone("기타", 0, 0, []), deform });
+
+      expect(parseProject(JSON.parse(serializeProject(project))).bones[0]!.deform).toBe(deform);
+    },
+  );
 });

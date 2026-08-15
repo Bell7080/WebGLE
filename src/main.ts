@@ -271,7 +271,9 @@ function tick(now: number): void {
     const deltas = player.update(dt, project.bones);
     if (project.mesh) {
       const skin = computeSkinMatrices(project.bones, deltas);
-      view.scene.updateMeshVertices(skinVertices(project.mesh, skin));
+      // 변형 모드는 정점 혼합 방식까지 결정하므로 런타임에 Bone 설정을 함께 전달한다.
+      const deformModes = new Map(project.bones.map((bone) => [bone.id, bone.deform]));
+      view.scene.updateMeshVertices(skinVertices(project.mesh, skin, undefined, deformModes));
     }
   } else if (overlayDirty) {
     // 재생 중에는 굽지 않는다. 점 패턴은 변형을 따라가지 않으므로 재생 중에는 감춘다.

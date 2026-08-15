@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PuppetBone } from "../src/core/format";
+import type { DeformMode, PuppetBone, PuppetMesh } from "../src/core/format";
 import { createGridMesh } from "../src/core/mesh";
 import { normalizeWeights, applyInfluence } from "../src/core/weight";
 import { vertexCount } from "../src/core/mesh";
@@ -13,7 +13,13 @@ import {
   type BoneDelta,
 } from "../src/core/skeleton/transform";
 
-function bone(id: string, x: number, y: number, parentId: string | null = null): PuppetBone {
+function bone(
+  id: string,
+  x: number,
+  y: number,
+  parentId: string | null = null,
+  deform: DeformMode = "soft",
+): PuppetBone {
   return {
     id,
     name: id,
@@ -25,7 +31,7 @@ function bone(id: string, x: number, y: number, parentId: string | null = null):
     scaleY: 1,
     tags: [],
     motionStrength: 1,
-    deform: "soft",
+    deform,
     color: "#ffffff",
   };
 }
@@ -93,6 +99,23 @@ describe("스킨 행렬", () => {
     const tip = applyPoint(skin.get("head")!, 0, -70);
     expect(tip.y).toBeCloseTo(-30);
   });
+
+  it.each(["pinnedSoft", "fixed"] as const)(
+    "%s 관절은 자기와 부모의 애니메이션 변환을 모두 무시한다",
+    (deform) => {
+      const bones = [bone("root", 0, 0), bone("foot", 0, 50, "root", deform)];
+      const skin = computeSkinMatrices(
+        bones,
+        new Map([
+          ["root", delta({ y: -10 })],
+          ["foot", delta({ y: 20, rotation: 1 })],
+        ]),
+      );
+
+      const planted = applyPoint(skin.get("foot")!, 0, 50);
+      expect(planted).toEqual({ x: 0, y: 50 });
+    },
+  );
 });
 
 describe("정점 변형", () => {
@@ -127,5 +150,72 @@ describe("정점 변형", () => {
 
     const outsideIndex = painted.weights.findIndex((w) => w.boneIds.length === 0);
     expect(result[outsideIndex * 2]).toBeCloseTo(painted.vertices[outsideIndex * 2] ?? 0);
+  });
+
+  it("Rigid 정점은 다른 Bone과 섞이지 않아 형태를 유지한다", () => {
+    // 같은 변환을 받는 두 정점이 같은 거리만큼 이동하는지 작은 Mesh로 직접 확인한다.
+    const rigidMesh: PuppetMesh = {
+      resolution: "low",
+      cols: 1,
+      rows: 1,
+      vertices: [0, 0, 10, 0],
+      indices: [],
+      weights: [
+        { boneIds: ["rigid", "soft"], weights: [0.25, 0.75] },
+        { boneIds: ["rigid", "soft"], weights: [0.75, 0.25] },
+      ],
+    };
+    const matrices = new Map([
+      ["rigid", compose(10, 0, 0, 1, 1)],
+      ["soft", compose(-10, 0, 0, 1, 1)],
+    ]);
+    const modes = new Map<string, DeformMode>([
+      ["rigid", "rigid"],
+      ["soft", "soft"],
+    ]);
+
+    expect([...skinVertices(rigidMesh, matrices, undefined, modes)]).toEqual([10, 0, 20, 0]);
+  });
+
+  it("Pinned Soft는 자기 위치를 고정하면서 이웃 영향으로는 부드럽게 변형된다", () => {
+    const pinnedMesh: PuppetMesh = {
+      resolution: "low",
+      cols: 1,
+      rows: 1,
+      vertices: [0, 0],
+      indices: [],
+      weights: [{ boneIds: ["pin", "soft"], weights: [0.5, 0.5] }],
+    };
+    const matrices = new Map([
+      ["pin", compose(0, 0, 0, 1, 1)],
+      ["soft", compose(10, 0, 0, 1, 1)],
+    ]);
+    const modes = new Map<string, DeformMode>([
+      ["pin", "pinnedSoft"],
+      ["soft", "soft"],
+    ]);
+
+    expect([...skinVertices(pinnedMesh, matrices, undefined, modes)]).toEqual([5, 0]);
+  });
+
+  it("Fixed 영향 영역은 겹친 다른 Bone이 움직여도 원래 자리를 지킨다", () => {
+    const fixedMesh: PuppetMesh = {
+      resolution: "low",
+      cols: 1,
+      rows: 1,
+      vertices: [3, 4],
+      indices: [],
+      weights: [{ boneIds: ["fixed", "soft"], weights: [0.1, 0.9] }],
+    };
+    const matrices = new Map([
+      ["fixed", compose(100, 0, 0, 1, 1)],
+      ["soft", compose(20, 0, 0, 1, 1)],
+    ]);
+    const modes = new Map<string, DeformMode>([
+      ["fixed", "fixed"],
+      ["soft", "soft"],
+    ]);
+
+    expect([...skinVertices(fixedMesh, matrices, undefined, modes)]).toEqual([3, 4]);
   });
 });
