@@ -1,7 +1,7 @@
 {
   "name": "puppet-forge",
   "private": true,
-  "version": "0.9.2",
+  "version": "0.9.3",
   "type": "module",
   "description": "브라우저에서 실행되는 2D 종이인형 애니메이션 제작 툴",
   "scripts": {

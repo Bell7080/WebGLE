@@ -97,9 +97,25 @@ const DEFORM_OPTIONS = [
 
 /**
  * 브러시 크기 선택지(이미지 픽셀). 그림 도구처럼 점 크기로 고른다.
- * 한 줄에 일곱 개씩 두 줄로 놓이도록 열네 단계로 나눴다.
+ * 한 줄에 일곱 개씩 네 줄, 스물여덟 단계다. 작은 쪽은 촘촘하게, 큰 쪽은 성기게 나눈다.
  */
-const BRUSH_SIZES = [6, 10, 15, 22, 30, 40, 52, 68, 88, 112, 145, 185, 230, 290] as const;
+const BRUSH_SIZES = [
+  2, 3, 4, 5, 6, 8, 10,
+  12, 15, 18, 22, 27, 33, 40,
+  48, 58, 70, 84, 100, 120, 145,
+  175, 210, 250, 300, 355, 420, 500,
+] as const;
+
+/** 크기 버튼에 그릴 점의 지름 범위(px). */
+const DOT_MIN = 4;
+const DOT_MAX = 26;
+
+/** 브러시 크기를 0~1로 옮긴다. 선택지가 등비에 가까우므로 로그로 재야 고르게 벌어진다. */
+function dotScale(size: number): number {
+  const min = Math.log(BRUSH_SIZES[0]);
+  const max = Math.log(BRUSH_SIZES[BRUSH_SIZES.length - 1]!);
+  return (Math.log(size) - min) / (max - min);
+}
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -713,8 +729,8 @@ export class EditorUI {
 
       const dot = document.createElement("span");
       dot.className = "size-dot";
-      // 지름은 크기의 제곱근에 비례시킨다. 그대로 쓰면 큰 값이 화면을 다 먹는다.
-      const diameter = Math.round(3 + Math.sqrt(size) * 1.35);
+      // 지름은 로그 눈금으로 매긴다. 제곱근이나 실제 비율로 하면 작은 쪽이 뭉쳐 구분이 안 된다.
+      const diameter = Math.round(DOT_MIN + dotScale(size) * (DOT_MAX - DOT_MIN));
       dot.style.width = `${diameter}px`;
       dot.style.height = `${diameter}px`;
       // 가중치가 낮으면 점도 옅게. 한 번 칠했을 때 얼마나 묻는지를 그대로 보여 준다.
@@ -725,11 +741,13 @@ export class EditorUI {
       attachTooltip(button, {
         title: `${size}px`,
         body:
-          size <= 15
-            ? "가는 브러시. 경계나 좁은 부위를 다듬을 때."
-            : size <= 68
-              ? "보통 브러시. 팔 · 다리 · 머리 같은 부위에."
-              : "굵은 브러시. 몸통을 한 번에 덮을 때.",
+          size <= 10
+            ? "아주 가는 브러시. 격자 한두 칸만 건드린다. 경계를 미세하게 고칠 때."
+            : size <= 40
+              ? "가는 브러시. 손 · 발 · 귀처럼 작은 부위에."
+              : size <= 145
+                ? "보통 브러시. 팔 · 다리 · 머리 같은 부위에."
+                : "굵은 브러시. 몸통을 한 번에 덮을 때.",
         meta: selected
           ? `지금 쓰는 크기 · 점 진하기는 가중치 ${amount}를 나타냅니다`
           : "눌러서 이 크기로 바꾸기",
