@@ -96,6 +96,23 @@ const 팔척귀신: Part[] = [
   ["옷자락", 100, 300, 0],
 ];
 
+/** 팔 여섯 중 하나에만 검을 쥔 몬스터. 무장한 팔을 알아보는지 보려고 만든다. */
+const 육수: Part[] = [
+  ["중심", 100, 220, null],
+  ["몸통", 100, 160, 0],
+  ["머리", 100, 90, 1],
+  ["팔", 55, 120, 1],
+  ["팔", 145, 120, 1],
+  ["팔", 45, 155, 1],
+  ["팔", 155, 155, 1],
+  ["팔", 50, 190, 1],
+  ["팔", 150, 190, 1],
+  ["손", 175, 180, 4], // 팔2의 손
+  ["무기", 205, 210, 9], // 그 손에만 검
+];
+
+export const 무장한_팔 = build(육수);
+
 export const CREATURES: Record<string, [PuppetBone[], string[]]> = {
   "팔4·다리4 몬스터": [build(사팔사다리), ["idle", "walk", "attack", "swing"]],
   "뱀 (팔다리 없음)": [build(뱀), ["idle", "walk", "bite", "death"]],
@@ -104,4 +121,5 @@ export const CREATURES: Record<string, [PuppetBone[], string[]]> = {
   "전갈 (꼬리 독침)": [build(전갈), ["idle", "walk", "stab", "attack"]],
   "도적 (단검)": [build(도적), ["idle", "walk", "swing", "stab"]],
   "팔척귀신 (긴 팔)": [build(팔척귀신), ["idle", "swing", "roar"]],
+  "팔6 · 검 하나": [무장한_팔, ["idle", "walk", "swing", "attack"]],
 };

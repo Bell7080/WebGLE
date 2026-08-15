@@ -12,8 +12,9 @@ export const PUPPET_FORMAT = "puppetforge" as const;
  * 5: 애니메이션에 speed / strength 추가. 없으면 둘 다 1로 본다.
  * 6: 애니메이션에 secondary(따라 흔들림) 추가. 없으면 1로 본다.
  * 7: Track에 stagger(대상별 시간 어긋냄) 추가. 없으면 0으로 본다.
+ * 8: Track에 focus / focusOther(동작의 주인공 고르기) 추가. 없으면 전부 똑같이 움직인다.
  */
-export const PUPPET_VERSION = 7 as const;
+export const PUPPET_VERSION = 8 as const;
 
 /**
  * Bone의 변형 방식. (기획서 19 확장)
@@ -119,6 +120,21 @@ export interface AnimationTrack {
    * 순서는 관절 목록 순서다. 좌측 패널에서 끌어 정리하면 파도 방향이 바뀐다.
    */
   stagger?: number;
+
+  /**
+   * 이 동작의 주인공을 고르는 태그. 없으면 대상 전부가 똑같이 움직인다.
+   *
+   * 대상 중 **자기 자신이나 후손이** 이 태그를 가진 쪽만 값을 그대로 받고,
+   * 나머지는 `focusOther` 배만 받아 거드는 정도로 움직인다.
+   * 팔이 여섯인데 하나만 검을 쥐었다면 그 팔만 크게 휘두르게 하려는 것이다.
+   *
+   * 대상 중 아무도 해당하지 않으면 아무도 주인공이 아닌 것으로 보고 전부 그대로 움직인다.
+   * 무기가 없는 캐릭터가 맨손 공격을 못 하게 되면 안 되기 때문이다. (기획서 64)
+   */
+  focus?: string;
+
+  /** 주인공이 아닌 대상이 받을 비율. 없으면 0.3이다. 0이면 아예 멈춘다. */
+  focusOther?: number;
 }
 
 /** 게임 이벤트. (기획서 42) */

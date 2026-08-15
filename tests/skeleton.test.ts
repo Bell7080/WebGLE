@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { PuppetBone } from "../src/core/format";
-import { canReparent, getBonesByTag, getChildren, sortByHierarchy } from "../src/core/skeleton";
+import {
+  bonesCarrying,
+  canReparent,
+  getBonesByTag,
+  getChildren,
+  sortByHierarchy,
+} from "../src/core/skeleton";
 
 function bone(id: string, parentId: string | null, tags: string[] = []): PuppetBone {
   return {
@@ -70,5 +76,34 @@ describe("부모 변경 검사", () => {
 
   it("형제 관계로 붙이는 것은 가능하다", () => {
     expect(canReparent(bones, "c", "a")).toBe(true);
+  });
+});
+
+describe("태그를 매단 관절 찾기", () => {
+  // 몸통 → 팔a → 손 → 검, 그리고 맨손인 팔b
+  const bones = [
+    bone("몸통", null),
+    bone("팔a", "몸통", ["arm"]),
+    bone("손", "팔a", ["hand"]),
+    bone("검", "손", ["weapon"]),
+    bone("팔b", "몸통", ["arm"]),
+  ];
+
+  it("몇 단계 아래에 달려 있어도 위로 올라온다", () => {
+    const carriers = bonesCarrying(bones, "weapon");
+    expect([...carriers].sort()).toEqual(["검", "몸통", "손", "팔a"].sort());
+  });
+
+  it("맨손 쪽 가지는 포함되지 않는다", () => {
+    expect(bonesCarrying(bones, "weapon").has("팔b")).toBe(false);
+  });
+
+  it("없는 태그면 비어 있다", () => {
+    expect(bonesCarrying(bones, "shield").size).toBe(0);
+  });
+
+  it("순환 참조가 있어도 멈추지 않는다", () => {
+    const cyclic = [bone("a", "b", ["weapon"]), bone("b", "a")];
+    expect(bonesCarrying(cyclic, "weapon").size).toBe(2);
   });
 });

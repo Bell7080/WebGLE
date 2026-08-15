@@ -17,6 +17,30 @@ export function getBone(bones: readonly PuppetBone[], id: string): PuppetBone | 
 }
 
 /**
+ * 자기 자신이나 후손 중에 그 태그를 가진 관절이 있는 Bone의 id 집합.
+ *
+ * "무기를 쥔 팔이 어느 쪽인가" 같은 것을 이름 없이 알아내기 위한 것이다.
+ * 팔 → 손 → 검처럼 몇 단계 아래에 달려 있어도 팔까지 올라온다. (기획서 63)
+ */
+export function bonesCarrying(bones: readonly PuppetBone[], tag: string): Set<string> {
+  const parentOf = new Map(bones.map((bone) => [bone.id, bone.parentId]));
+  const carriers = new Set<string>();
+
+  for (const bone of bones) {
+    if (!bone.tags.includes(tag)) continue;
+
+    // 자기 자신부터 루트까지 거슬러 올라가며 표시한다.
+    let cursor: string | null = bone.id;
+    while (cursor && !carriers.has(cursor)) {
+      carriers.add(cursor);
+      cursor = parentOf.get(cursor) ?? null;
+    }
+  }
+
+  return carriers;
+}
+
+/**
  * 부모 → 자식 순서로 정렬한다. Transform 계산은 이 순서를 전제로 한다.
  * 부모가 목록에 없는 Bone은 루트로 취급한다.
  */

@@ -5,7 +5,7 @@
   "tracks": [
     { "target": { "kind": "tag", "tag": "root" }, "property": "x",
       "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.22, "value": -7, "ease": "smooth" }, { "time": 0.32, "value": 20 }, { "time": 0.6, "value": 0, "ease": "smooth" } ] },
-    { "target": { "kind": "tag", "tag": "attack" }, "property": "x",
+    { "target": { "kind": "tag", "tag": "attack" }, "property": "x", "focus": "weapon",
       "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.22, "value": -14, "ease": "smooth" }, { "time": 0.32, "value": 34 }, { "time": 0.6, "value": 0, "ease": "smooth" } ] },
     { "target": { "kind": "tag", "tag": "weapon" }, "property": "x",
       "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.22, "value": -10, "ease": "smooth" }, { "time": 0.32, "value": 26 }, { "time": 0.6, "value": 0, "ease": "smooth" } ] },

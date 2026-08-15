@@ -5,7 +5,7 @@
  * 태그만 보고 대상을 찾고, 없는 태그는 조용히 건너뛴다는 것을 실제 캐릭터로 확인한다.
  */
 import { describe, expect, it } from "vitest";
-import { CREATURES } from "./creatures.fixture";
+import { build, CREATURES, 무장한_팔 } from "./creatures.fixture";
 import { evaluateAnimation } from "../src/core/animation";
 import { applyPoint, computeSkinMatrices } from "../src/core/skeleton/transform";
 import { PRESETS } from "../src/presets";
@@ -132,8 +132,84 @@ describe("여러 개인 부위의 어긋냄 (stagger)", () => {
 
   it("어긋냄이 없으면 형제가 모두 같이 움직인다", () => {
     const [몬스터] = CREATURES["팔4·다리4 몬스터"]!;
-    // 공격 프리셋에는 stagger가 없다 — 네 팔로 한꺼번에 내려친다.
-    const values = rotations(몬스터, "attack", "팔", 0.3);
+    // 걷기가 아닌 대기 프리셋에는 stagger가 없다.
+    const values = rotations(몬스터, "idle", "팔", 0.3);
     for (const value of values) expect(value).toBeCloseTo(values[0]!, 6);
+  });
+});
+
+describe("동작의 주인공 고르기 (focus)", () => {
+  /** 한 주기 동안 관절이 가장 크게 돌아간 각도. */
+  const spin = (bones: PuppetBone[], id: string): Map<string, number> => {
+    const animation = preset(id);
+    const peak = new Map(bones.map((b) => [b.id, 0]));
+    for (let i = 0; i <= 24; i += 1) {
+      const deltas = evaluateAnimation(animation, bones, (animation.duration * i) / 24);
+      for (const b of bones) {
+        peak.set(b.id, Math.max(peak.get(b.id)!, Math.abs(deltas.get(b.id)?.rotation ?? 0)));
+      }
+    }
+    return peak;
+  };
+
+  const 팔 = (bones: PuppetBone[]): PuppetBone[] => named(bones, "팔");
+
+  it("검을 쥔 팔만 크게 휘두르고 나머지는 거든다", () => {
+    const bones = 무장한_팔;
+    const 무기 = named(bones, "무기")[0]!;
+    // 팔2 → 손1 → 무기1. 검은 팔에 바로 달려 있지 않고 손을 거쳐 달려 있다.
+    expect(named(bones, "손")[0]!.parentId).toBe(팔(bones)[1]!.id);
+    expect(무기.parentId).toBe(named(bones, "손")[0]!.id);
+
+    const peak = spin(bones, "swing");
+    const 무장 = peak.get(팔(bones)[1]!.id)!;
+    const 나머지 = 팔(bones)
+      .filter((_b, i) => i !== 1)
+      .map((b) => peak.get(b.id)!);
+
+    expect(나머지).toHaveLength(5);
+    for (const value of 나머지) expect(무장).toBeGreaterThan(value * 3);
+    // 나머지 다섯은 서로 같은 정도로 거든다.
+    for (const value of 나머지) expect(value).toBeCloseTo(나머지[0]!, 6);
+    // 아예 멈추지는 않는다.
+    for (const value of 나머지) expect(value).toBeGreaterThan(0);
+  });
+
+  it("공격 · 할퀴기에서도 무장한 쪽이 앞선다", () => {
+    for (const id of ["attack", "scratch"]) {
+      const peak = spin(무장한_팔, id);
+      const 무장 = peak.get(팔(무장한_팔)[1]!.id)!;
+      const 맨손 = peak.get(팔(무장한_팔)[0]!.id)!;
+      expect(무장, id).toBeGreaterThan(맨손 * 3);
+    }
+  });
+
+  it("무기가 없으면 모든 팔이 똑같이 공격한다", () => {
+    // focus 태그를 가진 관절이 하나도 없으면 주인공을 가리지 않는다. (기획서 64)
+    const 맨손 = build([
+      ["중심", 100, 220, null],
+      ["몸통", 100, 160, 0],
+      ["팔", 55, 120, 1],
+      ["팔", 145, 120, 1],
+      ["팔", 45, 155, 1],
+    ]);
+    expect(맨손.some((b) => b.tags.includes("weapon"))).toBe(false);
+
+    const peak = spin(맨손, "swing");
+    const values = 팔(맨손).map((b) => peak.get(b.id)!);
+    expect(values[0]).toBeGreaterThan(0);
+    for (const value of values) expect(value).toBeCloseTo(values[0]!, 6);
+  });
+
+  it("전부 무장했으면 가리지 않는다", () => {
+    // 집게 둘과 독침 모두 weapon이다. 전갈은 있는 것을 다 쓴다.
+    const [전갈] = CREATURES["전갈 (꼬리 독침)"]!;
+    const 무장한_것 = 전갈.filter((b) => b.tags.includes("attack"));
+    expect(무장한_것.every((b) => b.tags.includes("weapon"))).toBe(true);
+
+    const peak = spin(전갈, "attack");
+    const 집게 = named(전갈, "집게").map((b) => peak.get(b.id)!);
+    expect(집게[0]).toBeGreaterThan(0);
+    expect(집게[1]).toBeCloseTo(집게[0]!, 6);
   });
 });

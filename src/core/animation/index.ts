@@ -6,7 +6,7 @@ import type {
   PuppetBone,
   TrackProperty,
 } from "../format/types";
-import { getBonesByTag } from "../skeleton";
+import { bonesCarrying, getBonesByTag } from "../skeleton";
 import { NO_DELTA, type BoneDelta } from "../skeleton/transform";
 
 /** 키프레임 사이 값을 구한다. 키가 없으면 기본값을 그대로 쓴다. */
@@ -44,6 +44,37 @@ function interpolate(from: number, to: number, t: number, ease: Interpolation): 
     default:
       return from + (to - from) * t;
   }
+}
+
+/** 주인공이 아닌 대상이 받을 기본 비율. 멈추지는 않고 거드는 정도로 움직인다. */
+const DEFAULT_FOCUS_OTHER = 0.3;
+
+/**
+ * 이 Track에서 주인공이 될 대상들.
+ *
+ * null이면 주인공을 가리지 않는다는 뜻이다. focus가 없을 때가 그렇고,
+ * focus가 있어도 대상 중 아무도 해당하지 않으면 마찬가지다.
+ * 무기를 안 든 캐릭터가 맨손 공격을 못 하게 되면 안 되기 때문이다. (기획서 64)
+ */
+function focusedTargets(
+  focus: string | undefined,
+  targets: readonly PuppetBone[],
+  bones: readonly PuppetBone[],
+  cache: Map<string, Set<string>>,
+): Set<string> | null {
+  if (!focus) return null;
+
+  let carriers = cache.get(focus);
+  if (!carriers) {
+    carriers = bonesCarrying(bones, focus);
+    cache.set(focus, carriers);
+  }
+
+  const picked = new Set<string>();
+  for (const bone of targets) if (carriers.has(bone.id)) picked.add(bone.id);
+
+  // 아무도 없으면(무기 없는 캐릭터) 가리지 않는다. 전부 해당하면 가릴 이유가 없다.
+  return picked.size === 0 || picked.size === targets.length ? null : picked;
 }
 
 /**
@@ -107,10 +138,15 @@ export function evaluateAnimation(
   const deltas = new Map<string, BoneDelta>();
 
   const duration = Math.max(0.0001, animation.duration);
+  /** focus 태그별 "그 태그를 달고 있거나 아래에 매단" 관절들. 태그마다 한 번만 구한다. */
+  const carriers = new Map<string, Set<string>>();
 
   for (const track of animation.tracks) {
     const targets = resolveTargets(track, bones);
     if (targets.length === 0) continue;
+
+    const spotlight = focusedTargets(track.focus, targets, bones, carriers);
+    const otherShare = track.focusOther ?? DEFAULT_FOCUS_OTHER;
 
     const base = track.property === "scaleX" || track.property === "scaleY" ? 1 : 0;
     const stagger = track.stagger ?? 0;
@@ -129,12 +165,15 @@ export function evaluateAnimation(
               base,
             );
 
+      // 주인공이 정해진 Track에서, 주인공이 아닌 대상은 거드는 정도로만 움직인다.
+      const share = !spotlight || spotlight.has(bone.id) ? 1 : otherShare;
+
       let delta = deltas.get(bone.id);
       if (!delta) {
         delta = { ...NO_DELTA };
         deltas.set(bone.id, delta);
       }
-      applyProperty(delta, track.property, value, bone.motionStrength * amount);
+      applyProperty(delta, track.property, value, bone.motionStrength * amount * share);
     }
   }
 
