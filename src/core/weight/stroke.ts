@@ -6,12 +6,9 @@
  * 하나, **빠르게 그으면 원 사이가 벌어져** 점선처럼 끊겼다. 브라우저가 포인터 위치를
  * 알려 주는 간격은 손이 움직이는 속도와 상관없이 일정하기 때문이다.
  *
- * 둘, **천천히 그으면 같은 자리에 여러 번 쌓여** 그 부분만 진해졌다. 그림 앱에서
- * 한 획은 속도와 무관하게 고른 한 겹이고, 더 진하게 하고 싶으면 획을 다시 긋는다.
- *
- * 그래서 획을 "한 번의 덧칠"로 다룬다. 획이 지나간 자리의 **가장 진했던 값**만 모아 두었다가
- * 시작할 때의 값 위에 한 번 얹는다. 지나간 자리를 두 번 훑어도 더 진해지지 않고,
- * 손을 뗐다가 다시 그으면 그때 한 겹이 더 쌓인다.
+ * 둘, 한 획 안에서도 이미 지나간 곳을 다시 문지르면 수채화처럼 여러 겹이 쌓여야 한다.
+ * 그래서 각 포인터 구간의 농도를 누적한다. 같은 자리를 왕복하면 교차한 횟수만큼 진해지되,
+ * 진행 중 결과는 언제나 획 시작값에 누적 농도를 더해 계산해 렌더 프레임 때문에 중복되지 않는다.
  */
 import type { PuppetMesh } from "../format/types";
 import { vertexCount } from "../mesh";
@@ -22,7 +19,7 @@ export interface Stroke {
   boneId: string;
   /** 획을 시작할 때의 값. 여기에 획의 결과를 얹는다. */
   base: number[];
-  /** 획이 지나가며 남긴 가장 진한 값. 같은 자리를 다시 훑어도 더 진해지지 않는다. */
+  /** 획의 각 이동 구간이 남긴 누적 농도. 같은 자리를 다시 훑으면 한 겹 더 쌓인다. */
   coverage: number[];
   /** 직전에 지나온 자리. 다음 점까지를 선분으로 이어 칠한다. */
   lastX: number | null;
@@ -66,7 +63,8 @@ export function extendStroke(
   for (let i = 0; i < count; i += 1) {
     if (mask && !mask[i]) continue;
     const value = influenceAt(influence, mesh.vertices[i * 2] ?? 0, mesh.vertices[i * 2 + 1] ?? 0);
-    if (value > (stroke.coverage[i] ?? 0)) stroke.coverage[i] = value;
+    // 포인터 이동 구간 하나를 한 겹으로 본다. 왕복하거나 교차한 부분은 한 획 안에서도 누적한다.
+    stroke.coverage[i] = Math.min(1, (stroke.coverage[i] ?? 0) + value);
   }
 
   stroke.lastX = x;
