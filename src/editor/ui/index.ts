@@ -82,7 +82,13 @@ export interface EditorUICallbacks {
    */
   onAnimationSetting(
     animationId: string,
-    patch: { duration?: number; speed?: number; strength?: number; secondary?: number },
+    patch: {
+      duration?: number;
+      speed?: number;
+      strength?: number;
+      secondary?: number;
+      mirror?: boolean;
+    },
     done?: boolean,
   ): void;
   /**
@@ -101,8 +107,9 @@ export interface EditorUICallbacks {
     name?: string;
     pixelArt?: boolean;
     resolution?: "low" | "normal" | "high";
-    facing?: "right" | "left";
   }): void;
+  /** 그림 · 관절 · 칠한 영역을 통째로 좌우 반전한다. */
+  onFlipCharacter(): void;
   onBrushChange(patch: Partial<BrushState>): void;
   /** 이 관절의 영향 영역을 자동에 맡길지 직접 잡을지 바꾼다. */
   onAutoWeight(boneId: string, enabled: boolean): void;
@@ -345,6 +352,13 @@ export class EditorUI {
       updateKnob(knobs[1], speed, 0.1, 3);
       updateKnob(knobs[2], strength, 0, 2);
       updateKnob(knobs[3], swing, 0, 2);
+
+      // 반전 버튼은 막대가 아니라 상태 표시라 여기서 따로 맞춰 준다.
+      const flipButton = this.animSettings.querySelector<HTMLButtonElement>(".anim-flip");
+      if (flipButton) {
+        flipButton.classList.toggle("active", animation.mirror === true);
+        flipButton.setAttribute("aria-pressed", String(animation.mirror === true));
+      }
       return;
     }
     this.animSettingsId = id;
@@ -387,19 +401,39 @@ export class EditorUI {
       }, (value, done) => this.callbacks.onAnimationSetting(id, { secondary: value }, done)),
     );
 
+    // 좌우 반전 — 동작 하나씩 정한다. 걷기는 오른쪽으로, 후려치기는 왼쪽으로 둘 수 있다.
+    const flip = document.createElement("button");
+    flip.type = "button";
+    flip.className = animation.mirror ? "anim-flip active" : "anim-flip";
+    flip.textContent = "좌우 반전";
+    flip.setAttribute("aria-pressed", String(animation.mirror === true));
+    attachTooltip(flip, {
+      title: animation.mirror ? "좌우가 뒤집힌 동작" : "좌우 반전",
+      body: "이 동작만 좌우를 뒤집습니다. 앞으로 나가던 걸음과 공격이 반대쪽으로 갑니다. 그림과 관절 자리는 그대로입니다.",
+      meta: "그림 자체를 뒤집으려면 설정의 좌우 뒤집기를 쓰세요 · 이 값도 내보내기에 따라갑니다",
+    });
+    flip.addEventListener("click", () =>
+      this.callbacks.onAnimationSetting(id, { mirror: !animation.mirror }),
+    );
+
     const reset = document.createElement("button");
     reset.type = "button";
     reset.className = "anim-reset";
     reset.textContent = "되돌리기";
     attachTooltip(reset, {
       title: "기본값으로",
-      body: "속도 · 강도 · 흔들림을 모두 1로 되돌립니다.",
+      body: "속도 · 강도 · 흔들림을 모두 1로 되돌리고 좌우 반전을 끕니다.",
       meta: `대상: ${id}`,
     });
     reset.addEventListener("click", () =>
-      this.callbacks.onAnimationSetting(id, { speed: 1, strength: 1, secondary: 1 }),
+      this.callbacks.onAnimationSetting(id, {
+        speed: 1,
+        strength: 1,
+        secondary: 1,
+        mirror: false,
+      }),
     );
-    this.animSettings.append(reset);
+    this.animSettings.append(flip, reset);
   }
 
   /** 하단 바에 들어가는 작은 조절 막대. 1 자리에 눈금이 있다. */
@@ -807,24 +841,6 @@ export class EditorUI {
       ),
     );
 
-    // 보는 쪽 — 프리셋은 전부 오른쪽을 보는 캐릭터 기준이다. (기획서 20)
-    this.settingsPanel.append(
-      this.choiceField(
-        "보는 쪽",
-        {
-          title: "캐릭터가 바라보는 쪽",
-          body: "기본 동작들은 오른쪽을 보는 그림을 기준으로 만들어져 있습니다. 왼쪽을 보는 그림이라면 여기를 바꾸세요. 걸음과 공격이 앞쪽으로 나갑니다.",
-          meta: "그림을 뒤집는 것이 아니라 동작의 좌우를 뒤집습니다 · 내보내기에도 따라갑니다",
-        },
-        [
-          { value: "right" as const, label: "오른쪽" },
-          { value: "left" as const, label: "왼쪽" },
-        ],
-        project.character.facing ?? "right",
-        (value) => this.callbacks.onCharacterSetting({ facing: value }),
-      ),
-    );
-
     if (pixelArtReason) {
       const reason = document.createElement("p");
       reason.className = "hint";
@@ -861,6 +877,20 @@ export class EditorUI {
       grid.textContent = `${mesh.cols} × ${mesh.rows}칸 · 정점 ${(mesh.cols + 1) * (mesh.rows + 1)}개`;
       this.settingsPanel.append(grid);
     }
+
+    // 그림 · 관절 · 칠한 영역을 실제로 뒤집는다. 동작 하나만 뒤집는 것과는 다른 일이라
+    // 조절값이 아니라 "실행하는 버튼"으로 둔다.
+    const flip = document.createElement("button");
+    flip.type = "button";
+    flip.className = "settings-action";
+    flip.textContent = "좌우 뒤집기";
+    attachTooltip(flip, {
+      title: "그림과 관절을 통째로 뒤집기",
+      body: "그림 · 관절 자리 · 칠해 둔 영향 영역을 모두 좌우로 옮깁니다. 왼쪽을 보는 그림을 받았을 때 아예 오른쪽을 보게 만드는 용도입니다.",
+      meta: "동작 하나만 뒤집으려면 하단의 좌우 반전을 쓰세요 · 한 번 더 누르면 돌아옵니다",
+    });
+    flip.addEventListener("click", () => this.callbacks.onFlipCharacter());
+    this.settingsPanel.append(flip);
   }
 
   /** 몇 갈래 중 하나를 고르는 줄. 설정에서 여러 번 쓴다. */

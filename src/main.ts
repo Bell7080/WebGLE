@@ -53,6 +53,7 @@ import { EditorStore, type BrushState } from "@editor/state/store";
 import { UndoStack } from "@editor/history/UndoStack";
 import { EditorUI } from "@editor/ui";
 import { attachDropTarget, loadImageFile } from "@editor/tools/imageLoader";
+import { flipImage, flipProject, flipWeights } from "@editor/tools/flip";
 import {
   buildAlphaMap,
   readPixels,
@@ -200,6 +201,8 @@ const ui = new EditorUI(store, {
     ui.setStatus("관절 순서를 바꿨습니다.");
   },
 
+  onFlipCharacter: () => void flipCharacter(),
+
   onBrushChange: (patch) => {
     const brush = { ...store.get().brush, ...patch };
     store.set({ brush });
@@ -310,6 +313,8 @@ const ui = new EditorUI(store, {
     }
 
     const { duration, ...simple } = patch;
+    // 좌우 반전은 재생 커서가 따로 들고 있는 값이기도 하다.
+    if (patch.mirror !== undefined) player.setMirror(patch.mirror);
     store.update((current) => {
       const animation = current.animations[animationId];
       if (!animation) return current;
@@ -331,7 +336,9 @@ const ui = new EditorUI(store, {
     // 나머지(길이 · 흔들림)는 애니메이션 **데이터 자체**에 적히는 값이라,
     // 커서가 붙들고 있는 옛 객체를 갈아 끼우지 않으면 화면에 아무 일도 일어나지 않는다.
     // 흔들림 막대를 아무리 끌어도 변화가 없던 원인이 이것이었다.
-    if (duration !== undefined || simple.secondary !== undefined) reloadPlayer(animationId);
+    if (duration !== undefined || simple.secondary !== undefined || simple.mirror !== undefined) {
+      reloadPlayer(animationId);
+    }
 
     if (done) settingGesture = null;
   },
@@ -355,21 +362,6 @@ const ui = new EditorUI(store, {
       // 텍스처 필터가 바뀌므로 이미지를 다시 올린다.
       if (textureUrl) void reloadTexture(textureUrl, patch.pixelArt);
       ui.setStatus(patch.pixelArt ? "도트 모드로 그립니다." : "일반 그림으로 그립니다.");
-    }
-
-    if (patch.facing !== undefined) {
-      commit((current) => ({
-        ...current,
-        character: { ...current.character, facing: patch.facing },
-      }));
-      // 재생 중이면 멈추지 않고 곧바로 방향이 바뀐다.
-      player.setMirror(patch.facing === "left");
-      applyPose();
-      ui.setStatus(
-        patch.facing === "left"
-          ? "왼쪽을 보는 캐릭터로 봅니다. 동작의 좌우가 뒤집힙니다."
-          : "오른쪽을 보는 캐릭터로 봅니다.",
-      );
     }
 
     if (patch.resolution !== undefined) changeResolution(patch.resolution, project);
@@ -435,6 +427,58 @@ const ui = new EditorUI(store, {
   onExport: () => void exportProject(),
 });
 
+/**
+ * 그림 · 관절 · 칠한 영역을 통째로 좌우로 뒤집는다.
+ *
+ * 애니메이션의 `좌우 반전`과는 다른 일이다. 그쪽은 재생할 때 방향만 돌리고,
+ * 이쪽은 데이터를 실제로 옮겨 파일에 그대로 남긴다 — 포맷에 표시가 생기지 않으므로
+ * 내보낸 결과를 받는 게임 쪽에서는 처음부터 그런 그림이었던 것과 구분되지 않는다.
+ * Undo 한 단위이며, 한 번 더 누르면 돌아온다.
+ */
+async function flipCharacter(): Promise<void> {
+  const { project, textureUrl, weights } = store.get();
+  if (!project.mesh || !textureUrl) {
+    ui.setStatus("이미지를 먼저 불러오세요.");
+    return;
+  }
+
+  try {
+    ui.setStatus("좌우로 뒤집는 중…");
+    const flippedUrl = await flipImage(textureUrl, project.character.pixelArt);
+
+    history.push(project);
+    store.update((current) => flipProject(current));
+    setWeights(flipWeights(weights, project.mesh));
+
+    // 알파 마스크도 그림을 따라가야 칠하기가 엉뚱한 곳에서 막히지 않는다.
+    const image = new Image();
+    image.src = flippedUrl;
+    await image.decode();
+    const pixels = readPixels(image);
+    alphaMap = buildAlphaMap(pixels);
+
+    const previous = store.get().textureUrl;
+    store.set({
+      textureUrl: flippedUrl,
+      mask: sampleAlphaMask(alphaMap, store.get().project.mesh ?? project.mesh),
+    });
+    if (previous && previous.startsWith("blob:")) URL.revokeObjectURL(previous);
+
+    view.scene.showTexture(image, project.character.pixelArt);
+    view.scene.setMesh(
+      store.get().project.mesh ?? project.mesh,
+      project.character.width,
+      project.character.height,
+    );
+    view.scene.drawBones(store.get().project.bones, store.get().selectedBoneId);
+    overlayDirty = true;
+    refreshUndoButtons();
+    ui.setStatus("그림 · 관절 · 칠한 영역을 좌우로 뒤집었습니다.");
+  } catch (error) {
+    ui.setStatus(error instanceof Error ? error.message : "뒤집지 못했습니다.");
+  }
+}
+
 /** 도트 모드를 바꾸면 텍스처 필터가 달라져 이미지를 다시 올려야 한다. */
 async function reloadTexture(url: string, pixelArt: boolean): Promise<void> {
   const image = new Image();
@@ -483,11 +527,11 @@ function uniqueAnimationName(base: string, taken: Record<string, unknown>): stri
 }
 
 /**
- * 이 캐릭터가 왼쪽을 보고 있는지. 보고 있으면 동작의 좌우를 뒤집는다.
- * 프리셋은 전부 오른쪽을 보는 캐릭터 기준으로 만들어져 있기 때문이다.
+ * 지금 고른 애니메이션의 좌우가 뒤집혀 있는지.
+ * 캐릭터 전체가 아니라 동작 하나씩 정하므로, 재생 중인 것을 본다.
  */
-function facingLeft(): boolean {
-  return store.get().project.character.facing === "left";
+function mirrored(): boolean {
+  return player.current?.animation.mirror === true;
 }
 
 /** 프로젝트 변경 한 번을 Undo 단위로 기록한다. (기획서 36) */
@@ -641,7 +685,7 @@ function editAnimation(edit: (animation: PuppetAnimation) => PuppetAnimation): b
   // 재생 커서를 **먼저** 갈아 끼운다. 스토어를 먼저 바꾸면 그 자리에서 화면을 다시 그리는데,
   // 그때 커서가 아직 옛 애니메이션을 들고 있어 방금 바꾼 값이 반영되지 않는다.
   const at = player.time;
-  player.play(next, { speed: current.speed, amount: current.amount, mirror: facingLeft() });
+  player.play(next, { speed: current.speed, amount: current.amount, mirror: mirrored() });
   player.pause();
   player.seek(at);
 
@@ -671,7 +715,8 @@ function reloadPlayer(animationId: string): void {
 
   const playing = current.playing;
   const at = Math.min(player.time, next.duration);
-  player.play(next, { speed: current.speed, amount: current.amount, mirror: facingLeft() });
+  // 반전은 갈아 끼우는 애니메이션이 들고 있는 값을 그대로 쓴다.
+  player.play(next, { speed: current.speed, amount: current.amount, mirror: next.mirror === true });
   if (!playing) player.pause();
   player.seek(at);
 
@@ -707,7 +752,7 @@ function putKey(
   const scale = propertyScale(current.animation, bone, property, current.amount);
   // 좌우 반전은 계산이 다 끝난 뒤 부호를 뒤집는다. 그래서 파일에 적을 값은
   // 화면에서 원한 방향의 **반대**여야 한다. 가로와 회전만 해당한다.
-  const flip = facingLeft() && (property === "x" || property === "rotation") ? -1 : 1;
+  const flip = mirrored() && (property === "x" || property === "rotation") ? -1 : 1;
   const value = keyValueFor(desired * flip, others[property], scale, 1);
 
   const next = setKey(current.animation, { kind: "bone", boneId }, property, time, value);
@@ -721,7 +766,7 @@ function putKey(
   // 재생 커서가 들고 있는 것도 갈아 끼워야 화면이 곧바로 따라온다.
   // 시각을 지키기 위해 다시 올린 뒤 그 자리로 돌려놓는다.
   const at = player.time;
-  player.play(next, { speed: current.speed, amount: current.amount, mirror: facingLeft() });
+  player.play(next, { speed: current.speed, amount: current.amount, mirror: mirrored() });
   player.pause();
   player.seek(at);
 }
@@ -756,7 +801,7 @@ function writeRotateKey(boneId: string, radians: number): void {
       project.bones,
       keyTime(),
       current.amount,
-      facingLeft(),
+      mirrored(),
     ).get(boneId)?.rotation ?? 0;
   }
 
@@ -779,7 +824,7 @@ function baseMatrix(boneId: string): Mat2D | null {
   if (!bone) return null;
 
   // 이 관절의 델타만 0으로 둔 자세를 구하면 그 세계 변환이 곧 기준이 된다.
-  const deltas = evaluateAnimation(current.animation, bones, keyTime(), current.amount, facingLeft());
+  const deltas = evaluateAnimation(current.animation, bones, keyTime(), current.amount, mirrored());
   deltas.set(boneId, { ...NO_DELTA });
   const skin = computeSkinMatrices(bones, deltas);
 
@@ -861,7 +906,7 @@ function playAnimation(animationId: string): void {
   player.play(animation, {
     speed: animation.speed ?? 1,
     amount: animation.strength ?? 1,
-    mirror: facingLeft(),
+    mirror: animation.mirror === true,
   });
   view.scene.setWeightOverlay(null);
   store.set({ playing: animationId, selectedAnimation: animationId });
@@ -963,7 +1008,7 @@ function loadSelectedAnimation(): boolean {
   player.play(animation, {
     speed: animation.speed ?? 1,
     amount: animation.strength ?? 1,
-    mirror: facingLeft(),
+    mirror: animation.mirror === true,
   });
   player.pause();
   return true;

@@ -1,6 +1,7 @@
 import {
   PUPPET_FORMAT,
   PUPPET_VERSION,
+  type PuppetAnimation,
   type PuppetBone,
   type PuppetCharacter,
   type PuppetMesh,
@@ -128,15 +129,34 @@ export function parseProject(raw: unknown): PuppetProject {
   const base = createEmptyProject();
   // 내보내기용 안내 한 줄은 읽을 때 버린다. 붙이는 곳은 내보내기 한 군데뿐이어야 한다.
   const { _readme: _note, ...rest } = data;
+  // v13의 캐릭터 단위 facing은 v14에서 애니메이션 단위 mirror가 됐다.
+  const { facing: _dropped, ...character } = { ...base.character, ...data.character };
+
   return {
     ...base,
     ...rest,
     version: PUPPET_VERSION,
-    character: { ...base.character, ...data.character },
+    character,
     bones: migrateBones(data.bones as PuppetBone[]),
     mesh: readMesh(data.mesh, { ...base.character, ...data.character }),
-    animations: data.animations ?? {},
+    animations: migrateAnimations(data.animations ?? {}, data.character?.facing),
   };
+}
+
+/**
+ * 구버전 애니메이션을 현재 포맷으로 올린다.
+ *
+ * v13에는 "이 캐릭터는 왼쪽을 본다"가 캐릭터에 하나 있었다. v14에서는 동작마다 정하므로,
+ * 그 파일을 열면 모든 동작에 뒤집기를 켠 것과 같아진다 — 열었을 때 보이던 모습이 유지된다.
+ */
+function migrateAnimations(
+  animations: Record<string, PuppetAnimation>,
+  facing: "right" | "left" | undefined,
+): Record<string, PuppetAnimation> {
+  if (facing !== "left") return animations;
+  return Object.fromEntries(
+    Object.entries(animations).map(([id, animation]) => [id, { ...animation, mirror: true }]),
+  );
 }
 
 /**

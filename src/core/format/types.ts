@@ -20,8 +20,10 @@ export const PUPPET_FORMAT = "puppetforge" as const;
  * 12: Bone에 autoWeight 추가. 없으면 false로 본다 — 예전 파일은 전부 손으로 칠한 것이므로
  *     자동 계산이 그 작업을 덮어쓰면 안 된다.
  * 13: character에 facing 추가. 없으면 "right"로 본다.
+ * 14: facing을 애니메이션별 mirror로 옮겼다. 캐릭터 전체가 아니라 동작 하나씩 뒤집는다.
+ *     v13의 facing:"left"는 읽을 때 모든 애니메이션의 mirror로 옮겨 담는다.
  */
-export const PUPPET_VERSION = 13 as const;
+export const PUPPET_VERSION = 14 as const;
 
 /**
  * Bone의 변형 방식. (기획서 19 확장)
@@ -197,6 +199,18 @@ export interface PuppetAnimation {
    * 대기에서만 발을 바닥에 묶어 두고 공격에서는 발을 떼게 하려는 것이다.
    */
   deform?: Record<string, DeformMode>;
+
+  /**
+   * 이 동작의 좌우를 뒤집을지. 없으면 뒤집지 않는다.
+   *
+   * 가로 이동(`x`)과 회전의 부호만 바뀐다. 그림도 관절 자리도 그대로다.
+   *
+   * 캐릭터 전체가 아니라 **동작 하나씩** 정한다. 오른쪽을 보고 걷다가 왼쪽으로 후려치는
+   * 캐릭터가 있고, 같은 프리셋을 두 벌 담아 좌우 한 쌍으로 쓰는 경우도 있기 때문이다.
+   * 그림 자체를 뒤집고 싶다면 이것이 아니라 설정의 `좌우 뒤집기`를 쓴다 —
+   * 그쪽은 관절과 칠한 영역까지 실제로 옮긴다.
+   */
+  mirror?: boolean;
 }
 
 export interface PuppetCharacter {
@@ -209,15 +223,8 @@ export interface PuppetCharacter {
   pixelArt: boolean;
 
   /**
-   * 그림 속 캐릭터가 바라보는 쪽. 없으면 오른쪽으로 본다.
-   *
-   * 프리셋은 전부 "오른쪽을 보는 캐릭터"를 기준으로 만들어져 있다.
-   * 공격은 오른쪽으로 내지르고 걸음도 오른쪽으로 나간다.
-   * 왼쪽을 보는 그림을 넣으면 등 뒤로 주먹을 뻗는 꼴이 되므로,
-   * 이 값이 `"left"`면 가로 이동과 회전 방향을 통째로 뒤집는다.
-   *
-   * 그림을 뒤집는 것이 아니라 **동작을 뒤집는다.** 게임에서 캐릭터가 방향을 바꿀 때
-   * 스프라이트를 좌우 반전하는 것과는 다른 이야기다.
+   * @deprecated v13에서만 쓰였다. 읽을 때 각 애니메이션의 `mirror`로 옮겨 담고 버린다.
+   * 새로 적지 않는다.
    */
   facing?: "right" | "left";
 }

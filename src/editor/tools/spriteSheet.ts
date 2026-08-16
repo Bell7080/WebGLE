@@ -101,8 +101,8 @@ function poseFrames(
   const { bones } = project;
   const modes = deformModesFor(bones, animation);
   const amount = animation.strength ?? 1;
-  // 편집기에서 본 것과 시트가 달라지면 안 되므로 보는 쪽도 그대로 따라간다.
-  const mirror = project.character.facing === "left";
+  // 편집기에서 본 것과 시트가 달라지면 안 되므로 뒤집기도 그대로 따라간다.
+  const mirror = animation.mirror === true;
   const swing = animation.secondary ?? 1;
   const secondary = new SecondaryMotion();
 
