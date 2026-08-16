@@ -5,6 +5,8 @@
  * 태그와 변형처럼 "이걸 고르면 무슨 일이 일어나는가"를 설명해야 하는 곳에 붙인다.
  */
 
+import { translate } from "../i18n";
+
 export interface TooltipContent {
   title: string;
   body: string;
@@ -33,16 +35,17 @@ function show(anchor: HTMLElement, content: TooltipContent): void {
   tip.replaceChildren();
 
   const title = document.createElement("strong");
-  title.textContent = content.title;
+  // 툴팁은 여러 화면에서 한국어 원문으로 넘겨지므로, 한 관문에서 빠짐없이 현 언어로 바꾼다.
+  title.textContent = translate(content.title);
 
   const body = document.createElement("span");
-  body.textContent = content.body;
+  body.textContent = translate(content.body);
 
   tip.append(title, body);
 
   if (content.meta) {
     const meta = document.createElement("em");
-    meta.textContent = content.meta;
+    meta.textContent = translate(content.meta);
     tip.append(meta);
   }
 
