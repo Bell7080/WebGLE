@@ -52,11 +52,19 @@ PuppetForge의 버전과 dev 로그. 최신 항목이 위에 온다.
   몬스터를 몇 개 만들든 이 코드는 한 벌만 들어간다
 - `_readme`가 내보낸 파일 맨 앞 키로 들어가고, 저장 파일에는 없다
 
+### 수정
+
+- **GitHub에서 설치하면 빈 패키지가 되던 것.** `dist-lib`은 git에 넣지 않으므로
+  `npm i github:Bell7080/WebGLE`로 받으면 빌드 결과가 없었다.
+  npm이 git 의존성에서 자동으로 부르는 `prepare`에 빌드를 걸어 해결했다.
+  `git+file://`로 실제 설치해 재생까지 확인했다.
+
 ### 알려진 한계
 
 - Phaser 어댑터(`puppetforge/phaser`의 `PuppetCreature`)는 아직 없다. Phase 10이다.
   지금은 `update(dt)`가 준 정점을 직접 렌더러에 넘겨야 한다.
-- 아직 npm에 올리지 않았다. `npm publish`는 계정이 필요해 직접 실행해야 한다.
+- 아직 npm 레지스트리에 올리지 않았다. `npm publish`는 npm 계정 로그인이 필요해
+  직접 실행해야 한다. 그 전에도 GitHub 주소로 설치하면 똑같이 쓸 수 있다.
 
 ---
 

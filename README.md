@@ -71,6 +71,8 @@ Chromium 계열 브라우저 + WebGL 환경을 기준으로 한다.
 
 ```bash
 npm install puppetforge
+# 아직 npm에 올리기 전이라면 GitHub에서 바로 받아도 된다
+npm install github:Bell7080/WebGLE
 ```
 
 ```ts
