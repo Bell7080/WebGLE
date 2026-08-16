@@ -607,7 +607,7 @@ async function exportProject(): Promise<void> {
   }
 
   try {
-    const blob = await packProject(shipped, textureUrl);
+    const blob = await packProject(shipped, textureUrl, true);
     downloadBlob(blob, exportFileName(project));
     ui.setStatus(`내보냄: ${names.length}개 (${names.join(", ")})`);
   } catch (error) {

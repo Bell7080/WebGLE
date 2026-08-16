@@ -2,10 +2,13 @@ import {
   PUPPET_FORMAT,
   PUPPET_VERSION,
   type PuppetBone,
+  type PuppetCharacter,
+  type PuppetMesh,
   type PuppetProject,
 } from "./types";
 import { generateBoneColor, SUGGESTED_TAGS } from "./constants";
 import { createBoneId, nextPartName } from "./naming";
+import { compactMesh, expandMesh, isCompactMesh } from "./compact";
 
 export interface CreateProjectOptions {
   name?: string;
@@ -127,9 +130,21 @@ export function parseProject(raw: unknown): PuppetProject {
     version: PUPPET_VERSION,
     character: { ...base.character, ...data.character },
     bones: migrateBones(data.bones as PuppetBone[]),
-    mesh: data.mesh ?? null,
+    mesh: readMesh(data.mesh, { ...base.character, ...data.character }),
     animations: data.animations ?? {},
   };
+}
+
+/**
+ * 파일에 적힌 Mesh를 메모리 모양으로 되돌린다.
+ *
+ * v10부터는 격자(vertices · indices)를 적지 않고 이미지 크기로 다시 만든다.
+ * 그 이전 파일은 격자가 그대로 들어 있으므로 손대지 않는다.
+ */
+function readMesh(mesh: unknown, character: PuppetCharacter): PuppetMesh | null {
+  if (!mesh) return null;
+  if (!isCompactMesh(mesh)) return mesh as PuppetMesh;
+  return expandMesh(mesh, character.width, character.height);
 }
 
 /**
@@ -144,6 +159,12 @@ function migrateBones(bones: readonly PuppetBone[]): PuppetBone[] {
   return filled;
 }
 
-export function serializeProject(project: PuppetProject): string {
-  return JSON.stringify(project, null, 2);
+/**
+ * 파일에 적을 문자열. 격자는 빼고 적는다 — 읽을 때 다시 만든다. (compact.ts)
+ *
+ * `pretty`를 끄면 들여쓰기 없이 적는다. 게임에 넘길 내보내기에 쓴다.
+ */
+export function serializeProject(project: PuppetProject, pretty = true): string {
+  const slim = { ...project, mesh: project.mesh ? compactMesh(project.mesh) : null };
+  return JSON.stringify(slim, null, pretty ? 2 : undefined);
 }

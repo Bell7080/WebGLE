@@ -21,9 +21,13 @@ export function projectFileName(project: PuppetProject): string {
 export async function packProject(
   project: PuppetProject,
   textureUrl: string | null,
+  /** 들여쓰기 없이 적을지. 게임에 넘길 내보내기에서 켠다. */
+  minified = false,
 ): Promise<Blob> {
   const encoder = new TextEncoder();
-  const entries = [{ name: JSON_NAME, data: encoder.encode(serializeProject(project)) }];
+  const entries = [
+    { name: JSON_NAME, data: encoder.encode(serializeProject(project, !minified)) },
+  ];
 
   if (textureUrl) {
     const response = await fetch(textureUrl);

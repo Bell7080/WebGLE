@@ -14,8 +14,10 @@ export const PUPPET_FORMAT = "puppetforge" as const;
  * 7: Track에 stagger(대상별 시간 어긋냄) 추가. 없으면 0으로 본다.
  * 8: Track에 focus / focusOther(동작의 주인공 고르기) 추가. 없으면 전부 똑같이 움직인다.
  * 9: 애니메이션에 deform(관절별 변형 방식 덮어쓰기) 추가. 없으면 Bone의 값을 그대로 쓴다.
+ * 10: Mesh의 격자(vertices · indices)를 파일에 적지 않는다. 읽을 때 이미지 크기로 다시 만든다.
+ *     칠하지 않은 정점의 가중치는 null로 적는다. 이전 파일은 격자가 있으면 그대로 쓴다.
  */
-export const PUPPET_VERSION = 9 as const;
+export const PUPPET_VERSION = 10 as const;
 
 /**
  * Bone의 변형 방식. (기획서 19 확장)
