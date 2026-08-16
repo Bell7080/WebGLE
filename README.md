@@ -18,7 +18,7 @@ npm test         # 코어 로직 테스트
 
 Chromium 계열 브라우저 + WebGL 환경을 기준으로 한다.
 
-## 현재 상태 (v0.16.0)
+## 현재 상태 (v0.17.0)
 
 기획서 70의 Phase 1 · 2 · 3 · 4 · 5 · 6 · 8까지 되어 있다.
 변경 내역은 [`VERSION.md`](./VERSION.md)를 참고한다.
@@ -59,11 +59,47 @@ Chromium 계열 브라우저 + WebGL 환경을 기준으로 한다.
 - 따라 흔들림 — 꼬리 · 머리카락 · 망토처럼 `secondary` 태그가 붙은 부위가
   몸을 한 박자 늦게 따라 흔들린다 (Track 없이 런타임이 자동으로 만든다)
 - `내보내기`: 숨기지 않은 애니메이션만 담은 `<이름>.export.zip`.
-  격자는 파일에 넣지 않고 읽을 때 다시 만들어 파일이 작다 (같은 캐릭터 264KB → 38KB)
+  격자는 파일에 넣지 않고 읽을 때 다시 만들어 파일이 작다 (같은 캐릭터 264KB → 38KB).
+  파일 맨 앞에 `_readme` 한 줄이 붙어 열자마자 무엇이고 어떻게 재생하는지 알 수 있다
 - 프로젝트 저장 · 불러오기 (`character.puppet.zip` = puppet.json + 원본 이미지)
 - Undo / Redo (`Ctrl+Z`, `Ctrl+Y` 또는 `Ctrl+Shift+Z`), 저장 `Ctrl+S`
 
-아직 없는 것: 편집기 안에서 키프레임 만들기 · 고치기, 애니메이션 블렌딩,
+## 게임에서 쓰기 (Runtime)
+
+편집기는 몬스터를 **만드는** 곳이고, 런타임은 게임이 그걸 **재생하는** 라이브러리다.
+게임이 실행될 때 편집기 서버와는 아무 통신도 하지 않는다 — 내보낸 파일만 있으면 된다.
+
+```bash
+npm install puppetforge
+```
+
+```ts
+import { Puppet } from "puppetforge";
+
+const 거미 = await Puppet.load("/monsters/거미.zip");   // 내 게임 서버의 파일 경로
+거미.play("idle");
+거미.on("impact", () => enemy.takeDamage());          // 애니메이션 이벤트 (기획서 42)
+
+// 매 프레임
+const vertices = 거미.update(dt);   // 변형된 정점(Float32Array), 멈춰 있으면 null
+```
+
+그리는 것은 게임 엔진의 몫이다. `puppet.uv` · `puppet.texture` · `puppet.mesh.indices`를
+쓰던 렌더러에 넘기면 된다.
+
+| | |
+| --- | --- |
+| `Puppet.load(url \| bytes)` | 내보낸 zip이나 puppet.json을 읽는다 |
+| `.play(name, { speed, strength })` | 재생. 없는 이름이면 `false`를 주고 넘어간다 |
+| `.stop()` / `.setSpeed()` / `.setStrength()` | 재생 조절 |
+| `.on(event, fn)` / `.on("*", fn)` | 애니메이션 이벤트. 돌려받은 함수로 해제 |
+| `.update(dt)` | 시간을 굴리고 변형된 정점을 준다 |
+| `.poseAt(name, time)` | 재생하지 않고 한 자세의 정점만 |
+| `.animations` / `.uv` / `.texture` / `.mesh` | 읽기 전용 정보 |
+
+라이브러리는 몬스터 수와 무관하게 **한 벌만** 들어간다 (gzip 9.7KB).
+
+아직 없는 것: Phaser 어댑터(`PuppetCreature`), 편집기 안에서 키프레임 만들기 · 고치기, 애니메이션 블렌딩,
 IndexedDB 자동 저장, Runtime 패키지 분리, 스프라이트 시트 내보내기.
 순서는 기획서 70을 따른다.
 

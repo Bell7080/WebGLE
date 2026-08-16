@@ -16,8 +16,9 @@ export const PUPPET_FORMAT = "puppetforge" as const;
  * 9: 애니메이션에 deform(관절별 변형 방식 덮어쓰기) 추가. 없으면 Bone의 값을 그대로 쓴다.
  * 10: Mesh의 격자(vertices · indices)를 파일에 적지 않는다. 읽을 때 이미지 크기로 다시 만든다.
  *     칠하지 않은 정점의 가중치는 null로 적는다. 이전 파일은 격자가 있으면 그대로 쓴다.
+ * 11: 내보내기에 _readme 한 줄을 붙인다. 읽는 쪽은 무시한다.
  */
-export const PUPPET_VERSION = 10 as const;
+export const PUPPET_VERSION = 11 as const;
 
 /**
  * Bone의 변형 방식. (기획서 19 확장)
@@ -201,6 +202,14 @@ export interface PuppetCharacter {
 export interface PuppetProject {
   format: typeof PUPPET_FORMAT;
   version: number;
+
+  /**
+   * 이 파일이 무엇이고 어떻게 재생하는지 한 줄로 적어 둔다. 내보내기에서만 붙는다.
+   *
+   * 파일만 열어 본 사람이나 AI가 곧바로 알아보고 쓸 수 있게 하려는 것이다.
+   * 읽는 쪽은 이 값을 무시한다. 지워도 동작에는 영향이 없다.
+   */
+  _readme?: string;
   character: PuppetCharacter;
   bones: PuppetBone[];
   mesh: PuppetMesh | null;

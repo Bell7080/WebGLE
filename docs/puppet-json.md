@@ -8,7 +8,7 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 ```json
 {
   "format": "puppetforge",
-  "version": 10,
+  "version": 11,
   "character": { },
   "bones": [],
   "mesh": null,
@@ -223,5 +223,23 @@ v9까지의 파일에는 `vertices` · `indices`가 그대로 들어 있다. 그
 | 8 | Track에 `focus` · `focusOther`(동작의 주인공 고르기) 추가. 없으면 전부 똑같이 움직인다. |
 | 9 | 애니메이션에 `deform`(관절별 변형 방식 덮어쓰기) 추가. 없으면 Bone의 값을 그대로 쓴다. |
 | 10 | Mesh의 격자를 파일에서 뺐다. 읽을 때 다시 만든다. 칠하지 않은 정점은 `null`. |
+| 11 | 내보내기에 `_readme` 한 줄이 붙는다. 읽는 쪽은 무시한다. |
 
 읽는 쪽보다 높은 버전은 거부하고, 낮은 버전은 조용히 올려서 연다.
+
+## _readme (내보내기에만)
+
+`내보내기`로 만든 파일에는 맨 앞에 `_readme` 한 줄이 붙는다.
+파일만 열어 본 사람이나 AI가 곧바로 알아보고 쓸 수 있게 하려는 것이다.
+
+```json
+{
+  "_readme": "PuppetForge 2D 캐릭터입니다. 게임에서 재생하려면: npm i puppetforge → …",
+  "format": "puppetforge",
+  "version": 11
+}
+```
+
+읽는 쪽은 이 값을 무시한다. 지워도 동작에 영향이 없고,
+편집기가 다시 읽을 때도 버려진다. 붙이는 곳은 내보내기 한 군데뿐이다.
+편집기 저장 파일(`.puppet.zip`)에는 붙지 않는다.

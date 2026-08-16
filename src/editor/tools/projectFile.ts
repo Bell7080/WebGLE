@@ -44,6 +44,25 @@ export async function packProject(
  * 숨김으로 표시한 애니메이션은 빠진다. 프로젝트 파일에는 그대로 남으므로
  * 시안을 지우지 않고도 결과물만 골라 낼 수 있다.
  */
+/**
+ * 내보낸 파일 맨 앞에 붙는 한 줄. (기획서 40, 41)
+ *
+ * 파일만 열어 본 사람이나 AI가 곧바로 알아보고 쓸 수 있게 하려는 것이다.
+ * 읽는 쪽은 이 값을 무시하므로 지워도 동작에는 영향이 없다.
+ */
+export function exportReadme(project: PuppetProject): string {
+  const names = Object.keys(project.animations);
+  const first = names[0] ?? "idle";
+  return (
+    `PuppetForge 2D 캐릭터입니다. 게임에서 재생하려면: ` +
+    `npm i puppetforge → import { Puppet } from "puppetforge" → ` +
+    `const p = await Puppet.load("<이 zip의 경로>"); p.play("${first}"); ` +
+    `매 프레임 p.update(dt)가 변형된 정점(Float32Array)을 돌려주고, p.uv / p.texture로 그립니다. ` +
+    `애니메이션: ${names.join(", ") || "(없음)"}. ` +
+    `포맷: https://github.com/Bell7080/WebGLE/blob/main/docs/puppet-json.md`
+  );
+}
+
 export function forExport(project: PuppetProject): PuppetProject {
   const animations = Object.fromEntries(
     Object.entries(project.animations)
@@ -53,7 +72,9 @@ export function forExport(project: PuppetProject): PuppetProject {
         return [id, rest];
       }),
   );
-  return { ...project, animations };
+  const shipped = { ...project, animations };
+  // 파일을 열자마자 보이도록 맨 앞에 둔다.
+  return { _readme: exportReadme(shipped), ...shipped };
 }
 
 export function exportFileName(project: PuppetProject): string {

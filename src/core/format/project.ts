@@ -124,9 +124,11 @@ export function parseProject(raw: unknown): PuppetProject {
   }
 
   const base = createEmptyProject();
+  // 내보내기용 안내 한 줄은 읽을 때 버린다. 붙이는 곳은 내보내기 한 군데뿐이어야 한다.
+  const { _readme: _note, ...rest } = data;
   return {
     ...base,
-    ...data,
+    ...rest,
     version: PUPPET_VERSION,
     character: { ...base.character, ...data.character },
     bones: migrateBones(data.bones as PuppetBone[]),

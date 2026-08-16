@@ -5,6 +5,61 @@ PuppetForge의 버전과 dev 로그. 최신 항목이 위에 온다.
 
 ---
 
+## v0.17.0 — 2026-08-16
+
+**Phase**: Phase 9 (runtime-core) · npm 패키지 준비
+
+게임에 넣을 라이브러리를 떼어 냈다. 편집기 코드는 하나도 들어가지 않고,
+렌더링 엔진도 모른다 — "이 순간 정점이 어디 있어야 하는가"까지만 계산한다.
+
+### 추가
+
+- **`src/runtime/index.ts` — Runtime Core.** (기획서 40, 43)
+  - `Puppet.load(url | bytes)` — 내보낸 zip이나 puppet.json을 읽는다.
+    URL이면 fetch하고, ZIP이 아니면(`PK`로 시작하지 않으면) JSON으로 본다
+  - `.play(name, { speed, strength, restart })` — 없는 이름이면 오류 없이 `false`.
+    캐릭터마다 가진 동작이 다르므로 없으면 그냥 안 하는 편이 낫다 (기획서 64)
+  - `.stop()` · `.setSpeed()` · `.setStrength()`
+  - `.on(event, fn)` · `.on("*", fn)` — 애니메이션 이벤트. 돌려받은 함수로 해제 (기획서 42)
+  - `.update(dt)` — 시간을 굴리고 변형된 정점(Float32Array). 멈춰 있으면 `null`.
+    같은 배열을 다시 쓴다
+  - `.poseAt(name, time)` — 재생하지 않고 한 자세의 정점만
+  - `.animations` · `.uv` · `.restVertices` · `.texture` · `.mesh` · `.pixelArt`
+  - 편집기와 똑같이 애니메이션 → 따라 흔들림 → 스키닝 순서로 계산하고,
+    애니메이션별 `deform` 덮어쓰기도 그대로 적용한다
+- **npm 패키지 설정.** `puppetforge`라는 이름이 비어 있어 그대로 쓴다.
+  - `npm run build:lib` — `vite.lib.config.ts`로 번들, `tsconfig.lib.json`으로 타입 선언
+  - `exports` · `types` · `files`로 `dist-lib`만 올라가게 했다. 편집기는 들어가지 않는다
+  - `prepublishOnly`에 테스트와 빌드를 걸어 두었다
+  - Phaser를 `dependencies`에서 `devDependencies`로 옮겼다.
+    편집기 앱만 쓰는 것이라 라이브러리를 설치하는 쪽에 딸려 가면 안 된다
+  - MIT 라이선스와 LICENSE 파일을 넣었다 — **다른 라이선스를 원하면 알려 달라**
+- **내보내기에 `_readme` 한 줄.** (Puppet JSON v11)
+  파일을 열자마자 무엇이고 어떻게 재생하는지 보이도록 맨 앞에 둔다.
+  바이브 코딩할 때 AI가 파일만 보고 바로 작업할 수 있게 하려는 것이다.
+  읽는 쪽은 무시하고, 편집기가 다시 읽을 때도 버린다. 저장 파일에는 붙지 않는다.
+
+### 검증
+
+- `npm test` 191개 통과 (새 19개), `npm run build` · `tsc --noEmit` 통과
+- **실제로 설치해서 써 봤다.** `npm pack`으로 만든 tgz를 빈 프로젝트에 설치하고
+  `import { Puppet } from "puppetforge"`로 불러 편집기에서 내보낸 zip을 재생
+  - 이름 `human` 220×320 · 애니메이션 4개 · 텍스처 `human.png` 5763바이트 · 정점 1666개
+  - 없는 이름 재생 → `false` (오류 없음), `walk` 재생 → 정점이 최대 25.46px 이동
+  - `step` 이벤트 수신, `stop()` 뒤 `update`는 `null`, `poseAt`는 1666개 정점
+  - 소비자 쪽 `tsc`로 타입이 해석되는 것까지 확인 (종료 코드 0)
+- 패키지 크기: tgz 29.4 KB, 번들 `dist-lib/index.js` 26.9 KB (gzip 9.7 KB).
+  몬스터를 몇 개 만들든 이 코드는 한 벌만 들어간다
+- `_readme`가 내보낸 파일 맨 앞 키로 들어가고, 저장 파일에는 없다
+
+### 알려진 한계
+
+- Phaser 어댑터(`puppetforge/phaser`의 `PuppetCreature`)는 아직 없다. Phase 10이다.
+  지금은 `update(dt)`가 준 정점을 직접 렌더러에 넘겨야 한다.
+- 아직 npm에 올리지 않았다. `npm publish`는 계정이 필요해 직접 실행해야 한다.
+
+---
+
 ## v0.16.0 — 2026-08-16
 
 **Phase**: Phase 9 준비 (내보내기 슬림화)
