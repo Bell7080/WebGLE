@@ -14,6 +14,7 @@ export default defineConfig({
     lib: {
       entry: {
         index: fileURLToPath(new URL("./src/runtime/index.ts", import.meta.url)),
+        phaser: fileURLToPath(new URL("./src/runtime/phaser.ts", import.meta.url)),
       },
       formats: ["es"],
     },

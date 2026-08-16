@@ -1,6 +1,6 @@
 {
   "name": "puppetforge",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "type": "module",
   "description": "2D 종이인형 애니메이션 툴과 게임용 런타임. Puppet JSON 하나로 편집기와 게임이 같은 데이터를 쓴다.",
   "scripts": {
@@ -49,6 +49,10 @@
       "types": "./dist-lib/types/runtime/index.d.ts",
       "import": "./dist-lib/index.js"
     },
+    "./phaser": {
+      "types": "./dist-lib/types/runtime/phaser.d.ts",
+      "import": "./dist-lib/phaser.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -59,5 +63,13 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "peerDependencies": {
+    "phaser": ">=3.80.0"
+  },
+  "peerDependenciesMeta": {
+    "phaser": {
+      "optional": true
+    }
   }
 }

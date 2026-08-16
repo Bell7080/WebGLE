@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PuppetForge 예제 — 게임에서 재생하기</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        background: #131315;
+        color: #ededf0;
+        font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo",
+          "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+        font-size: 13px;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        height: 100vh;
+      }
+      header, footer {
+        padding: 10px 14px;
+        background: #17171a;
+        border-bottom: 1px solid #26262b;
+      }
+      footer { border-bottom: none; border-top: 1px solid #26262b; }
+      h1 { margin: 0 0 4px; font-size: 13px; letter-spacing: 0.02em; }
+      p { margin: 0; color: #9b9ba3; }
+      #game { min-height: 0; display: grid; place-items: center; background: #0b0b0c; }
+      .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+      button {
+        background: transparent; color: #9b9ba3;
+        border: 1px solid #34343b; border-radius: 5px;
+        padding: 5px 10px; font: inherit; font-size: 12.5px; cursor: pointer;
+      }
+      button:hover { background: #212125; color: #ededf0; }
+      button.on { background: #f2f2f4; color: #131315; border-color: #f2f2f4; }
+      .log { margin-left: auto; color: #6a6a72; font-variant-numeric: tabular-nums; }
+      code { color: #ededf0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>PuppetForge 예제 — 편집기에서 내보낸 파일을 게임에서 재생</h1>
+      <p>
+        편집기 코드는 전혀 쓰지 않는다. <code>puppetforge/phaser</code>의
+        <code>PuppetCreature</code> 하나로 세우고 <code>play(이름)</code>으로 재생한다.
+      </p>
+    </header>
+
+    <div id="game"></div>
+
+    <footer>
+      <div class="row" id="controls">
+        <input type="file" id="file" accept=".zip" hidden />
+        <button type="button" id="pick">내보낸 zip 열기</button>
+        <span id="anims" class="row"></span>
+        <button type="button" id="flip">좌우 뒤집기</button>
+        <span class="log" id="log">파일을 열면 시작합니다.</span>
+      </div>
+    </footer>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

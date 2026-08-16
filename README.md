@@ -18,7 +18,7 @@ npm test         # 코어 로직 테스트
 
 Chromium 계열 브라우저 + WebGL 환경을 기준으로 한다.
 
-## 현재 상태 (v0.17.0)
+## 현재 상태 (v0.18.0)
 
 기획서 70의 Phase 1 · 2 · 3 · 4 · 5 · 6 · 8까지 되어 있다.
 변경 내역은 [`VERSION.md`](./VERSION.md)를 참고한다.
@@ -89,6 +89,24 @@ const vertices = 거미.update(dt);   // 변형된 정점(Float32Array), 멈춰 
 그리는 것은 게임 엔진의 몫이다. `puppet.uv` · `puppet.texture` · `puppet.mesh.indices`를
 쓰던 렌더러에 넘기면 된다.
 
+### Phaser라면 그리기까지 해 준다
+
+```ts
+import { PuppetCreature } from "puppetforge/phaser";
+
+const 거미 = await PuppetCreature.load(this, "/monsters/거미.zip", { x: 400, y: 300 });
+거미.play("idle");
+거미.setFlipX(true).setScale(2);          // 보통의 GameObject처럼 다룬다
+거미.onEvent("impact", () => enemy.takeDamage());
+```
+
+`Phaser.GameObjects.Mesh`를 감싼 것이라 `setPosition` · `setDepth` 같은 조작이 그대로 통하고,
+씬의 `update`에 스스로 붙으므로 매 프레임 부를 것이 없다.
+같은 캐릭터를 여러 마리 세워도 텍스처는 한 번만 올라간다.
+
+동작하는 예제는 `example/`에 있다. `npm run dev` 후 `/example/`을 열고
+편집기에서 내보낸 zip을 넣으면 된다.
+
 | | |
 | --- | --- |
 | `Puppet.load(url \| bytes)` | 내보낸 zip이나 puppet.json을 읽는다 |
@@ -101,7 +119,7 @@ const vertices = 거미.update(dt);   // 변형된 정점(Float32Array), 멈춰 
 
 라이브러리는 몬스터 수와 무관하게 **한 벌만** 들어간다 (gzip 9.7KB).
 
-아직 없는 것: Phaser 어댑터(`PuppetCreature`), 편집기 안에서 키프레임 만들기 · 고치기, 애니메이션 블렌딩,
+아직 없는 것: 편집기 안에서 키프레임 만들기 · 고치기, 애니메이션 블렌딩,
 IndexedDB 자동 저장, Runtime 패키지 분리, 스프라이트 시트 내보내기.
 순서는 기획서 70을 따른다.
 

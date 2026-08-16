@@ -5,6 +5,58 @@ PuppetForge의 버전과 dev 로그. 최신 항목이 위에 온다.
 
 ---
 
+## v0.18.0 — 2026-08-16
+
+**Phase**: Phase 10 (runtime-phaser) — 마지막 Phase
+
+내보낸 파일이 실제 게임에서 도는 것을 눈으로 확인했다.
+지금까지 만든 `stagger` · `focus` · 애니메이션별 `deform`이 편집기 밖에서도
+그대로 살아 있는지는 이번에 처음 검증됐다.
+
+### 추가
+
+- **`src/runtime/phaser.ts` — `PuppetCreature`.** (기획서 41, 43)
+  - `PuppetCreature.load(scene, url | bytes, { x, y, play, key })` — 읽고 텍스처를 올리고
+    씬에 붙이는 것까지 한 번에 한다. `scene.add.existing`을 따로 부를 필요가 없다
+  - `Phaser.GameObjects.Mesh`를 상속하므로 `setPosition` · `setScale` · `setDepth` 같은
+    보통의 조작이 그대로 통한다
+  - `play(name)` · `stopAnimation()` · `setAnimationSpeed()` · `setAnimationStrength()`
+  - `setFlipX(true)` — 좌우 뒤집기. 삼각형 감김이 뒤집히므로 `hideCCW`를 꺼 둔다
+  - `onEvent(name | "*", fn)` — 애니메이션 이벤트 (기획서 42)
+  - `poseAt(name, time)` — 재생하지 않고 한 자세로 세워 둔다
+  - `core`로 밑의 `Puppet`에 바로 닿는다
+  - 씬의 `update`에 스스로 붙는다. 매 프레임 부를 것이 없다
+  - 같은 캐릭터를 여러 마리 세워도 텍스처는 한 번만 올라간다
+- **`example/` — 동작하는 예제 페이지.** 편집기 코드를 하나도 쓰지 않는다.
+  내보낸 zip을 열면 애니메이션 목록이 버튼으로 뜨고, 눌러서 전환하고 좌우로 뒤집는다.
+  `npm run dev` 후 `/example/`에서 볼 수 있고, 배포에도 함께 올라간다.
+- **패키지에 `puppetforge/phaser` 서브패스.** Phaser는 `optional` peerDependency다 —
+  Phaser를 안 쓰면 없어도 되고, 쓰면 게임이 이미 들고 있는 것을 쓴다.
+
+### 검증
+
+- `npm test` 191개 통과, `npm run build` · `tsc --noEmit` 통과
+- Chromium(Playwright)에서 예제 페이지로 확인 (편집기와 완전히 분리된 페이지)
+  - 편집기가 내보낸 zip을 열어 캐릭터 `human` 220×320, 정점 9504개로 세워짐
+  - 애니메이션 버튼 4개(`idle` `idle2` `walk` `attack`)가 파일에서 채워짐
+  - `대기` 재생 중 캔버스 프레임 4장이 모두 다름
+  - `walk` 버튼으로 전환되고 프레임 3장이 모두 다름
+  - `좌우 뒤집기` → `scaleX -1.000`, 화면 픽셀도 바뀜
+  - 없는 이름 재생 → `false` (오류 없음)
+  - `step` 이벤트가 화면에 표시됨
+  - 콘솔 오류 없음
+- 소비자 쪽에서 `import { PuppetCreature } from "puppetforge/phaser"`가
+  타입까지 해석되는 것을 `npm pack` → 설치 → `tsc`로 확인 (종료 코드 0)
+- 번들 크기: `dist-lib/phaser.js` 4.34 kB (gzip 1.99 kB). Phaser 자체는 번들에 들어가지 않는다
+
+### 참고
+
+- Phaser 어댑터는 WebGL과 DOM이 있어야 해서 Vitest(node) 단위 테스트를 붙이지 않았다.
+  대신 실제 브라우저에서 픽셀로 확인한다.
+- 이로써 기획서 70의 Phase 1~11이 모두 끝났다.
+
+---
+
 ## v0.17.0 — 2026-08-16
 
 **Phase**: Phase 9 (runtime-core) · npm 패키지 준비

@@ -58,6 +58,7 @@ export function exportReadme(project: PuppetProject): string {
     `npm i puppetforge → import { Puppet } from "puppetforge" → ` +
     `const p = await Puppet.load("<이 zip의 경로>"); p.play("${first}"); ` +
     `매 프레임 p.update(dt)가 변형된 정점(Float32Array)을 돌려주고, p.uv / p.texture로 그립니다. ` +
+    `Phaser라면 puppetforge/phaser의 PuppetCreature.load(scene, "<경로>")가 그리기까지 해 줍니다. ` +
     `애니메이션: ${names.join(", ") || "(없음)"}. ` +
     `포맷: https://github.com/Bell7080/WebGLE/blob/main/docs/puppet-json.md`
   );
