@@ -5,6 +5,7 @@ import {
   type PuppetProject,
 } from "@core/format";
 import { createZip, readZip } from "@core/format/zip";
+import { translate } from "@editor/i18n";
 
 const JSON_NAME = "puppet.json";
 
@@ -126,9 +127,29 @@ export type SaveMethod = "share" | "download" | "tab" | "cancelled";
  * 3. **새 탭으로 열기** — 위 둘이 다 막힌 경우의 마지막 수단. 적어도 화면에는 뜬다.
  */
 export async function saveFile(blob: Blob, fileName: string): Promise<SaveMethod> {
-  const shared = await shareFile(blob, fileName);
+  const file = new File([blob], fileName, { type: blob.type || "application/octet-stream" });
+  const shared = await shareFiles([file], fileName);
   if (shared) return shared;
+  return saveFileWithoutShare(blob, fileName);
+}
 
+/**
+ * 여러 결과 이미지를 운영체제 공유 시트로 직접 넘긴다.
+ *
+ * iPhone의 사진 앱은 ZIP 내부 이미지를 바로 받을 수 없지만 PNG 파일 공유는 받을 수 있다.
+ * 공유를 지원하지 않는 브라우저에서는 호출자가 준비한 ZIP을 일반 파일로 저장한다.
+ */
+export async function saveImages(
+  images: readonly File[],
+  fallbackZip: Blob,
+  fallbackName: string,
+): Promise<SaveMethod> {
+  const shared = await shareFiles(images, fallbackName);
+  return shared ?? saveFileWithoutShare(fallbackZip, fallbackName);
+}
+
+/** 공유를 이미 시도한 뒤 쓰는 다운로드 경로다. 재귀적으로 공유 창을 띄우지 않는다. */
+async function saveFileWithoutShare(blob: Blob, fileName: string): Promise<SaveMethod> {
   const url = URL.createObjectURL(blob);
   try {
     const link = document.createElement("a");
@@ -136,17 +157,14 @@ export async function saveFile(blob: Blob, fileName: string): Promise<SaveMethod
       link.href = url;
       link.download = fileName;
       link.rel = "noopener";
-      // 붙였다 떼야 한다. 떠 있지 않은 링크의 클릭을 무시하는 브라우저가 있다.
       document.body.append(link);
       link.click();
       link.remove();
       return "download";
     }
-
     window.open(url, "_blank", "noopener");
     return "tab";
   } finally {
-    // 내려받기가 시작될 시간을 준 뒤에 거둔다.
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 }
@@ -157,20 +175,58 @@ export async function saveFile(blob: Blob, fileName: string): Promise<SaveMethod
  * 사용자가 공유 창을 닫은 것(AbortError)은 실패가 아니라 취소다.
  * 그때 내려받기까지 이어서 하면 원치 않는 파일이 남는다.
  */
-async function shareFile(blob: Blob, fileName: string): Promise<SaveMethod | null> {
+async function shareFiles(files: readonly File[], title: string): Promise<SaveMethod | null> {
   if (typeof navigator === "undefined" || !navigator.canShare || !navigator.share) return null;
-
-  const file = new File([blob], fileName, { type: blob.type || "application/octet-stream" });
-  if (!navigator.canShare({ files: [file] })) return null;
+  const shareData = { files: [...files], title };
+  if (!navigator.canShare(shareData)) return null;
 
   try {
-    await navigator.share({ files: [file], title: fileName });
+    // 굽기·ZIP 생성의 await 동안 iOS의 사용자 제스처가 끝난다. 두 번째 탭으로 새 제스처를 만든다.
+    if (needsFreshShareGesture()) await waitForShareTap();
+    await navigator.share(shareData);
     return "share";
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
     // 그 밖의 실패(사용자 조작에서 너무 멀어졌다는 등)는 조용히 다음 방법으로 넘긴다.
     return null;
   }
+}
+
+/** 터치 기기에서는 비동기 파일 준비 후 공유 API를 부르기 전에 새 탭이 필요하다. */
+function needsFreshShareGesture(): boolean {
+  const activation = navigator.userActivation;
+  // 구형 iOS가 userActivation을 노출하지 않아도 터치 기기라면 안전한 두 번째 탭을 받는다.
+  return navigator.maxTouchPoints > 0 && (activation === undefined || !activation.isActive);
+}
+
+/**
+ * 기존 흑백 컨트롤 테마를 따르는 작은 하단 확인창이다.
+ * 버튼의 click 핸들러가 끝나기 전에 resolve하여 Web Share 호출에 사용자 활성화를 보존한다.
+ */
+function waitForShareTap(): Promise<void> {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "native-share-prompt";
+    backdrop.setAttribute("role", "dialog");
+    backdrop.setAttribute("aria-modal", "true");
+
+    const panel = document.createElement("div");
+    panel.className = "native-share-panel";
+    const message = document.createElement("p");
+    message.textContent = translate("파일 준비가 끝났습니다. 아래 버튼을 눌러 저장할 앱을 고르세요.");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = translate("저장 / 공유");
+    button.addEventListener("click", () => {
+      backdrop.remove();
+      resolve();
+    }, { once: true });
+
+    panel.append(message, button);
+    backdrop.append(panel);
+    document.body.append(backdrop);
+    button.focus();
+  });
 }
 
 /** 예전 이름. 기다리지 않아도 되는 자리에서 쓴다. */
