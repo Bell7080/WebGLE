@@ -25,6 +25,7 @@
 
   --topbar-h: 42px;
   --animbar-h: 46px;
+  --timeline-h: 44px;
   --panel-w: 216px;
   --radius: 5px;
 }
@@ -1199,4 +1200,141 @@ button.choice {
   border: 1px solid var(--line-strong);
   padding: 3px 4px;
   font-size: 12px;
+}
+
+/* ── 타임라인 (키프레임 편집 준비) ────────────── */
+#app.has-timeline {
+  grid-template-rows: var(--topbar-h) 1fr var(--timeline-h) var(--animbar-h);
+}
+
+.timeline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 12px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--line);
+}
+
+.timeline[hidden] {
+  display: none;
+}
+
+.timeline button {
+  flex: none;
+  min-width: 30px;
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid var(--line-strong);
+}
+
+.tl-readout {
+  flex: none;
+  min-width: 132px;
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 시간 축 자체 */
+.tl-track {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  background: var(--bg-control);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  cursor: ew-resize;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* 양옆 6px은 비워 둔다. 0초와 끝 시각의 표시가 테두리에 잘리지 않게. */
+.tl-ticks,
+.tl-keys {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 6px;
+  right: 6px;
+}
+
+.tl-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 6px;
+  background: var(--line-strong);
+}
+
+.tl-tick.major {
+  height: 11px;
+  background: var(--text-3);
+}
+
+/* 1초마다 숫자를 붙인다. */
+.tl-tick.major::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 11px;
+  left: 3px;
+  font-size: 10px;
+  color: var(--text-3);
+  line-height: 1;
+}
+
+/* 키가 찍힌 시각 — 마름모 */
+.tl-key {
+  position: absolute;
+  bottom: 5px;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  background: var(--text-3);
+  transform: rotate(45deg);
+}
+
+/* 고른 관절의 키는 더 밝게 */
+.tl-key.mine {
+  background: var(--sel-line);
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  bottom: 4px;
+}
+
+/* 재생 헤드 */
+.tl-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: var(--sel-line);
+  pointer-events: none;
+}
+
+.tl-head::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -4px;
+  border-left: 4.5px solid transparent;
+  border-right: 4.5px solid transparent;
+  border-top: 6px solid var(--sel-line);
+}
+
+.tl-hint {
+  flex: none;
+  min-width: 96px;
+  text-align: right;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+/* 타임라인이 있으면 애니메이션 설정은 그 위로 올라간다. */
+#app.has-timeline .anim-settings {
+  bottom: calc(var(--animbar-h) + var(--timeline-h));
 }

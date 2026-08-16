@@ -202,6 +202,28 @@ export function evaluateAnimation(
   return deltas;
 }
 
+/**
+ * 이 애니메이션에 키가 찍혀 있는 시각들. 타임라인에 표시할 자리다.
+ *
+ * `boneId`를 주면 그 관절을 움직이는 Track만 본다. 태그로 잡는 Track도 포함된다 —
+ * 화면에서는 "이 관절이 이 시각에 움직인다"가 보여야 하기 때문이다.
+ * 같은 시각의 키는 하나로 합치고, 시간 순으로 돌려준다.
+ */
+export function keyTimes(
+  animation: PuppetAnimation,
+  bones: readonly PuppetBone[],
+  boneId?: string,
+): number[] {
+  const times = new Set<number>();
+
+  for (const track of animation.tracks) {
+    if (boneId && !resolveTargets(track, bones).some((bone) => bone.id === boneId)) continue;
+    for (const key of track.keys) times.add(key.time);
+  }
+
+  return [...times].sort((a, b) => a - b);
+}
+
 /** 애니메이션 사이에 발생한 이벤트를 모은다. (기획서 42) */
 export function collectEvents(
   animation: PuppetAnimation,
@@ -244,6 +266,51 @@ export class AnimationPlayer {
 
   stop(): void {
     this.state = null;
+  }
+
+  /**
+   * 재생을 멈추되 자세는 그대로 둔다. 타임라인을 붙잡고 있는 동안 쓴다.
+   * `stop()`과 달리 시각과 애니메이션이 남아 있어 `resume()`으로 이어 갈 수 있다.
+   */
+  pause(): void {
+    if (this.state) this.state.playing = false;
+  }
+
+  /** 멈춘 자리에서 다시 흐르게 한다. 끝에 서 있으면 처음부터 다시 간다. */
+  resume(): void {
+    if (!this.state) return;
+    if (this.state.time >= this.state.animation.duration && !this.state.animation.loop) {
+      this.state.time = 0;
+    }
+    this.state.playing = true;
+  }
+
+  /**
+   * 특정 시각으로 옮긴다. 재생 여부는 건드리지 않는다.
+   *
+   * 이동 중에는 이벤트를 내지 않는다. 타임라인을 훑을 때마다 공격 판정이 울리면 안 된다.
+   */
+  seek(time: number): void {
+    const state = this.state;
+    if (!state) return;
+    state.time = Math.min(Math.max(0, time), state.animation.duration);
+  }
+
+  /** 지금 시각. 재생 중이 아니면 0이다. */
+  get time(): number {
+    return this.state?.time ?? 0;
+  }
+
+  /** 지금 애니메이션의 길이(초). 없으면 0이다. */
+  get duration(): number {
+    return this.state?.animation.duration ?? 0;
+  }
+
+  /** 시각을 굴리지 않고 지금 자세만 구한다. 타임라인을 붙잡고 있을 때 쓴다. */
+  sample(bones: readonly PuppetBone[]): Map<string, BoneDelta> {
+    const state = this.state;
+    if (!state) return new Map();
+    return evaluateAnimation(state.animation, bones, state.time, state.amount);
   }
 
   /** 재생 중에 속도를 바꾼다. 시간은 그대로 두고 흐르는 빠르기만 달라진다. */

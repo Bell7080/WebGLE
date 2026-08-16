@@ -5,6 +5,7 @@ import {
   collectEvents,
   deformModesFor,
   evaluateAnimation,
+  keyTimes,
   resolveTargets,
   sampleTrack,
 } from "../src/core/animation";
@@ -232,5 +233,127 @@ describe("애니메이션별 변형 방식 덮어쓰기", () => {
     const attack = { name: "attack", duration: 1, loop: false, tracks: [] };
     expect(deformModesFor(bones, idle).get("발")).toBe("pinnedSoft");
     expect(deformModesFor(bones, attack).get("발")).toBe("soft");
+  });
+});
+
+describe("타임라인 조작", () => {
+  const bones = [bone("머리", ["head"])];
+  const anim: PuppetAnimation = {
+    name: "test",
+    duration: 2,
+    loop: false,
+    tracks: [
+      { target: { kind: "tag", tag: "head" }, property: "rotation",
+        keys: [{ time: 0, value: 0 }, { time: 1, value: 1 }, { time: 2, value: 0 }] },
+    ],
+    events: [{ time: 0.5, event: "impact" }],
+  };
+
+  it("특정 시각으로 옮긴다", () => {
+    const player = new AnimationPlayer();
+    player.play(anim);
+    player.seek(1);
+    expect(player.time).toBe(1);
+    expect(player.duration).toBe(2);
+  });
+
+  it("범위 밖으로는 나가지 않는다", () => {
+    const player = new AnimationPlayer();
+    player.play(anim);
+    player.seek(-5);
+    expect(player.time).toBe(0);
+    player.seek(99);
+    expect(player.time).toBe(2);
+  });
+
+  it("옮기는 동안에는 이벤트를 내지 않는다", () => {
+    // 타임라인을 훑을 때마다 공격 판정이 울리면 안 된다.
+    const player = new AnimationPlayer();
+    const heard: string[] = [];
+    player.onEvent((e) => heard.push(e));
+    player.play(anim);
+
+    for (const t of [0.2, 0.6, 1.4, 0.3]) player.seek(t);
+    expect(heard).toEqual([]);
+  });
+
+  it("옮긴 자리의 자세를 시간을 굴리지 않고 구한다", () => {
+    const player = new AnimationPlayer();
+    player.play(anim);
+    player.seek(1);
+
+    const deltas = player.sample(bones);
+    expect(deltas.get("머리")?.rotation).toBeCloseTo(1);
+    expect(player.time).toBe(1);
+  });
+
+  it("멈춰도 시각과 애니메이션이 남는다", () => {
+    const player = new AnimationPlayer();
+    player.play(anim);
+    player.seek(1.5);
+    player.pause();
+
+    expect(player.current?.playing).toBe(false);
+    expect(player.time).toBe(1.5);
+    expect(player.update(0.1, bones).size).toBe(0);
+  });
+
+  it("다시 흐르게 하면 그 자리에서 이어 간다", () => {
+    const player = new AnimationPlayer();
+    player.play(anim);
+    player.seek(1);
+    player.pause();
+    player.resume();
+
+    player.update(0.1, bones);
+    expect(player.time).toBeCloseTo(1.1);
+  });
+
+  it("끝에 서 있을 때 다시 누르면 처음부터 간다", () => {
+    const player = new AnimationPlayer();
+    player.play(anim);
+    player.seek(2);
+    player.pause();
+    player.resume();
+    expect(player.time).toBe(0);
+  });
+
+  it("정지한 뒤에는 옮겨도 아무 일이 없다", () => {
+    const player = new AnimationPlayer();
+    player.play(anim);
+    player.stop();
+    player.seek(1);
+    expect(player.time).toBe(0);
+    expect(player.sample(bones).size).toBe(0);
+  });
+});
+
+describe("키가 찍힌 시각", () => {
+  const bones = [bone("머리", ["head"]), bone("꼬리", ["tail"])];
+  const anim: PuppetAnimation = {
+    name: "test",
+    duration: 2,
+    loop: false,
+    tracks: [
+      { target: { kind: "tag", tag: "head" }, property: "rotation",
+        keys: [{ time: 0, value: 0 }, { time: 1, value: 1 }] },
+      { target: { kind: "tag", tag: "head" }, property: "x",
+        keys: [{ time: 1, value: 5 }, { time: 2, value: 0 }] },
+      { target: { kind: "tag", tag: "tail" }, property: "rotation",
+        keys: [{ time: 0.5, value: 1 }] },
+    ],
+  };
+
+  it("모든 Track의 키 시각을 겹치지 않게 모은다", () => {
+    expect(keyTimes(anim, bones)).toEqual([0, 0.5, 1, 2]);
+  });
+
+  it("관절을 지정하면 그 관절을 움직이는 것만 본다", () => {
+    expect(keyTimes(anim, bones, "머리")).toEqual([0, 1, 2]);
+    expect(keyTimes(anim, bones, "꼬리")).toEqual([0.5]);
+  });
+
+  it("아무 Track도 건드리지 않는 관절이면 비어 있다", () => {
+    expect(keyTimes(anim, [...bones, bone("날개", ["wing"])], "날개")).toEqual([]);
   });
 });

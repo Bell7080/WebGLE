@@ -26,7 +26,7 @@ import {
   type Mat2D,
 } from "@core/skeleton/transform";
 import { hexToNumber } from "@core/format";
-import { AnimationPlayer, deformModesFor } from "@core/animation";
+import { AnimationPlayer, deformModesFor, keyTimes } from "@core/animation";
 import { SecondaryMotion } from "@core/physics/secondary";
 import { createCanvasView } from "@renderer/phaser";
 import { EditorStore, type BrushState } from "@editor/state/store";
@@ -57,6 +57,7 @@ import {
   loadSession,
   saveSession,
 } from "@editor/tools/autosave";
+import { FRAME, Timeline } from "@editor/ui/timeline";
 import { findPreset, PRESETS } from "./presets";
 
 const canvasArea = document.getElementById("canvasArea") as HTMLElement;
@@ -508,10 +509,131 @@ function stopAnimation(): void {
   view.scene.setPosedBones(null);
   view.scene.updateMeshVertices(null);
   overlayDirty = true;
+  refreshTimeline();
   ui.setStatus("정지");
 }
 
 let lastFrame = performance.now();
+// ── 타임라인 (키프레임 편집 준비) ─────────────────────────────
+
+const timeline = new Timeline(document.getElementById("timeline") as HTMLElement, {
+  onSeek: (time) => {
+    // 정지 상태에서 눈금을 눌러도 그 시점에 설 수 있어야 한다.
+    if (!player.current && !loadSelectedAnimation()) return;
+    // 붙잡고 있는 동안에는 시간이 저절로 흐르면 안 된다.
+    player.pause();
+    player.seek(time);
+    store.set({ playing: null });
+    applyPose();
+    refreshTimeline();
+  },
+  onTogglePlay: () => togglePlay(),
+  onRewind: () => {
+    if (!player.current && !loadSelectedAnimation()) return;
+    player.seek(0);
+    applyPose();
+    refreshTimeline();
+  },
+});
+
+/**
+ * 고른 애니메이션을 재생 커서에 올리되 멈춘 채로 둔다.
+ * 정지 상태에서 타임라인을 건드렸을 때 곧바로 그 시점에 설 수 있게 하기 위한 것이다.
+ */
+function loadSelectedAnimation(): boolean {
+  const { project, selectedAnimation } = store.get();
+  const animation = selectedAnimation ? project.animations[selectedAnimation] : undefined;
+  if (!animation || !project.mesh) return false;
+
+  secondary.reset();
+  player.play(animation, {
+    speed: animation.speed ?? 1,
+    amount: animation.strength ?? 1,
+  });
+  player.pause();
+  return true;
+}
+
+/** 재생 / 일시정지. 아무것도 올라가 있지 않으면 고른 것을 올려 재생한다. */
+function togglePlay(): void {
+  const current = player.current;
+  if (!current) {
+    const id = store.get().selectedAnimation;
+    if (id) playAnimation(id);
+    return;
+  }
+
+  if (current.playing) {
+    player.pause();
+    store.set({ playing: null });
+  } else {
+    player.resume();
+    store.set({ playing: current.animation.name });
+  }
+  refreshTimeline();
+}
+
+/** 지금 재생 헤드가 선 자리의 자세를 화면에 반영한다. 시간은 굴리지 않는다. */
+function applyPose(): void {
+  const { project } = store.get();
+  const current = player.current;
+  if (!project.mesh || !current) return;
+
+  const deltas = player.sample(project.bones);
+  const skin = computeSkinMatrices(project.bones, deltas);
+  const deformModes = deformModesFor(project.bones, current.animation);
+  view.scene.setPosedBones(posedPositions(project.bones, skin));
+  view.scene.updateMeshVertices(skinVertices(project.mesh, skin, undefined, deformModes));
+}
+
+function refreshTimeline(): void {
+  const { project, selectedAnimation, selectedBoneId } = store.get();
+  const animation = selectedAnimation ? project.animations[selectedAnimation] : undefined;
+  const bone = project.bones.find((b) => b.id === selectedBoneId);
+
+  timeline.render({
+    animationId: animation ? selectedAnimation : null,
+    time: player.time,
+    duration: animation?.duration ?? 0,
+    playing: player.current?.playing ?? false,
+    keys: animation ? keyTimes(animation, project.bones) : [],
+    boneKeys: animation && bone ? keyTimes(animation, project.bones, bone.id) : [],
+    boneName: bone?.name ?? null,
+  });
+}
+
+store.subscribe(() => refreshTimeline());
+
+// 한 프레임씩 옮기기 · 재생 토글
+window.addEventListener("keydown", (event) => {
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  const target = event.target as HTMLElement | null;
+  if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+  if (!player.current) return;
+
+  const step = event.shiftKey ? FRAME * 5 : FRAME;
+  if (event.key === "ArrowLeft") {
+    player.pause();
+    player.seek(player.time - step);
+  } else if (event.key === "ArrowRight") {
+    player.pause();
+    player.seek(player.time + step);
+  } else if (event.key === "Home") {
+    player.seek(0);
+  } else if (event.key === " ") {
+    event.preventDefault();
+    togglePlay();
+    return;
+  } else {
+    return;
+  }
+
+  event.preventDefault();
+  store.set({ playing: null });
+  applyPose();
+  refreshTimeline();
+});
+
 function tick(now: number): void {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
@@ -539,6 +661,7 @@ function tick(now: number): void {
       // 지금 어디를 잡아야 할지 알 수 없다.
       view.scene.setPosedBones(posedPositions(project.bones, skin));
       view.scene.updateMeshVertices(skinVertices(project.mesh, skin, undefined, deformModes));
+      refreshTimeline();
     }
   } else if (overlayDirty) {
     // 재생 중에는 굽지 않는다. 점 패턴은 변형을 따라가지 않으므로 재생 중에는 감춘다.
