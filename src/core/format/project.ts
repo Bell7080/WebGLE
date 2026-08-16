@@ -55,6 +55,8 @@ export function createBone(
     tags: suggestTags(part, bones, parentId),
     motionStrength: 1,
     deform: "soft",
+    // 새 관절은 자동으로 맡긴다. 놓자마자 그림이 따라 움직여야 하기 때문이다.
+    autoWeight: true,
     color: nextBoneColor(bones),
   };
 }

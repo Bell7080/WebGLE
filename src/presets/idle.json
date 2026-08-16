@@ -4,59 +4,523 @@
   "loop": true,
   "tracks": [
     {
-      "target": { "kind": "tag", "tag": "root" },
+      "target": {
+        "kind": "tag",
+        "tag": "root"
+      },
       "property": "y",
       "keys": [
-        { "time": 0, "value": 0, "ease": "smooth" },
-        { "time": 0.8, "value": -3, "ease": "smooth" },
-        { "time": 1.6, "value": 0, "ease": "smooth" }
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
+          "value": -3,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
       ]
     },
     {
-      "target": { "kind": "tag", "tag": "core" },
+      "target": {
+        "kind": "tag",
+        "tag": "core"
+      },
       "property": "scaleY",
       "keys": [
-        { "time": 0, "value": 1, "ease": "smooth" },
-        { "time": 0.8, "value": 1.03, "ease": "smooth" },
-        { "time": 1.6, "value": 1, "ease": "smooth" }
+        {
+          "time": 0,
+          "value": 1,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
+          "value": 1.03,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 1,
+          "ease": "smooth"
+        }
       ]
     },
     {
-      "target": { "kind": "tag", "tag": "core" },
+      "target": {
+        "kind": "tag",
+        "tag": "core"
+      },
       "property": "scaleX",
       "keys": [
-        { "time": 0, "value": 1, "ease": "smooth" },
-        { "time": 0.8, "value": 0.985, "ease": "smooth" },
-        { "time": 1.6, "value": 1, "ease": "smooth" }
+        {
+          "time": 0,
+          "value": 1,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
+          "value": 0.985,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 1,
+          "ease": "smooth"
+        }
       ]
     },
     {
-      "target": { "kind": "tag", "tag": "head" },
+      "target": {
+        "kind": "tag",
+        "tag": "head"
+      },
       "property": "rotation",
       "keys": [
-        { "time": 0, "value": 0, "ease": "smooth" },
-        { "time": 0.5, "value": 0.035, "ease": "smooth" },
-        { "time": 1.1, "value": -0.025, "ease": "smooth" },
-        { "time": 1.6, "value": 0, "ease": "smooth" }
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.5,
+          "value": 0.035,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.1,
+          "value": -0.025,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
       ]
     },
     {
-      "target": { "kind": "tag", "tag": "secondary" },
+      "target": {
+        "kind": "tag",
+        "tag": "secondary"
+      },
       "property": "rotation",
       "keys": [
-        { "time": 0, "value": 0, "ease": "smooth" },
-        { "time": 0.45, "value": -0.05, "ease": "smooth" },
-        { "time": 1.0, "value": 0.06, "ease": "smooth" },
-        { "time": 1.6, "value": 0, "ease": "smooth" }
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.45,
+          "value": -0.05,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.0,
+          "value": 0.06,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
       ]
     },
     {
-      "target": { "kind": "tag", "tag": "secondary" },
+      "target": {
+        "kind": "tag",
+        "tag": "secondary"
+      },
       "property": "y",
       "keys": [
-        { "time": 0, "value": 0, "ease": "smooth" },
-        { "time": 1.0, "value": 2, "ease": "smooth" },
-        { "time": 1.6, "value": 0, "ease": "smooth" }
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.0,
+          "value": 2,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "float"
+      },
+      "property": "y",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
+          "value": -6,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "float"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.55,
+          "value": 0.03,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.1,
+          "value": -0.03,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "neck"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.5,
+          "value": 0.02,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.1,
+          "value": -0.015,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "tail"
+      },
+      "property": "rotation",
+      "stagger": 0.4,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.5,
+          "value": 0.07,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.05,
+          "value": -0.06,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "hair"
+      },
+      "property": "rotation",
+      "stagger": 0.5,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.45,
+          "value": -0.05,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.0,
+          "value": 0.05,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "cloth"
+      },
+      "property": "rotation",
+      "stagger": 0.6,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.6,
+          "value": 0.045,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.2,
+          "value": -0.04,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "fin"
+      },
+      "property": "rotation",
+      "stagger": 0.8,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.4,
+          "value": 0.09,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.2,
+          "value": -0.09,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "antenna"
+      },
+      "property": "rotation",
+      "stagger": 0.5,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.35,
+          "value": 0.1,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": -0.08,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "ear"
+      },
+      "property": "rotation",
+      "stagger": 0.5,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.5,
+          "value": 0.06,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.0,
+          "value": -0.04,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "tentacle"
+      },
+      "property": "rotation",
+      "stagger": 1,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.4,
+          "value": 0.12,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.2,
+          "value": -0.12,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "decoration"
+      },
+      "property": "rotation",
+      "stagger": 0.7,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.55,
+          "value": 0.05,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.15,
+          "value": -0.045,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "eye"
+      },
+      "property": "scaleY",
+      "keys": [
+        {
+          "time": 0,
+          "value": 1,
+          "ease": "linear"
+        },
+        {
+          "time": 1.25,
+          "value": 1,
+          "ease": "linear"
+        },
+        {
+          "time": 1.32,
+          "value": 0.15,
+          "ease": "linear"
+        },
+        {
+          "time": 1.4,
+          "value": 1,
+          "ease": "linear"
+        },
+        {
+          "time": 1.6,
+          "value": 1,
+          "ease": "linear"
+        }
       ]
     }
   ]

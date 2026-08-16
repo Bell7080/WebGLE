@@ -3,18 +3,333 @@
   "duration": 0.9,
   "loop": false,
   "tracks": [
-    { "target": { "kind": "tag", "tag": "root" }, "property": "x",
-      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.25, "value": -6, "ease": "smooth" }, { "time": 0.42, "value": 14, "ease": "smooth" }, { "time": 0.9, "value": 0, "ease": "smooth" } ] },
-    { "target": { "kind": "tag", "tag": "core" }, "property": "rotation",
-      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.25, "value": -0.08, "ease": "smooth" }, { "time": 0.42, "value": 0.14, "ease": "smooth" }, { "time": 0.9, "value": 0, "ease": "smooth" } ] },
-    { "target": { "kind": "tag", "tag": "attack" }, "property": "rotation", "focus": "weapon",
-      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.25, "value": -0.45, "ease": "smooth" }, { "time": 0.42, "value": 0.75, "ease": "smooth" }, { "time": 0.9, "value": 0, "ease": "smooth" } ] },
-    { "target": { "kind": "tag", "tag": "attack" }, "property": "x", "focus": "weapon",
-      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.25, "value": -8, "ease": "smooth" }, { "time": 0.42, "value": 18, "ease": "smooth" }, { "time": 0.9, "value": 0, "ease": "smooth" } ] },
-    { "target": { "kind": "tag", "tag": "head" }, "property": "rotation",
-      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.25, "value": -0.1, "ease": "smooth" }, { "time": 0.45, "value": 0.12, "ease": "smooth" }, { "time": 0.9, "value": 0, "ease": "smooth" } ] },
-    { "target": { "kind": "tag", "tag": "secondary" }, "property": "rotation",
-      "keys": [ { "time": 0, "value": 0, "ease": "smooth" }, { "time": 0.35, "value": 0.2, "ease": "smooth" }, { "time": 0.6, "value": -0.14, "ease": "smooth" }, { "time": 0.9, "value": 0, "ease": "smooth" } ] }
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "root"
+      },
+      "property": "x",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.25,
+          "value": -6,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.42,
+          "value": 14,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "core"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.25,
+          "value": -0.08,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.42,
+          "value": 0.14,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "attack"
+      },
+      "property": "rotation",
+      "focus": "weapon",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.25,
+          "value": -0.45,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.42,
+          "value": 0.75,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "attack"
+      },
+      "property": "x",
+      "focus": "weapon",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.25,
+          "value": -8,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.42,
+          "value": 18,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "head"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.25,
+          "value": -0.1,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.45,
+          "value": 0.12,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "secondary"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.35,
+          "value": 0.2,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.6,
+          "value": -0.14,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "upper"
+      },
+      "property": "rotation",
+      "focus": "weapon",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.25,
+          "value": -0.3,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.42,
+          "value": 0.5,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "lower"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.25,
+          "value": -0.12,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.45,
+          "value": 0.22,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "finger"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.25,
+          "value": -0.15,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.42,
+          "value": 0.3,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "prop"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.25,
+          "value": -0.2,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.42,
+          "value": 0.35,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "shield"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.3,
+          "value": 0.15,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.6,
+          "value": 0.05,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    }
   ],
-  "events": [{ "time": 0.42, "event": "impact" }]
+  "events": [
+    {
+      "time": 0.42,
+      "event": "impact"
+    }
+  ]
 }

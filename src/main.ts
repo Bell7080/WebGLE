@@ -19,6 +19,7 @@ import {
   toWeightMap,
   type WeightMap,
 } from "@core/weight";
+import { autoManagedBones, withAutoWeights } from "@core/weight/auto";
 import {
   applyPoint,
   compose,
@@ -42,6 +43,8 @@ import {
   ownKeysAt,
   removeOwnKeys,
   setKey,
+  setDuration,
+  tagAmplitude,
   setOwnKeyEase,
 } from "@core/animation";
 import { SecondaryMotion } from "@core/physics/secondary";
@@ -74,8 +77,20 @@ import {
   loadSession,
   saveSession,
 } from "@editor/tools/autosave";
+import {
+  bakeSheets,
+  sheetBlockReason,
+  sheetManifest,
+} from "@editor/tools/spriteSheet";
+import { createZip } from "@core/format/zip";
 import { FRAME, Timeline } from "@editor/ui/timeline";
 import { findPreset, PRESETS } from "./presets";
+
+/**
+ * 조절 막대를 끌고 있는 애니메이션 이름. 끌지 않는 동안에는 null이다.
+ * 드래그 한 번을 Undo 한 단위로 묶기 위한 표시다.
+ */
+let settingGesture: string | null = null;
 
 const canvasArea = document.getElementById("canvasArea") as HTMLElement;
 const imageInput = document.getElementById("imageInput") as HTMLInputElement;
@@ -104,7 +119,13 @@ const ui = new EditorUI(store, {
     const added = store.get().project.bones.at(-1);
     if (added) {
       store.set({ selectedBoneId: added.id });
-      ui.setStatus(`관절 추가: ${added.name}`);
+      // 놓자마자 그림이 따라 움직이도록 영향 영역을 바로 깔아 준다.
+      const painted = refreshAutoWeights();
+      ui.setStatus(
+        painted > 0
+          ? `관절 추가: ${added.name} · 영향 영역을 자동으로 칠했습니다`
+          : `관절 추가: ${added.name}`,
+      );
     }
   },
 
@@ -129,12 +150,27 @@ const ui = new EditorUI(store, {
       ),
     }));
     setWeights(removeBoneWeights(store.get().weights, boneId));
+    // 사라진 관절이 맡던 자리를 남은 관절들이 나눠 가진다.
+    refreshAutoWeights();
     store.set({ selectedBoneId: null });
     ui.setStatus("관절을 삭제했습니다.");
   },
 
   onUpdateBone: (boneId, patch) => {
     commit((current) => patchBone(current, boneId, patch));
+    // 부모가 바뀌면 그 관절이 덮는 선분 자체가 달라진다.
+    if (patch.parentId !== undefined) refreshAutoWeights();
+  },
+
+  onAutoWeight: (boneId, enabled) => {
+    const bone = store.get().project.bones.find((candidate) => candidate.id === boneId);
+    commit((current) => patchBone(current, boneId, { autoWeight: enabled }));
+    if (enabled) refreshAutoWeights();
+    ui.setStatus(
+      enabled
+        ? `${bone?.name ?? "관절"}: 자동으로 되돌렸습니다.`
+        : `${bone?.name ?? "관절"}: 이제 직접 맡습니다. 자동 계산이 덮어쓰지 않습니다.`,
+    );
   },
 
   onReorderBone: (boneId, targetId, place) => {
@@ -172,6 +208,9 @@ const ui = new EditorUI(store, {
         break;
       case "export":
         void exportProject();
+        break;
+      case "sprite-sheet":
+        void exportSpriteSheets();
         break;
       case "new":
         resetProject();
@@ -249,13 +288,24 @@ const ui = new EditorUI(store, {
     );
   },
 
-  onAnimationSetting: (animationId, patch) => {
-    commit((current) => {
+  onAnimationSetting: (animationId, patch, done = true) => {
+    // 막대를 끄는 동안에는 스토어만 갱신하고, 시작할 때 한 번만 Undo에 쌓는다.
+    if (settingGesture === null) {
+      history.push(store.get().project);
+      settingGesture = animationId;
+      refreshUndoButtons();
+    }
+
+    const { duration, ...simple } = patch;
+    store.update((current) => {
       const animation = current.animations[animationId];
       if (!animation) return current;
+
+      // 길이는 키 시각을 함께 옮겨야 하므로 단순 덮어쓰기가 아니다.
+      const resized = duration === undefined ? animation : setDuration(animation, duration);
       return {
         ...current,
-        animations: { ...current.animations, [animationId]: { ...animation, ...patch } },
+        animations: { ...current.animations, [animationId]: { ...resized, ...simple } },
       };
     });
 
@@ -264,6 +314,10 @@ const ui = new EditorUI(store, {
       if (patch.speed !== undefined) player.setSpeed(patch.speed);
       if (patch.strength !== undefined) player.setAmount(patch.strength);
     }
+    // 길이가 바뀌면 재생 커서가 든 애니메이션과 타임라인 눈금도 갈아 끼워야 한다.
+    if (duration !== undefined) reloadPlayer(animationId);
+
+    if (done) settingGesture = null;
   },
 
   onCharacterSetting: (patch) => {
@@ -378,6 +432,8 @@ function changeResolution(resolution: MeshResolution, project: PuppetProject): v
   commit((current) => ({ ...current, mesh }));
   store.set({ mask: sampleAlphaMask(alphaMap, mesh) });
   setWeights(moved);
+  // 격자가 통째로 바뀌었으니 자동으로 맡긴 것은 새 격자에서 다시 계산한다.
+  refreshAutoWeights();
 
   view.scene.setMesh(
     store.get().project.mesh ?? mesh,
@@ -445,6 +501,24 @@ function setWeights(weights: WeightMap): void {
   );
 }
 
+/**
+ * 자동으로 맡긴 관절의 영향 영역을 다시 계산한다.
+ *
+ * 관절이 늘거나 옮겨지면 그 관절이 덮어야 할 자리도 달라지므로 그때마다 부른다.
+ * 직접 칠한 관절은 대상에서 빠지니 손으로 한 작업이 이 때문에 사라지지는 않는다.
+ * 몇 개가 다시 칠해졌는지 돌려준다 — 0이면 상태줄에 아무 말도 하지 않기 위한 것이다.
+ */
+function refreshAutoWeights(): number {
+  const { project, weights, mask } = store.get();
+  if (!project.mesh) return 0;
+
+  const only = autoManagedBones(project.bones);
+  if (only.size === 0) return 0;
+
+  setWeights(withAutoWeights(weights, project.bones, project.mesh, { only, mask }));
+  return only.size;
+}
+
 // ── 캔버스 조작 ────────────────────────────────────────────────
 
 // 관절을 직접 집어 옮긴다. 드래그 한 번이 Undo 한 단위다.
@@ -488,6 +562,8 @@ view.scene.setBoneHandlers({
       );
       return;
     }
+    // 관절이 옮겨 갔으면 자동으로 맡긴 영역도 따라가야 한다.
+    refreshAutoWeights();
     ui.setStatus(`${bone.name} 위치: ${Math.round(bone.x)}, ${Math.round(bone.y)}`);
   },
 });
@@ -540,6 +616,30 @@ function editAnimation(edit: (animation: PuppetAnimation) => PuppetAnimation): b
   return true;
 }
 
+/**
+ * 재생 커서가 든 애니메이션을 스토어의 최신 값으로 갈아 끼운다.
+ *
+ * 커서는 재생을 시작한 순간의 애니메이션 객체를 붙들고 있으므로,
+ * 길이처럼 데이터 자체가 바뀌는 편집을 하면 여기서 다시 물려줘야 화면이 따라온다.
+ * 서 있던 시각은 새 길이 안으로 접어 넣는다.
+ */
+function reloadPlayer(animationId: string): void {
+  const current = player.current;
+  if (!current || store.get().selectedAnimation !== animationId) return;
+
+  const next = store.get().project.animations[animationId];
+  if (!next) return;
+
+  const playing = current.playing;
+  const at = Math.min(player.time, next.duration);
+  player.play(next, { speed: current.speed, amount: current.amount });
+  if (!playing) player.pause();
+  player.seek(at);
+
+  applyPose();
+  refreshTimeline();
+}
+
 /** 지금 재생 헤드가 선 시각. 한 프레임에 맞춰 떨어뜨린다. */
 function keyTime(): number {
   return Math.round(player.time / FRAME) * FRAME;
@@ -563,7 +663,9 @@ function putKey(
   if (!current || !bone || !selectedAnimation) return;
 
   const others = deltaWithoutOwnKeys(current.animation, project.bones, boneId, time, current.amount);
-  const value = keyValueFor(desired, others[property], bone.motionStrength, current.amount);
+  // 성격 태그(heavy · stiff 등)도 값에 곱해지므로 되돌릴 때 함께 나눠야 한다.
+  const scale = bone.motionStrength * tagAmplitude(bone);
+  const value = keyValueFor(desired, others[property], scale, current.amount);
 
   const next = setKey(current.animation, { kind: "bone", boneId }, property, time, value);
   // 드래그 한 번이 Undo 한 단위다. 히스토리는 onDragStart에서 이미 쌓았으므로
@@ -661,7 +763,14 @@ function syncPaintMode(brush: BrushState = store.get().brush): void {
     color: hexToNumber(bone.color),
     amount: brush.amount / 100,
     erase,
-    onStart: () => history.push(store.get().project),
+    onStart: () => {
+      history.push(store.get().project);
+      // 한 번이라도 직접 칠했으면 그 관절은 사용자의 것이다.
+      // 이후 관절을 더 놓아도 자동 계산이 이 관절을 다시 칠하지 않는다.
+      if (bone.autoWeight) {
+        store.update((project) => patchBone(project, bone.id, { autoWeight: false }));
+      }
+    },
     onPaint: (x, y) => {
       const state = store.get();
       if (!state.project.mesh || !state.selectedBoneId) return;
@@ -1100,6 +1209,8 @@ async function importImage(file: File): Promise<void> {
 
     view.scene.showTexture(image, verdict.pixelArt);
     view.scene.setMesh(mesh, image.width, image.height);
+    // 관절을 먼저 놓고 그림을 나중에 불러온 경우에도 곧바로 움직이게 한다.
+    refreshAutoWeights();
     ui.setStatus(
       `${fileName} (${image.width}×${image.height}) · ${verdict.pixelArt ? "도트" : "일반"} 그림 · Mesh ${mesh.cols}×${mesh.rows}`,
     );
@@ -1120,6 +1231,56 @@ async function saveProject(): Promise<void> {
 }
 
 /** 게임에 넘길 묶음. 숨긴 애니메이션은 빠진다. */
+/**
+ * 재생 결과를 프레임마다 구워 스프라이트 시트로 내보낸다. (기획서 47)
+ *
+ * 숨기지 않은 애니메이션은 하나도 빠짐없이 각각 한 장씩 나온다.
+ * 무엇을 뽑을지 또 고르게 하지 않으려는 것이다 — 빼고 싶으면 목록에서 숨기면 된다.
+ */
+async function exportSpriteSheets(): Promise<void> {
+  const { project, textureUrl } = store.get();
+
+  const blocked = sheetBlockReason(project);
+  if (blocked) {
+    ui.setStatus(blocked);
+    return;
+  }
+  if (!textureUrl) {
+    ui.setStatus("이미지를 먼저 불러오세요.");
+    return;
+  }
+
+  try {
+    ui.setStatus("스프라이트 시트를 굽는 중…");
+    const image = new Image();
+    image.src = textureUrl;
+    await image.decode();
+
+    const sheets = await bakeSheets(project, image);
+    const encoder = new TextEncoder();
+    const entries = [
+      { name: "sheets.json", data: encoder.encode(sheetManifest(project, sheets)) },
+      ...(await Promise.all(
+        sheets.map(async (sheet) => ({
+          name: `${sheet.name}.png`,
+          data: new Uint8Array(await sheet.blob.arrayBuffer()),
+        })),
+      )),
+    ];
+
+    const safe = (project.character.name || "character").replace(/[\\/:*?"<>|]/g, "_").trim();
+    downloadBlob(
+      new Blob([createZip(entries) as unknown as BlobPart], { type: "application/zip" }),
+      `${safe || "character"}.sheets.zip`,
+    );
+
+    const total = sheets.reduce((sum, sheet) => sum + sheet.frames, 0);
+    ui.setStatus(`시트 ${sheets.length}장 · 프레임 ${total}개 (${sheets.map((s) => s.name).join(", ")})`);
+  } catch (error) {
+    ui.setStatus(error instanceof Error ? error.message : "시트를 굽지 못했습니다.");
+  }
+}
+
 async function exportProject(): Promise<void> {
   const { project, textureUrl } = store.get();
   const shipped = forExport(project);

@@ -589,6 +589,34 @@ button.tag-option {
   padding: 2px 8px;
 }
 
+/* 자동 / 직접 전환. 칠하기 도구보다 먼저 눈에 들어와야 한다 —
+   대부분의 경우 여기서 아무것도 하지 않는 것이 맞는 답이기 때문이다. */
+.auto-weight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 10px 6px;
+}
+
+.auto-weight .chip {
+  flex: none;
+  padding: 2px 10px;
+  font-size: 11.5px;
+  border-color: var(--line-strong);
+  color: var(--text-2);
+}
+
+.auto-weight .chip.active {
+  background: var(--sel-bg);
+  border-color: var(--sel-line);
+  color: var(--text);
+}
+
+.auto-weight .hint {
+  padding: 0;
+  margin: 0;
+}
+
 /* 칠하기 / 지우개 아이콘 토글 */
 .tool-row {
   display: flex;

@@ -2,6 +2,7 @@ import {
   OVERLAY_LAYERS,
   PART_NAMES,
   ROOT_PART,
+  TAG_AMPLITUDE,
   TAG_CATALOG,
   TAG_DESCRIPTIONS,
   TAG_GROUPS,
@@ -11,7 +12,7 @@ import {
   type PuppetBone,
 } from "@core/format";
 import { canReparent } from "@core/skeleton";
-import { ownTracks } from "@core/animation";
+import { MAX_DURATION, MIN_DURATION, ownTracks } from "@core/animation";
 import type { BrushState, EditorStore } from "../state/store";
 import { createColorWheel } from "./colorWheel";
 import { findPreset, PRESETS } from "../../presets";
@@ -19,9 +20,19 @@ import { attachTooltip, hideTooltip } from "./tooltip";
 
 /** 이 태그를 실제로 쓰는 애니메이션 이름들. 툴팁 아래에 붙여 준다. */
 function animationsUsingTag(tag: string): string {
+  // 성격 태그는 대상을 고르지 않는다. 동작 목록을 보여 주면 거짓말이 된다.
+  const amplitude = TAG_AMPLITUDE[tag];
+  if (amplitude !== undefined) {
+    return `모든 동작에서 이 관절의 움직임이 ${amplitude}배가 됩니다`;
+  }
+
+  const known = TAG_CATALOG.find((entry) => entry.id === tag);
+  if (known?.effect === "hint") return "표시용 태그입니다 · 움직임을 만들지 않습니다";
+
   const users = PRESETS.filter((preset) =>
     preset.animation.tracks.some(
-      (track) => track.target.kind === "tag" && track.target.tag === tag,
+      (track) =>
+        (track.target.kind === "tag" && track.target.tag === tag) || track.focus === tag,
     ),
   ).map((preset) => preset.label);
 
@@ -62,10 +73,16 @@ export interface EditorUICallbacks {
   onRenameAnimation(animationId: string, name: string): void;
   onRemoveAnimation(animationId: string): void;
   onToggleAnimationHidden(animationId: string): void;
-  /** 속도 · 강도 조절. (기획서 31) */
+  /**
+   * 길이 · 속도 · 강도 조절. (기획서 31)
+   *
+   * `done`은 막대에서 손을 뗐다는 뜻이다. 끄는 동안에는 false로 계속 들어오므로
+   * 받는 쪽은 드래그 한 번을 Undo 한 단위로 묶을 수 있다.
+   */
   onAnimationSetting(
     animationId: string,
-    patch: { speed?: number; strength?: number; secondary?: number },
+    patch: { duration?: number; speed?: number; strength?: number; secondary?: number },
+    done?: boolean,
   ): void;
   /**
    * 이 애니메이션에서만 쓸 관절 변형 방식. mode가 null이면 덮어쓰기를 지우고 공용 값을 따른다.
@@ -85,6 +102,8 @@ export interface EditorUICallbacks {
     resolution?: "low" | "normal" | "high";
   }): void;
   onBrushChange(patch: Partial<BrushState>): void;
+  /** 이 관절의 영향 영역을 자동에 맡길지 직접 잡을지 바꾼다. */
+  onAutoWeight(boneId: string, enabled: boolean): void;
 }
 
 /** 변형 방식 선택지. 짧은 이름은 버튼에, 나머지는 툴팁에 쓴다. */
@@ -162,12 +181,18 @@ const BRUSH_SIZES = [
 ] as const;
 
 /** 막대 하나의 채움과 숫자를 지금 값에 맞춘다. */
-function updateKnob(knob: HTMLElement | undefined, value: number, min: number, max: number): void {
+function updateKnob(
+  knob: HTMLElement | undefined,
+  value: number,
+  min: number,
+  max: number,
+  unit = "배",
+): void {
   if (!knob) return;
   const fill = knob.querySelector<HTMLElement>(".knob-fill");
   const readout = knob.querySelector<HTMLElement>(".knob-readout");
   if (fill) fill.style.width = `${((value - min) / (max - min)) * 100}%`;
-  if (readout) readout.textContent = `${value.toFixed(2)}배`;
+  if (readout) readout.textContent = `${value.toFixed(2)}${unit}`;
 }
 
 /** 크기 버튼에 그릴 점의 지름 범위(px). */
@@ -195,6 +220,7 @@ const FILE_MENU: readonly FileMenuItem[] = [
   { action: "open", label: "프로젝트 열기" },
   { action: "save", label: "프로젝트 저장", shortcut: "Ctrl+S" },
   { action: "export", label: "내보내기" },
+  { action: "sprite-sheet", label: "스프라이트 시트로 굽기" },
 ];
 
 function requireElement<T extends HTMLElement>(id: string): T {
@@ -304,6 +330,7 @@ export class EditorUI {
       return;
     }
 
+    const length = animation.duration;
     const speed = animation.speed ?? 1;
     const strength = animation.strength ?? 1;
     const swing = animation.secondary ?? 1;
@@ -312,9 +339,10 @@ export class EditorUI {
     // 통째로 다시 그리면 끌고 있던 막대가 사라져 드래그가 끊긴다.
     if (this.animSettingsId === id) {
       const knobs = this.animSettings.querySelectorAll<HTMLElement>(".anim-knob");
-      updateKnob(knobs[0], speed, 0.1, 3);
-      updateKnob(knobs[1], strength, 0, 2);
-      updateKnob(knobs[2], swing, 0, 2);
+      updateKnob(knobs[0], length, MIN_DURATION, MAX_DURATION, "초");
+      updateKnob(knobs[1], speed, 0.1, 3);
+      updateKnob(knobs[2], strength, 0, 2);
+      updateKnob(knobs[3], swing, 0, 2);
       return;
     }
     this.animSettingsId = id;
@@ -332,23 +360,29 @@ export class EditorUI {
     this.animSettings.append(title);
 
     this.animSettings.append(
+      this.animKnob("길이", length, MIN_DURATION, MAX_DURATION, `${length.toFixed(2)}초`, {
+        title: "애니메이션 길이",
+        body: "한 번 도는 데 걸리는 시간입니다. 키가 찍힌 시각도 같은 비율로 함께 늘어나므로 동작의 모양은 그대로입니다.",
+        meta: "속도와 달리 파일에 그대로 적혀 게임이 읽는 길이가 됩니다",
+      }, (value, done) => this.callbacks.onAnimationSetting(id, { duration: value }, done), "초"),
+
       this.animKnob("속도", speed, 0.1, 3, `${speed.toFixed(2)}배`, {
         title: "재생 속도",
         body: "1이 원래 속도입니다. 0.5면 두 배 느리게, 2면 두 배 빠르게 재생됩니다. 굼뜬 골렘과 잽싼 거미를 같은 프리셋으로 만들 때 씁니다.",
         meta: `${id}에 저장되어 내보내기와 게임에도 그대로 따라갑니다`,
-      }, (value) => this.callbacks.onAnimationSetting(id, { speed: value })),
+      }, (value, done) => this.callbacks.onAnimationSetting(id, { speed: value }, done)),
 
       this.animKnob("강도", strength, 0, 2, `${strength.toFixed(2)}배`, {
         title: "움직임 크기",
         body: "1이 원래 크기입니다. 0이면 아예 움직이지 않고, 2면 두 배 크게 움직입니다. 관절마다의 강도 값과 곱해집니다.",
         meta: "너무 크면 그림이 찢어져 보일 수 있습니다",
-      }, (value) => this.callbacks.onAnimationSetting(id, { strength: value })),
+      }, (value, done) => this.callbacks.onAnimationSetting(id, { strength: value }, done)),
 
       this.animKnob("흔들림", swing, 0, 2, `${swing.toFixed(2)}배`, {
         title: "따라 흔들림 (Secondary Motion)",
         body: "꼬리 · 머리카락 · 촉수처럼 몸에 매달린 부위가 몸을 한 박자 늦게 따라 흔들리는 정도입니다. 애니메이션에 그런 트랙이 없어도 자동으로 생깁니다.",
         meta: "secondary 태그가 붙은 관절에만 적용됩니다 · 0이면 끕니다",
-      }, (value) => this.callbacks.onAnimationSetting(id, { secondary: value })),
+      }, (value, done) => this.callbacks.onAnimationSetting(id, { secondary: value }, done)),
     );
 
     const reset = document.createElement("button");
@@ -374,7 +408,8 @@ export class EditorUI {
     max: number,
     readoutText: string,
     tip: { title: string; body: string; meta: string },
-    onChange: (value: number) => void,
+    onChange: (value: number, done: boolean) => void,
+    unit = "배",
   ): HTMLDivElement {
     const wrapper = document.createElement("div");
     wrapper.className = "anim-knob";
@@ -397,13 +432,18 @@ export class EditorUI {
     readout.className = "knob-readout";
     readout.textContent = readoutText;
 
+    // 끄는 동안의 값. 손을 뗄 때 이 값으로 한 번 더 알려 준다 —
+    // 받는 쪽이 "드래그 한 번"을 Undo 한 단위로 묶을 수 있게 하기 위한 것이다.
+    let last = value;
+
     const setFromEvent = (event: PointerEvent) => {
       const bounds = track.getBoundingClientRect();
       const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
       const next = Math.round((min + ratio * (max - min)) * 20) / 20;
       fill.style.width = `${ratio * 100}%`;
-      readout.textContent = `${next.toFixed(2)}배`;
-      onChange(next);
+      readout.textContent = `${next.toFixed(2)}${unit}`;
+      last = next;
+      onChange(next, false);
     };
 
     track.addEventListener("pointerdown", (event) => {
@@ -413,6 +453,9 @@ export class EditorUI {
     track.addEventListener("pointermove", (event) => {
       if (event.buttons === 1) setFromEvent(event);
     });
+    const finish = () => onChange(last, true);
+    track.addEventListener("pointerup", finish);
+    track.addEventListener("pointercancel", finish);
 
     track.append(fill);
     wrapper.append(labelElement, track, readout);
@@ -1077,6 +1120,8 @@ export class EditorUI {
       return section;
     }
 
+    section.append(this.autoWeightRow(bone));
+
     // 칠하기 / 지우개는 한 줄에 모은 아이콘 토글이다.
     // 같은 것을 다시 누르면 꺼지고, 다른 것을 누르면 그쪽으로 바뀐다.
     const tools = document.createElement("div");
@@ -1101,6 +1146,39 @@ export class EditorUI {
     section.append(hint);
 
     return section;
+  }
+
+  /**
+   * 자동 / 직접 전환. 이 관절의 영향 영역을 툴에 맡길지 손으로 잡을지 정한다.
+   *
+   * 새 관절은 자동으로 시작하고, 한 번이라도 칠하면 자동이 저절로 꺼진다.
+   * 잘못 칠했을 때 처음 상태로 돌아올 길을 남겨 두기 위해 여기서 다시 켤 수 있다.
+   */
+  private autoWeightRow(bone: PuppetBone): HTMLElement {
+    const auto = bone.autoWeight === true;
+    const row = document.createElement("div");
+    row.className = "auto-weight";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = auto ? "chip active" : "chip";
+    button.textContent = auto ? "자동" : "직접";
+    button.setAttribute("aria-pressed", String(auto));
+    attachTooltip(button, {
+      title: auto ? "자동으로 맡기는 중" : "직접 칠한 영역",
+      body: auto
+        ? "관절을 옮기거나 더할 때마다 이 관절의 영향 영역을 다시 계산합니다. 칠하기 시작하면 자동으로 꺼집니다."
+        : "손으로 칠한 값을 그대로 지킵니다. 눌러서 자동으로 되돌리면 지금 칠한 것은 사라집니다.",
+      meta: "가까운 관절일수록 많이 가져가는 거리 기준입니다",
+    });
+    button.addEventListener("click", () => this.callbacks.onAutoWeight(bone.id, !auto));
+
+    const note = document.createElement("span");
+    note.className = "hint";
+    note.textContent = auto ? "관절만 놓으면 알아서 칠해집니다" : "이 관절은 직접 맡고 있습니다";
+
+    row.append(button, note);
+    return row;
   }
 
   private toolButton(

@@ -7,6 +7,7 @@ import type {
   PuppetBone,
   TrackProperty,
 } from "../format/types";
+import { TAG_AMPLITUDE } from "../format/constants";
 import { bonesCarrying, getBonesByTag } from "../skeleton";
 import { NO_DELTA, type BoneDelta } from "../skeleton/transform";
 
@@ -70,6 +71,18 @@ export function deformModesFor(
 
 /** 주인공이 아닌 대상이 받을 기본 비율. 멈추지는 않고 거드는 정도로 움직인다. */
 const DEFAULT_FOCUS_OTHER = 0.3;
+
+/**
+ * 성격 태그가 이 관절의 움직임에 곱하는 배율.
+ *
+ * `heavy` · `light` · `bounce` · `stiff`는 대상을 고르는 태그가 아니라 성격을 바꾸는 태그다.
+ * 여러 개 붙으면 전부 곱해진다 — heavy와 stiff를 같이 붙이면 거의 움직이지 않는다.
+ */
+export function tagAmplitude(bone: PuppetBone): number {
+  let amplitude = 1;
+  for (const tag of bone.tags) amplitude *= TAG_AMPLITUDE[tag] ?? 1;
+  return amplitude;
+}
 
 /**
  * 이 Track에서 주인공이 될 대상들.
@@ -162,6 +175,8 @@ export function evaluateAnimation(
   const duration = Math.max(0.0001, animation.duration);
   /** focus 태그별 "그 태그를 달고 있거나 아래에 매단" 관절들. 태그마다 한 번만 구한다. */
   const carriers = new Map<string, Set<string>>();
+  /** 성격 태그 배율. 관절마다 한 번만 구한다. */
+  const amplitudes = new Map<string, number>();
 
   for (const track of animation.tracks) {
     const targets = resolveTargets(track, bones);
@@ -190,12 +205,23 @@ export function evaluateAnimation(
       // 주인공이 정해진 Track에서, 주인공이 아닌 대상은 거드는 정도로만 움직인다.
       const share = !spotlight || spotlight.has(bone.id) ? 1 : otherShare;
 
+      let amplitude = amplitudes.get(bone.id);
+      if (amplitude === undefined) {
+        amplitude = tagAmplitude(bone);
+        amplitudes.set(bone.id, amplitude);
+      }
+
       let delta = deltas.get(bone.id);
       if (!delta) {
         delta = { ...NO_DELTA };
         deltas.set(bone.id, delta);
       }
-      applyProperty(delta, track.property, value, bone.motionStrength * amount * share);
+      applyProperty(
+        delta,
+        track.property,
+        value,
+        bone.motionStrength * amount * share * amplitude,
+      );
     }
   }
 

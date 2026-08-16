@@ -17,8 +17,10 @@ export const PUPPET_FORMAT = "puppetforge" as const;
  * 10: Mesh의 격자(vertices · indices)를 파일에 적지 않는다. 읽을 때 이미지 크기로 다시 만든다.
  *     칠하지 않은 정점의 가중치는 null로 적는다. 이전 파일은 격자가 있으면 그대로 쓴다.
  * 11: 내보내기에 _readme 한 줄을 붙인다. 읽는 쪽은 무시한다.
+ * 12: Bone에 autoWeight 추가. 없으면 false로 본다 — 예전 파일은 전부 손으로 칠한 것이므로
+ *     자동 계산이 그 작업을 덮어쓰면 안 된다.
  */
-export const PUPPET_VERSION = 11 as const;
+export const PUPPET_VERSION = 12 as const;
 
 /**
  * Bone의 변형 방식. (기획서 19 확장)
@@ -55,6 +57,14 @@ export interface PuppetBone {
   motionStrength: number;
 
   deform: DeformMode;
+
+  /**
+   * 영향 영역을 자동으로 맡길지. 새 관절은 켜져 있고, 한 번이라도 직접 칠하면 꺼진다.
+   *
+   * 켜져 있는 동안에는 관절을 옮기거나 더할 때마다 이 관절의 영향 영역이 다시 계산된다.
+   * 꺼져 있으면 손으로 칠한 값을 그대로 지킨다. 없으면 꺼진 것으로 본다.
+   */
+  autoWeight?: boolean;
 
   /**
    * 편집 화면에서 이 관절을 알아보기 위한 색. `#rrggbb`.

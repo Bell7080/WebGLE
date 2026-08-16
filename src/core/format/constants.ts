@@ -52,12 +52,39 @@ export const TAG_GROUPS = [
 
 export type TagGroup = (typeof TAG_GROUPS)[number]["id"];
 
+/**
+ * 태그가 실제로 하는 일.
+ *
+ * - track: 프리셋이 이 태그를 찾아 움직인다. 붙이면 눈에 보이는 변화가 생긴다.
+ * - modifier: 움직임의 크기를 {@link TAG_AMPLITUDE}만큼 곱한다. 대상을 고르지는 않는다.
+ * - hint: 엔진은 아무것도 하지 않는다. 사람이 알아보기 위한 표시다.
+ *
+ * 이 구분을 타입으로 둔 이유는 하나다. 예전에는 41개 중 29개가 아무 일도 하지 않았는데,
+ * 화면에서는 나머지와 똑같이 생겨서 붙이면 뭔가 될 것처럼 보였다.
+ * 이제 `track`으로 적힌 태그는 반드시 어떤 프리셋이 쓰고 있어야 하며, 테스트가 그것을 막는다.
+ */
+export type TagEffect = "track" | "modifier" | "hint";
+
 export interface TagInfo {
   id: string;
   group: TagGroup;
+  effect: TagEffect;
   /** 이 태그를 붙이면 무슨 일이 일어나는지. 버튼 툴팁으로 그대로 보여 준다. */
   description: string;
 }
+
+/**
+ * 움직임 크기에 곱하는 배율. 태그를 여러 개 붙이면 전부 곱해진다.
+ *
+ * 대상을 고르는 태그가 아니라 성격을 바꾸는 태그다.
+ * `heavy`를 붙였다고 새 동작이 생기지는 않고, 하던 동작이 둔해진다.
+ */
+export const TAG_AMPLITUDE: Record<string, number> = {
+  heavy: 0.55,
+  light: 1.6,
+  bounce: 1.35,
+  stiff: 0.2,
+};
 
 /**
  * 기본 태그 목록. (기획서 11)
@@ -67,59 +94,59 @@ export interface TagInfo {
  */
 export const TAG_CATALOG: readonly TagInfo[] = [
   // 중심 · 구조
-  { id: "root", group: "structure", description: "캐릭터 전체의 기준. 대기의 상하 흔들림, 점프의 도약과 착지가 이 관절을 움직인다. 보통 캐릭터당 하나." },
-  { id: "core", group: "structure", description: "몸의 중심. 숨쉬기, 찌그러짐(squash), 피격 반동의 기준이 된다." },
-  { id: "body", group: "structure", description: "몸통 부위 표시. core가 '중심점 하나'라면 body는 '몸통 덩어리'다. 몸통 전체를 대상으로 하는 동작이 참고한다." },
-  { id: "spine", group: "structure", description: "허리 · 등뼈. 포효처럼 몸을 젖히거나 웅크리는 동작에서 중심과 머리 사이를 이어 준다." },
-  { id: "hip", group: "structure", description: "골반 · 하체 시작점. 걷기와 착지에서 상체가 실리는 무게 중심이 된다." },
-  { id: "neck", group: "structure", description: "목. 머리와 몸통 사이 완충. 머리 회전을 조금 나눠 받는다." },
+  { id: "root", group: "structure", effect: "track", description: "캐릭터 전체의 기준. 대기의 상하 흔들림, 점프의 도약과 착지가 이 관절을 움직인다. 보통 캐릭터당 하나." },
+  { id: "core", group: "structure", effect: "track", description: "몸의 중심. 숨쉬기, 찌그러짐(squash), 피격 반동의 기준이 된다." },
+  { id: "body", group: "structure", effect: "track", description: "몸통 부위 표시. core가 '중심점 하나'라면 body는 '몸통 덩어리'다. 몸통 전체를 대상으로 하는 동작이 참고한다." },
+  { id: "spine", group: "structure", effect: "track", description: "허리 · 등뼈. 포효처럼 몸을 젖히거나 웅크리는 동작에서 중심과 머리 사이를 이어 준다." },
+  { id: "hip", group: "structure", effect: "track", description: "골반 · 하체 시작점. 걷기와 착지에서 상체가 실리는 무게 중심이 된다." },
+  { id: "neck", group: "structure", effect: "track", description: "목. 머리와 몸통 사이 완충. 머리 회전을 조금 나눠 받는다." },
 
   // 팔다리
-  { id: "arm", group: "limb", description: "팔. 공격 · 대기의 팔 흔들림 대상." },
-  { id: "hand", group: "limb", description: "손. 팔이 움직인 뒤 조금 늦게 따라온다. 무기를 쥔 손이라면 weapon도 함께 붙이면 좋다." },
-  { id: "leg", group: "limb", description: "다리. 걷기 · 점프에서 접히고 펴진다." },
-  { id: "foot", group: "limb", description: "발. 착지 충격을 받는 지점. 바닥에 붙여 두려면 변형을 위치 고정으로." },
-  { id: "claw", group: "limb", description: "발톱 · 갈퀴. 할퀴기에서 가장 크게 휘둘리는 끝점. 보통 attack도 같이 붙인다." },
-  { id: "finger", group: "limb", description: "손가락. 팔·손보다 더 작고 늦게 움직이는 끝부분. 없어도 대부분의 동작은 문제없다." },
+  { id: "arm", group: "limb", effect: "track", description: "팔. 공격 · 대기의 팔 흔들림 대상." },
+  { id: "hand", group: "limb", effect: "track", description: "손. 팔이 움직인 뒤 조금 늦게 따라온다. 무기를 쥔 손이라면 weapon도 함께 붙이면 좋다." },
+  { id: "leg", group: "limb", effect: "track", description: "다리. 걷기 · 점프에서 접히고 펴진다." },
+  { id: "foot", group: "limb", effect: "track", description: "발. 착지 충격을 받는 지점. 바닥에 붙여 두려면 변형을 위치 고정으로." },
+  { id: "claw", group: "limb", effect: "track", description: "발톱 · 갈퀴. 할퀴기에서 가장 크게 휘둘리는 끝점. 보통 attack도 같이 붙인다." },
+  { id: "finger", group: "limb", effect: "track", description: "손가락. 공격에서 쥐었다 펴는 끝부분. 없어도 대부분의 동작은 문제없다." },
 
   // 부속
-  { id: "tail", group: "appendage", description: "꼬리. 몸을 따라 늦게 출렁인다." },
-  { id: "wing", group: "appendage", description: "날개. 퍼덕임과 활공 동작 대상." },
-  { id: "tentacle", group: "appendage", description: "촉수. 물속처럼 느리게 흐느적거린다." },
-  { id: "hair", group: "appendage", description: "머리카락 · 갈기. 관성으로 흔들린다." },
-  { id: "ear", group: "appendage", description: "귀. 작게 쫑긋거리거나 늦게 따라온다." },
-  { id: "horn", group: "appendage", description: "뿔. 머리를 따라 단단히 움직인다." },
-  { id: "fin", group: "appendage", description: "지느러미. 물결치듯 흔들린다." },
-  { id: "cloth", group: "appendage", description: "천 · 망토 · 옷자락. 몸을 늦게 따라오며 펄럭인다." },
-  { id: "antenna", group: "appendage", description: "더듬이. 아주 가볍게 떨린다." },
+  { id: "tail", group: "appendage", effect: "track", description: "꼬리. 몸을 따라 늦게 출렁인다." },
+  { id: "wing", group: "appendage", effect: "track", description: "날개. 퍼덕임과 활공 동작 대상." },
+  { id: "tentacle", group: "appendage", effect: "track", description: "촉수. 물속처럼 느리게 흐느적거린다." },
+  { id: "hair", group: "appendage", effect: "track", description: "머리카락 · 갈기. 관성으로 흔들린다." },
+  { id: "ear", group: "appendage", effect: "track", description: "귀. 작게 쫑긋거리거나 늦게 따라온다." },
+  { id: "horn", group: "appendage", effect: "track", description: "뿔. 머리를 따라 단단히 움직인다." },
+  { id: "fin", group: "appendage", effect: "track", description: "지느러미. 물결치듯 흔들린다." },
+  { id: "cloth", group: "appendage", effect: "track", description: "천 · 망토 · 옷자락. 몸을 늦게 따라오며 펄럭인다." },
+  { id: "antenna", group: "appendage", effect: "track", description: "더듬이. 아주 가볍게 떨린다." },
 
   // 얼굴
-  { id: "head", group: "face", description: "머리. 대기에서 갸웃거리고 피격에서 뒤로 젖혀진다. 여러 개여도 전부 움직인다." },
-  { id: "eye", group: "face", description: "눈. 표정이나 깜빡임을 따로 움직이고 싶을 때. 지금 프리셋들은 쓰지 않는다." },
-  { id: "mouth", group: "face", description: "입 · 턱. 물기와 포효 동작이 연다." },
-  { id: "jaw", group: "face", description: "아래턱. 포효와 물기에서 벌어지는 쪽이다. 턱이 따로 없는 캐릭터면 붙이지 않아도 된다." },
+  { id: "head", group: "face", effect: "track", description: "머리. 대기에서 갸웃거리고 피격에서 뒤로 젖혀진다. 여러 개여도 전부 움직인다." },
+  { id: "eye", group: "face", effect: "track", description: "눈. 대기에서 한 번씩 깜빡이고 피격에서 찡그린다. 눈만 따로 움직이고 싶을 때 붙인다." },
+  { id: "mouth", group: "face", effect: "track", description: "입 · 턱. 물기와 포효 동작이 연다." },
+  { id: "jaw", group: "face", effect: "track", description: "아래턱. 포효와 물기에서 벌어지는 쪽이다. 턱이 따로 없는 캐릭터면 붙이지 않아도 된다." },
 
   // 역할
-  { id: "attack", group: "role", description: "공격에 쓰이는 부위. 찌르기 · 할퀴기 같은 동작이 이 태그를 찾아 앞으로 내민다." },
-  { id: "weapon", group: "role", description: "무기 · 도구. 보통 형태를 유지해야 하므로 변형을 형태 유지로 두면 좋다." },
-  { id: "shield", group: "role", description: "방패 · 막는 파츠. 방어 동작에서 앞으로 세운다. 지금은 이 태그를 쓰는 프리셋이 없다." },
-  { id: "prop", group: "role", description: "들고 있는 소품. 손을 따라다닌다. 찌그러지면 안 되니 변형을 형태 유지로 두면 좋다." },
-  { id: "decoration", group: "role", description: "장식. 그 자체로는 동작을 만들지 않고, 몸을 따라 흔들리기만 한다." },
-  { id: "ground", group: "role", description: "바닥에 닿아 있는 부분. 발이 미끄러지지 않게 하려면 이 태그를 붙이고 변형을 위치 고정으로 둔다." },
+  { id: "attack", group: "role", effect: "track", description: "공격에 쓰이는 부위. 찌르기 · 할퀴기 같은 동작이 이 태그를 찾아 앞으로 내민다." },
+  { id: "weapon", group: "role", effect: "track", description: "무기 · 도구. 보통 형태를 유지해야 하므로 변형을 형태 유지로 두면 좋다." },
+  { id: "shield", group: "role", effect: "track", description: "방패 · 막는 파츠. 공격 중에는 몸 앞으로 세워 둔다." },
+  { id: "prop", group: "role", effect: "track", description: "들고 있는 소품. 공격에서 손과 함께 나간다. 찌그러지면 안 되니 변형을 형태 유지로 두면 좋다." },
+  { id: "decoration", group: "role", effect: "track", description: "장식. 대기에서 몸을 따라 조금씩 흔들린다. 순서대로 시차를 두고 움직인다." },
+  { id: "ground", group: "role", effect: "hint", description: "바닥에 닿아 있는 부분. 이 태그 자체는 아무 움직임도 만들지 않는 표시다 — 발을 붙여 두려면 변형을 위치 고정으로 바꿔야 한다." },
 
   // 움직임 성격
-  { id: "secondary", group: "motion", description: "따라 움직이는 부위. 부모보다 한 박자 늦게, 관성으로 흔들린다." },
-  { id: "float", group: "motion", description: "떠 있는 느낌. 유령이나 부유 몬스터처럼 천천히 위아래로 흔들리게 할 때." },
-  { id: "heavy", group: "motion", description: "무겁게. 둔하게 움직이는 부위. 강도 값을 1보다 낮추는 것과 함께 쓰면 효과가 확실하다." },
-  { id: "light", group: "motion", description: "가볍게. 작은 움직임에도 크게 반응하는 부위. 강도를 1보다 높이면 더 살아난다." },
-  { id: "bounce", group: "motion", description: "탄력 있게. 슬라임처럼 착지와 충격에서 통통 튀는 느낌을 줄 부위." },
-  { id: "stiff", group: "motion", description: "뻣뻣하게. 뿔이나 갑옷처럼 거의 흔들리지 않아야 하는 부위." },
+  { id: "secondary", group: "motion", effect: "track", description: "따라 움직이는 부위. 부모보다 한 박자 늦게, 관성으로 흔들린다." },
+  { id: "float", group: "motion", effect: "track", description: "떠 있는 느낌. 유령이나 부유 몬스터처럼 천천히 위아래로 흔들리게 할 때." },
+  { id: "heavy", group: "motion", effect: "modifier", description: "무겁게. 이 관절이 받는 모든 움직임이 0.55배로 줄어든다. 대상을 고르는 태그가 아니라 성격을 바꾸는 태그다." },
+  { id: "light", group: "motion", effect: "modifier", description: "가볍게. 이 관절이 받는 모든 움직임이 1.6배로 커진다. 머리카락 · 옷자락처럼 살랑거려야 하는 곳에." },
+  { id: "bounce", group: "motion", effect: "modifier", description: "탄력 있게. 이 관절이 받는 모든 움직임이 1.35배로 커진다. 슬라임처럼 통통 튀어야 하는 곳에." },
+  { id: "stiff", group: "motion", effect: "modifier", description: "뻣뻣하게. 이 관절이 받는 모든 움직임이 0.2배로 줄어든다. 뿔 · 갑옷처럼 거의 흔들리면 안 되는 곳에." },
 
   // 위치 구분 (좌우를 강제하지 않는다 — 기획서 10)
-  { id: "front", group: "position", description: "앞쪽. 다리가 여러 쌍인 거미처럼 앞뒤를 나눠 다르게 움직이고 싶을 때 쓴다." },
-  { id: "back", group: "position", description: "뒤쪽. front와 짝지어 쓴다. 뒤쪽만 조금 늦게 따라오게 하면 자연스러워진다." },
-  { id: "upper", group: "position", description: "위쪽 부위 구분. 팔이 여러 쌍일 때 위아래를 나눠 다르게 움직이려면 쓴다." },
-  { id: "lower", group: "position", description: "아래쪽 부위 구분. upper와 짝지어 쓴다." },
+  { id: "front", group: "position", effect: "track", description: "앞쪽. 이동에서 앞다리 쪽이 먼저 나간다. 다리가 여러 쌍일 때 back과 짝지어 쓴다." },
+  { id: "back", group: "position", effect: "track", description: "뒤쪽. 이동에서 front와 반대로 젓는다. 앞뒤가 엇갈려 걸음이 자연스러워진다." },
+  { id: "upper", group: "position", effect: "track", description: "위쪽. 공격에서 위쪽 팔이 크게 휘두른다. 무기를 쥔 쪽이 있으면 그쪽만 더 크게 움직인다." },
+  { id: "lower", group: "position", effect: "track", description: "아래쪽. 공격에서 위쪽보다 작게 거든다. upper와 짝지어 쓴다." },
 ];
 
 /** 태그 id → 설명. 툴팁에 쓴다. */
@@ -164,9 +191,11 @@ export const SUGGESTED_TAGS: Record<string, string[]> = {
   턱: ["jaw", "mouth"],
   집게: ["arm", "weapon", "attack"],
   // 꼬리 끝에 달려 찌르는 부위. 꼬리를 부모로 두면 꼬리째 휘둘러 찌른다.
-  독침: ["attack", "weapon", "stiff"],
-  무기: ["weapon", "attack", "stiff"],
-  방패: ["shield", "stiff"],
+  // stiff는 붙이지 않는다 — 움직임을 0.2배로 줄이는 태그라, 찌르는 부위에 붙이면
+  // 정작 공격 동작이 죽는다. 형태를 지키는 것은 변형(rigid)의 몫이다.
+  독침: ["attack", "weapon"],
+  무기: ["weapon", "attack"],
+  방패: ["shield"],
   장식: ["decoration", "secondary"],
   기타: [],
   // 아무것도 붙지 않은 맨 뼈대. 필요한 태그를 직접 골라 쓰라는 뜻이다.

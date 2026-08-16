@@ -283,3 +283,37 @@ export function keyValueFor(
   if (Math.abs(scale) < 1e-6) return 0;
   return (desired - fromOthers) / scale;
 }
+
+/** 애니메이션 길이의 한계(초). 너무 짧으면 키가 한 점에 뭉치고, 너무 길면 훑기가 힘들다. */
+export const MIN_DURATION = 0.1;
+export const MAX_DURATION = 10;
+
+/**
+ * 애니메이션 길이를 바꾼다. 키와 이벤트 시각을 같은 비율로 늘리거나 줄인다.
+ *
+ * 동작의 모양은 그대로 두고 걸리는 시간만 바꾸려는 것이다.
+ * 재생 `속도`와 결과가 비슷해 보이지만 성격이 다르다 —
+ * 속도는 재생할 때 곱하는 값이고, 길이는 데이터에 그대로 적히는 값이다.
+ * 게임이 "이 동작은 0.4초짜리"라고 알아야 할 때는 길이 쪽을 고쳐야 한다.
+ *
+ * 비율로 옮기므로 되돌리면 원래 시각으로 돌아온다.
+ */
+export function setDuration(animation: PuppetAnimation, duration: number): PuppetAnimation {
+  const next = Math.min(MAX_DURATION, Math.max(MIN_DURATION, duration));
+  const previous = animation.duration;
+  if (previous <= 0) return { ...animation, duration: next };
+  if (Math.abs(next - previous) < 1e-6) return animation;
+
+  const ratio = next / previous;
+  const at = (time: number) => Math.round(time * ratio * 10000) / 10000;
+
+  return {
+    ...animation,
+    duration: next,
+    tracks: animation.tracks.map((track) => ({
+      ...track,
+      keys: track.keys.map((key) => ({ ...key, time: at(key.time) })),
+    })),
+    events: animation.events?.map((event) => ({ ...event, time: at(event.time) })),
+  };
+}

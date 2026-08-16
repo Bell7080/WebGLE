@@ -8,7 +8,7 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 ```json
 {
   "format": "puppetforge",
-  "version": 11,
+  "version": 12,
   "character": { },
   "bones": [],
   "mesh": null,
@@ -55,6 +55,7 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
   "tags": ["tail", "secondary"],
   "motionStrength": 1,
   "deform": "soft",
+  "autoWeight": true,
   "color": "#7fd4a2"
 }
 ```
@@ -65,6 +66,12 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
   기본 목록은 `TAG_CATALOG`(`src/core/format/constants.ts`)에 설명과 함께 정의돼 있고,
   거기 없는 태그도 자유롭게 넣을 수 있다. 첫 루트 관절에는 `root`가 자동으로 붙는다.
 - `motionStrength`는 애니메이션 움직임 크기에 곱하는 배율이다 (기본 `1`).
+  여기에 성격 태그의 배율(`TAG_AMPLITUDE`)이 다시 곱해진다 —
+  `heavy` 0.55 · `light` 1.6 · `bounce` 1.35 · `stiff` 0.2이며, 여러 개 붙으면 전부 곱해진다.
+- `autoWeight`가 `true`면 영향 영역을 편집기가 자동으로 계산한다(부모에서 자기까지의
+  선분에 가까운 정점을 많이 가져간다). 한 번이라도 직접 칠하면 `false`가 된다.
+  **없으면 `false`로 본다** — v11 이하 파일의 관절은 전부 손으로 칠한 것이기 때문이다.
+  런타임은 이 값을 보지 않는다. 이미 계산된 `mesh.weights`만 쓴다.
 - `deform`은 움직임과 Mesh 변형을 조합한 다음 네 값 중 하나다.
 
 | 값 | 위치 · 회전 · 크기 | Mesh 변형 | 용도 |
@@ -201,8 +208,8 @@ v9까지의 파일에는 `vertices` · `indices`가 그대로 들어 있다. 그
 | `rotation` | 기준에서 회전한 라디안 | 0 |
 | `scaleX`, `scaleY` | 기준 크기에 곱할 배율 | 1 |
 
-각 값에는 대상 Bone의 `motionStrength`가 곱해진다. 이동 · 회전은 그대로 곱하고,
-크기는 `1 + (값 - 1) × motionStrength`로 계산한다.
+각 값에는 대상 Bone의 `motionStrength`와 성격 태그의 배율이 곱해진다. 이동 · 회전은
+그대로 곱하고, 크기는 `1 + (값 - 1) × 배율`로 계산한다.
 
 프리셋은 `src/presets/*.json`에 둔다. 새 모션을 추가할 때 엔진 코드를 고치지 않는 것이 목표다.
 
@@ -224,6 +231,7 @@ v9까지의 파일에는 `vertices` · `indices`가 그대로 들어 있다. 그
 | 9 | 애니메이션에 `deform`(관절별 변형 방식 덮어쓰기) 추가. 없으면 Bone의 값을 그대로 쓴다. |
 | 10 | Mesh의 격자를 파일에서 뺐다. 읽을 때 다시 만든다. 칠하지 않은 정점은 `null`. |
 | 11 | 내보내기에 `_readme` 한 줄이 붙는다. 읽는 쪽은 무시한다. |
+| 12 | Bone에 `autoWeight` 추가. 없으면 `false`로 본다 — 예전 파일의 손으로 칠한 값을 지키기 위한 것이다. |
 
 읽는 쪽보다 높은 버전은 거부하고, 낮은 버전은 조용히 올려서 연다.
 
@@ -236,7 +244,7 @@ v9까지의 파일에는 `vertices` · `indices`가 그대로 들어 있다. 그
 {
   "_readme": "PuppetForge 2D 캐릭터입니다. 게임에서 재생하려면: npm i puppetforge → …",
   "format": "puppetforge",
-  "version": 11
+  "version": 12
 }
 ```
 
