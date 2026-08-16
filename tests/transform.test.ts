@@ -116,6 +116,29 @@ describe("스킨 행렬", () => {
       expect(planted).toEqual({ x: 0, y: 50 });
     },
   );
+
+  it("애니메이션의 완전 고정 덮어쓰기도 여러 단계 부모의 변환을 모두 차단한다", () => {
+    // 몸통 → 윗다리 → 아랫다리 → 발 구조에서 공용 설정이 soft여도 현재 동작의 fixed가 우선한다.
+    const bones = [
+      bone("body", 0, 0),
+      bone("leg1", 0, 20, "body"),
+      bone("leg2", 0, 40, "leg1"),
+      bone("foot", 0, 60, "leg2"),
+    ];
+    const modes = new Map<string, DeformMode>([["foot", "fixed"]]);
+    const skin = computeSkinMatrices(
+      bones,
+      new Map([
+        ["body", delta({ x: 30 })],
+        ["leg1", delta({ rotation: 0.5 })],
+        ["leg2", delta({ y: -10 })],
+        ["foot", delta({ x: 20 })],
+      ]),
+      modes,
+    );
+
+    expect(applyPoint(skin.get("foot")!, 0, 60)).toEqual({ x: 0, y: 60 });
+  });
 });
 
 describe("정점 변형", () => {
@@ -227,6 +250,27 @@ describe("정점 변형", () => {
     ]);
 
     expect([...skinVertices(fixedMesh, matrices, undefined, modes)]).toEqual([0, 0, 50, 0, 100, 0]);
+  });
+
+  it("Fixed가 주 영향인 정점은 다른 부모 관절의 잔여 가중치가 있어도 완전히 고정한다", () => {
+    const footMesh: PuppetMesh = {
+      resolution: "low",
+      cols: 1,
+      rows: 1,
+      vertices: [10, 20],
+      indices: [],
+      weights: [{ boneIds: ["foot", "leg2"], weights: [0.7, 0.3] }],
+    };
+    const matrices = new Map([
+      ["foot", compose(0, 0, 0, 1, 1)],
+      ["leg2", compose(100, 0, 0, 1, 1)],
+    ]);
+    const modes = new Map<string, DeformMode>([
+      ["foot", "fixed"],
+      ["leg2", "soft"],
+    ]);
+
+    expect([...skinVertices(footMesh, matrices, undefined, modes)]).toEqual([10, 20]);
   });
 
   it("고정 관절은 부모가 움직여도 제자리에 선다", () => {

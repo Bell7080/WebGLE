@@ -901,7 +901,7 @@ function baseMatrix(boneId: string): Mat2D | null {
   // 이 관절의 델타만 0으로 둔 자세를 구하면 그 세계 변환이 곧 기준이 된다.
   const deltas = evaluateAnimation(current.animation, bones, keyTime(), current.amount, mirrored());
   deltas.set(boneId, { ...NO_DELTA });
-  const skin = computeSkinMatrices(bones, deltas);
+  const skin = computeSkinMatrices(bones, deltas, deformModesFor(bones, current.animation));
 
   const matrix = skin.get(boneId);
   if (!matrix) return null;
@@ -1137,8 +1137,8 @@ function applyPose(): void {
   if (!project.mesh || !current) return;
 
   const deltas = player.sample(project.bones);
-  const skin = computeSkinMatrices(project.bones, deltas);
   const deformModes = deformModesFor(project.bones, current.animation);
+  const skin = computeSkinMatrices(project.bones, deltas, deformModes);
   view.scene.setPosedBones(posedPositions(project.bones, skin));
   view.scene.updateMeshVertices(skinVertices(project.mesh, skin, undefined, deformModes));
 }
@@ -1217,9 +1217,10 @@ function tick(now: number): void {
   if (player.current?.playing) {
     const { project } = store.get();
     const deltas = player.update(dt, project.bones);
+    const deformModes = deformModesFor(project.bones, player.current.animation);
     if (project.mesh) {
       // 1) 애니메이션만 반영한 자세를 먼저 구한다
-      const posed = computeSkinMatrices(project.bones, deltas);
+      const posed = computeSkinMatrices(project.bones, deltas, deformModes);
       // 2) 그 움직임을 입력 삼아 늦게 따라오는 흔들림을 더하고 (기획서 29)
       secondary.apply(
         project.bones,
@@ -1229,10 +1230,9 @@ function tick(now: number): void {
         player.current.animation.secondary ?? 1,
       );
       // 3) 흔들림까지 반영한 최종 자세로 정점을 옮긴다
-      const skin = computeSkinMatrices(project.bones, deltas);
+      const skin = computeSkinMatrices(project.bones, deltas, deformModes);
       // 변형 모드는 정점 혼합 방식까지 결정하므로 런타임에 Bone 설정을 함께 전달한다.
       // 대기에서만 발을 묶어 두는 식으로 애니메이션이 관절별 값을 덮어쓸 수 있다.
-      const deformModes = deformModesFor(project.bones, player.current.animation);
       // 관절점도 자세를 따라가게 한다. 그림만 휘고 점은 제자리에 있으면
       // 지금 어디를 잡아야 할지 알 수 없다.
       view.scene.setPosedBones(posedPositions(project.bones, skin));
