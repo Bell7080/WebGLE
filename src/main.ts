@@ -13,13 +13,13 @@ import { createGridMesh, vertexCount } from "@core/mesh";
 import type { MeshResolution } from "@core/format";
 import {
   normalizeWeights,
-  paintInfluence,
   removeBoneWeights,
   resampleWeights,
   toWeightMap,
   type WeightMap,
 } from "@core/weight";
 import { autoManagedBones, withAutoWeights } from "@core/weight/auto";
+import { applyStroke, beginStroke, extendStroke, type Stroke } from "@core/weight/stroke";
 import {
   applyPoint,
   compose,
@@ -109,7 +109,31 @@ const projectInput = document.getElementById("projectInput") as HTMLInputElement
 const store = new EditorStore();
 /** 이미지에서 뽑아 둔 알파. 저장 대상이 아니라 파생 데이터라 스토어 밖에 둔다. */
 let alphaMap: AlphaMap | null = null;
-const history = new UndoStack<PuppetProject>();
+/**
+ * Undo에 담는 한 장면.
+ *
+ * 프로젝트만 담으면 칠하기를 제대로 되돌리지 못한다. 파일에 들어가는 `mesh.weights`는
+ * 정점마다 상위 네 개만 남기고 합을 1로 맞춘 **정규화된 결과**라, 거기서 되짚어 낸 값은
+ * 칠할 때 쓰던 원본과 다르다. 되돌렸는데 칠한 모양이 어긋나 보이던 이유가 이것이다.
+ * 그래서 편집용 원본 가중치를 함께 담는다.
+ */
+interface Snapshot {
+  project: PuppetProject;
+  weights: WeightMap;
+}
+
+const history = new UndoStack<Snapshot>();
+
+/** 지금 화면의 한 장면. 무언가 바꾸기 **직전에** 담아 둔다. */
+function snapshot(): Snapshot {
+  const state = store.get();
+  return { project: state.project, weights: state.weights };
+}
+
+/** 바꾸기 직전 상태를 Undo에 쌓는다. */
+function pushHistory(): void {
+  history.push(snapshot());
+}
 const player = new AnimationPlayer();
 /** 꼬리 · 머리카락처럼 늦게 따라오는 부위의 흔들림. (기획서 29) */
 const secondary = new SecondaryMotion();
@@ -307,7 +331,7 @@ const ui = new EditorUI(store, {
   onAnimationSetting: (animationId, patch, done = true) => {
     // 막대를 끄는 동안에는 스토어만 갱신하고, 시작할 때 한 번만 Undo에 쌓는다.
     if (settingGesture === null) {
-      history.push(store.get().project);
+      pushHistory();
       settingGesture = animationId;
       refreshUndoButtons();
     }
@@ -403,24 +427,24 @@ const ui = new EditorUI(store, {
 
   onKeyEase: (boneId, ease) => {
     const at = keyTime();
-    history.push(store.get().project);
+    pushHistory();
     if (editAnimation((animation) => setOwnKeyEase(animation, boneId, at, ease))) {
       ui.setStatus(`${at.toFixed(2)}초 키의 보간을 바꿨습니다.`);
       refreshUndoButtons();
     } else {
-      history.undo(store.get().project);
+      history.undo(snapshot());
     }
   },
 
   onKeyDelete: (boneId) => {
     const at = keyTime();
     const bone = store.get().project.bones.find((b) => b.id === boneId);
-    history.push(store.get().project);
+    pushHistory();
     if (editAnimation((animation) => removeOwnKeys(animation, boneId, at))) {
       ui.setStatus(`${bone?.name ?? "관절"}: ${at.toFixed(2)}초 키를 지웠습니다.`);
       refreshUndoButtons();
     } else {
-      history.undo(store.get().project);
+      history.undo(snapshot());
     }
   },
 
@@ -446,7 +470,7 @@ async function flipCharacter(): Promise<void> {
     ui.setStatus("좌우로 뒤집는 중…");
     const flippedUrl = await flipImage(textureUrl, project.character.pixelArt);
 
-    history.push(project);
+    pushHistory();
     store.update((current) => flipProject(current));
     setWeights(flipWeights(weights, project.mesh));
 
@@ -536,7 +560,7 @@ function mirrored(): boolean {
 
 /** 프로젝트 변경 한 번을 Undo 단위로 기록한다. (기획서 36) */
 function commit(updater: (project: PuppetProject) => PuppetProject): void {
-  history.push(store.get().project);
+  pushHistory();
   store.update(updater);
 }
 
@@ -608,7 +632,7 @@ function refreshAutoWeights(): number {
 view.scene.setBoneHandlers({
   onSelect: (boneId) => store.set({ selectedBoneId: boneId }),
 
-  onDragStart: () => history.push(store.get().project),
+  onDragStart: () => pushHistory(),
 
   onDrag: (boneId, x, y) => {
     // 재생 중에는 손대지 않는다. 화면의 점은 자세를 따라가 있으므로
@@ -661,6 +685,9 @@ function poseEditable(): boolean {
   const current = player.current;
   return Boolean(current && !current.playing && store.get().project.mesh);
 }
+
+/** 지금 긋고 있는 획. 손을 떼면 null이 된다. */
+let painting: Stroke | null = null;
 
 /** 회전을 시작할 때의 값. 끄는 동안 누적 각도를 여기에 더한다. */
 let rotateBase: number | null = null;
@@ -853,38 +880,41 @@ function syncPaintMode(brush: BrushState = store.get().brush): void {
     amount: brush.amount / 100,
     erase,
     onStart: () => {
-      history.push(store.get().project);
+      pushHistory();
       // 한 번이라도 직접 칠했으면 그 관절은 사용자의 것이다.
       // 이후 관절을 더 놓아도 자동 계산이 이 관절을 다시 칠하지 않는다.
       if (bone.autoWeight) {
         store.update((project) => patchBone(project, bone.id, { autoWeight: false }));
       }
+
+      const state = store.get();
+      if (!state.project.mesh || !state.selectedBoneId) return;
+      // 획 하나를 시작한다. 손을 뗄 때까지 이 획이 남긴 가장 진한 값만 모은다.
+      painting = beginStroke(state.weights, state.selectedBoneId, state.project.mesh);
     },
     onPaint: (x, y) => {
       const state = store.get();
-      if (!state.project.mesh || !state.selectedBoneId) return;
+      if (!state.project.mesh || !painting) return;
 
-      setWeights(
-        paintInfluence(
-          state.weights,
-          state.selectedBoneId,
-          state.project.mesh,
-          {
-            x1: x,
-            y1: y,
-            x2: x,
-            y2: y,
-            radius: state.brush.size,
-            strength: state.brush.amount / 100,
-            softness: 0.7,
-          },
-          erase,
-          // 이미지가 그려진 영역 안에서만 칠한다.
-          state.mask,
-        ),
+      extendStroke(
+        painting,
+        state.project.mesh,
+        {
+          radius: state.brush.size,
+          strength: state.brush.amount / 100,
+          softness: 0.7,
+        },
+        x,
+        y,
+        // 이미지가 그려진 영역 안에서만 칠한다.
+        state.mask,
       );
+      setWeights(applyStroke(state.weights, painting, erase));
     },
-    onEnd: () => ui.setStatus(`${bone.name} 영향 영역을 ${erase ? "지웠" : "칠했"}습니다.`),
+    onEnd: () => {
+      painting = null;
+      ui.setStatus(`${bone.name} 영향 영역을 ${erase ? "지웠" : "칠했"}습니다.`);
+    },
   });
 }
 
@@ -960,7 +990,7 @@ const timeline = new Timeline(document.getElementById("timeline") as HTMLElement
     // 끄는 동안에는 스토어만 갱신하고, 시작할 때 한 번만 Undo에 쌓는다.
     if (keyDragFrom === null) {
       keyDragFrom = from;
-      history.push(store.get().project);
+      pushHistory();
       refreshUndoButtons();
     }
 
@@ -978,12 +1008,12 @@ const timeline = new Timeline(document.getElementById("timeline") as HTMLElement
     if (!selectedBoneId) return;
     const bone = project.bones.find((b) => b.id === selectedBoneId);
 
-    history.push(project);
+    pushHistory();
     if (editAnimation((animation) => removeOwnKeys(animation, selectedBoneId, time))) {
       ui.setStatus(`${bone?.name ?? "관절"}: ${time.toFixed(2)}초 키를 지웠습니다.`);
       refreshUndoButtons();
     } else {
-      history.undo(project);
+      history.undo(snapshot());
       ui.setStatus("직접 찍은 키만 지울 수 있습니다. 프리셋의 키는 손댈 수 없습니다.");
     }
   },
@@ -1094,12 +1124,12 @@ window.addEventListener("keydown", (event) => {
 
     const at = keyTime();
     const bone = project.bones.find((b) => b.id === selectedBoneId);
-    history.push(project);
+    pushHistory();
     if (editAnimation((animation) => removeOwnKeys(animation, selectedBoneId, at))) {
       ui.setStatus(`${bone?.name ?? "관절"}: ${at.toFixed(2)}초 키를 지웠습니다.`);
       refreshUndoButtons();
     } else {
-      history.undo(project);
+      history.undo(snapshot());
       ui.setStatus(`${at.toFixed(2)}초에 직접 찍은 키가 없습니다.`);
     }
     return;
@@ -1546,14 +1576,14 @@ function refreshUndoButtons(): void {
 }
 
 function undo(): void {
-  const previous = history.undo(store.get().project);
+  const previous = history.undo(snapshot());
   ui.setStatus(previous ? "실행 취소" : "되돌릴 것이 없습니다.");
   if (previous) applyHistory(previous);
   refreshUndoButtons();
 }
 
 function redo(): void {
-  const next = history.redo(store.get().project);
+  const next = history.redo(snapshot());
   ui.setStatus(next ? "다시 실행" : "다시 실행할 것이 없습니다.");
   if (next) applyHistory(next);
   refreshUndoButtons();
@@ -1593,7 +1623,7 @@ window.addEventListener("keydown", (event) => {
  * 고르고 있던 관절과 칠하기 상태는 지키려 애쓴다.
  * 한 획 되돌렸다고 붓을 내려놓게 되면 이어서 칠할 수가 없다.
  */
-function applyHistory(project: PuppetProject): void {
+function applyHistory({ project, weights }: Snapshot): void {
   const { selectedBoneId } = store.get();
   // 되돌린 뒤에도 남아 있는 관절이면 선택을 지킨다.
   const keep = project.bones.some((bone) => bone.id === selectedBoneId) ? selectedBoneId : null;
@@ -1601,7 +1631,8 @@ function applyHistory(project: PuppetProject): void {
   store.set({
     project,
     selectedBoneId: keep,
-    weights: project.mesh ? toWeightMap(project.mesh.weights) : {},
+    // 담아 둔 원본을 그대로 되돌린다. 정규화된 결과에서 되짚으면 값이 달라진다.
+    weights,
   });
 
   // 선택이 살아 있으면 칠하기도 그대로 이어 간다.

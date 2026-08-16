@@ -11,6 +11,7 @@ import {
   toWeightMap,
   type Influence,
 } from "../src/core/weight";
+import { applyStroke, beginStroke, extendStroke } from "../src/core/weight/stroke";
 
 const circle = (x: number, y: number, radius: number, strength = 1, softness = 0.5): Influence => ({
   x1: x,
@@ -189,5 +190,75 @@ describe("격자 해상도 변경", () => {
     const map = applyInfluence({}, "몸통", fine, circle(50, 50, 40, 1, 0));
     const moved = resampleWeights(fine, coarse, map);
     expect(Math.max(...moved["몸통"]!)).toBeGreaterThan(0.9);
+  });
+});
+
+describe("한 획으로 칠하기", () => {
+  const mesh = createGridMesh(100, 100, "low");
+
+  it("같은 자리를 여러 번 훑어도 한 겹만 얹힌다", () => {
+    // 천천히 그으면 그 부분만 진해지던 것. 획은 속도와 상관없이 고른 한 겹이어야 한다.
+    const brush = { radius: 30, strength: 0.4, softness: 0.7 };
+    const stroke = beginStroke({}, "a", mesh);
+    for (let i = 0; i < 10; i += 1) extendStroke(stroke, mesh, brush, 50, 50);
+
+    const once = beginStroke({}, "a", mesh);
+    extendStroke(once, mesh, brush, 50, 50);
+
+    expect(applyStroke({}, stroke).a).toEqual(applyStroke({}, once).a);
+  });
+
+  it("손을 뗐다 다시 그으면 그때 한 겹이 더 쌓인다", () => {
+    const brush = { radius: 30, strength: 0.4, softness: 0.7 };
+    const first = beginStroke({}, "a", mesh);
+    extendStroke(first, mesh, brush, 50, 50);
+    const after1 = applyStroke({}, first);
+
+    const second = beginStroke(after1, "a", mesh);
+    extendStroke(second, mesh, brush, 50, 50);
+    const after2 = applyStroke(after1, second);
+
+    const peak = (map: Record<string, number[]>) => Math.max(...map.a!);
+    expect(peak(after2)).toBeGreaterThan(peak(after1));
+  });
+
+  it("두 점을 이으면 그 사이도 칠해진다 — 빠르게 그어도 끊기지 않는다", () => {
+    const brush = { radius: 12, strength: 1, softness: 0.7 };
+    const stroke = beginStroke({}, "a", mesh);
+    extendStroke(stroke, mesh, brush, 20, 50);
+    // 브러시 지름보다 훨씬 멀리 건너뛴다. 점을 찍는 방식이면 사이가 비어 버린다.
+    extendStroke(stroke, mesh, brush, 80, 50);
+    const channel = applyStroke({}, stroke).a!;
+
+    // 두 점 한가운데(50, 50)에 가까운 정점이 칠해져 있어야 한다.
+    const middle = channel.findIndex((_v, index) => {
+      const x = mesh.vertices[index * 2] ?? 0;
+      const y = mesh.vertices[index * 2 + 1] ?? 0;
+      return Math.abs(x - 50) < 3 && Math.abs(y - 50) < 3;
+    });
+    expect(middle).toBeGreaterThanOrEqual(0);
+    expect(channel[middle]!).toBeGreaterThan(0.5);
+  });
+
+  it("지우개는 같은 방식으로 깎아 낸다", () => {
+    const brush = { radius: 30, strength: 0.5, softness: 0.7 };
+    const full = { a: new Array<number>(vertexCount(mesh)).fill(1) };
+    const stroke = beginStroke(full, "a", mesh);
+    for (let i = 0; i < 6; i += 1) extendStroke(stroke, mesh, brush, 50, 50);
+
+    const erased = applyStroke(full, stroke, true).a!;
+    expect(Math.min(...erased)).toBeCloseTo(0.5, 5);
+    expect(Math.max(...erased)).toBe(1);
+  });
+
+  it("마스크 밖은 건드리지 않는다", () => {
+    const count = vertexCount(mesh);
+    const mask = Array.from({ length: count }, (_v, i) => i < count / 2);
+    const stroke = beginStroke({}, "a", mesh);
+    extendStroke(stroke, mesh, { radius: 200, strength: 1, softness: 0 }, 50, 50, mask);
+
+    const channel = applyStroke({}, stroke).a!;
+    expect(channel[0]).toBeGreaterThan(0);
+    expect(channel[count - 1]).toBe(0);
   });
 });
