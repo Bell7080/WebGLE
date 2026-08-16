@@ -130,6 +130,10 @@ export interface EditorUICallbacks {
   onBrushChange(patch: Partial<BrushState>): void;
   /** 이 관절의 영향 영역을 자동에 맡길지 직접 잡을지 바꾼다. */
   onAutoWeight(boneId: string, enabled: boolean): void;
+  /** 현재 관절 전체를 기준으로 실루엣의 빈 영향 영역을 메운다. */
+  onFillAllWeights(): void;
+  /** 고립된 오점과 미세 잔여 가중치를 정돈하고 빈 곳을 메운다. */
+  onCleanupWeights(): void;
 }
 
 /** 변형 방식 선택지. 짧은 이름은 버튼에, 나머지는 툴팁에 쓴다. */
@@ -1270,6 +1274,24 @@ export class EditorUI {
     }
 
     section.append(this.autoWeightRow(bone));
+
+    // 두 동작은 선택 관절 하나가 아니라 캐릭터 전체를 다루므로 같은 비중의 묶음으로 둔다.
+    const bulkTools = document.createElement("div");
+    bulkTools.className = "weight-bulk-tools";
+    const fillAll = document.createElement("button");
+    fillAll.type = "button";
+    fillAll.className = "outlined";
+    fillAll.textContent = "모두 채우기";
+    fillAll.title = "현재 관절과 가중치를 기준으로 그림의 모든 빈 영역을 채웁니다.";
+    fillAll.addEventListener("click", () => this.callbacks.onFillAllWeights());
+    const cleanup = document.createElement("button");
+    cleanup.type = "button";
+    cleanup.className = "outlined";
+    cleanup.textContent = "정리";
+    cleanup.title = "고립된 작은 자국과 희미한 잔여 영역을 지우고 빈 곳을 메웁니다.";
+    cleanup.addEventListener("click", () => this.callbacks.onCleanupWeights());
+    bulkTools.append(fillAll, cleanup);
+    section.append(bulkTools);
 
     // 칠하기 / 지우개는 한 줄에 모은 아이콘 토글이다.
     // 같은 것을 다시 누르면 꺼지고, 다른 것을 누르면 그쪽으로 바뀐다.

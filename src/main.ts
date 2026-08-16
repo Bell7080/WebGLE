@@ -19,7 +19,7 @@ import {
   toWeightMap,
   type WeightMap,
 } from "@core/weight";
-import { autoManagedBones, withAutoWeights } from "@core/weight/auto";
+import { autoManagedBones, cleanupWeights, fillUnweighted, withAutoWeights } from "@core/weight/auto";
 import { applyStroke, beginStroke, extendStroke, type Stroke } from "@core/weight/stroke";
 import {
   applyPoint,
@@ -213,6 +213,22 @@ const ui = new EditorUI(store, {
         ? `${bone?.name ?? "관절"}: 자동으로 되돌렸습니다.`
         : `${bone?.name ?? "관절"}: 이제 직접 맡습니다. 자동 계산이 덮어쓰지 않습니다.`,
     );
+  },
+
+  onFillAllWeights: () => {
+    const { project, weights, mask } = store.get();
+    if (!project.mesh || project.bones.length === 0) return;
+    pushHistory();
+    setWeights(fillUnweighted(weights, project.bones, project.mesh, mask));
+    ui.setStatus("모든 빈 영향 영역을 가까운 관절의 가중치로 채웠습니다.");
+  },
+
+  onCleanupWeights: () => {
+    const { project, weights, mask } = store.get();
+    if (!project.mesh || project.bones.length === 0) return;
+    pushHistory();
+    setWeights(cleanupWeights(weights, project.bones, project.mesh, mask));
+    ui.setStatus("작은 오점과 희미한 잔여 가중치를 정리하고 빈 영역을 채웠습니다.");
   },
 
   onReorderBone: (boneId, targetId, place) => {

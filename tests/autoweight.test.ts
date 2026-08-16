@@ -13,6 +13,8 @@ import {
   autoManagedBones,
   autoWeights,
   boneSegments,
+  cleanupWeights,
+  fillUnweighted,
   withAutoWeights,
 } from "../src/core/weight/auto";
 
@@ -82,6 +84,35 @@ describe("자동 가중치", () => {
 
     expect(weights.a![0]).toBeGreaterThan(0);
     expect(weights.a![count - 1]).toBe(0);
+  });
+});
+
+describe("전체 채우기와 정리", () => {
+  it("이미 칠한 값은 지키면서 실루엣 안의 빈 정점을 모두 채운다", () => {
+    const bones = [bone("left", 10, 50), bone("right", 90, 50)];
+    const count = vertexCount(mesh);
+    const painted = { left: new Array<number>(count).fill(0) };
+    painted.left[0] = 0.42;
+
+    const filled = fillUnweighted(painted, bones, mesh);
+
+    expect(filled.left![0]).toBe(0.42);
+    expect(unweightedCount(normalizeWeights(filled, count))).toBe(0);
+  });
+
+  it("한 점짜리 오점을 제거하고 그 자리를 가까운 관절 값으로 메운다", () => {
+    const bones = [bone("left", 0, 50), bone("speck", 100, 50)];
+    const count = vertexCount(mesh);
+    const weights = autoWeights(bones, mesh);
+    // 왼쪽 모서리에 다른 관절이 한 점만 침범한 상황을 만든다.
+    weights.speck = new Array<number>(count).fill(0);
+    weights.speck[0] = 0.8;
+    weights.left![0] = 0;
+
+    const cleaned = cleanupWeights(weights, bones, mesh);
+
+    expect(cleaned.speck![0]).toBeLessThan(cleaned.left![0]!);
+    expect(unweightedCount(normalizeWeights(cleaned, count))).toBe(0);
   });
 });
 
