@@ -69,6 +69,7 @@ import {
   packProject,
   projectFileName,
   saveFile,
+  saveImages,
   unpackProject,
   type SaveMethod,
 } from "@editor/tools/projectFile";
@@ -1475,19 +1476,25 @@ async function exportSpriteSheets(): Promise<void> {
 
     const sheets = await bakeSheets(project, image);
     const encoder = new TextEncoder();
+    const imageFiles = sheets.map(
+      (sheet) => new File([sheet.blob], `${sheet.name}.png`, { type: "image/png" }),
+    );
     const entries = [
       { name: "sheets.json", data: encoder.encode(sheetManifest(project, sheets)) },
       ...(await Promise.all(
-        sheets.map(async (sheet) => ({
-          name: `${sheet.name}.png`,
-          data: new Uint8Array(await sheet.blob.arrayBuffer()),
+        imageFiles.map(async (file) => ({
+          name: file.name,
+          data: new Uint8Array(await file.arrayBuffer()),
         })),
       )),
     ];
 
     const safe = (project.character.name || "character").replace(/[\\/:*?"<>|]/g, "_").trim();
     const name = `${safe || "character"}.sheets.zip`;
-    const how = await saveFile(
+    // iPhone에서는 PNG들을 공유 시트에 직접 보내 사진 앱에 저장할 수 있게 하고,
+    // 파일 공유가 불가능한 브라우저만 기존 ZIP 묶음으로 내려받는다.
+    const how = await saveImages(
+      imageFiles,
       new Blob([createZip(entries) as unknown as BlobPart], { type: "application/zip" }),
       name,
     );
