@@ -231,19 +231,20 @@ export class Puppet {
 
     const { bones } = this.project;
     const animation = current.animation;
+    const deformModes = deformModesFor(bones, animation);
 
     // 1) 애니메이션만 반영한 자세
     const deltas = this.player.update(dt, bones);
-    const posed = computeSkinMatrices(bones, deltas);
+    const posed = computeSkinMatrices(bones, deltas, deformModes);
     // 2) 그 움직임을 입력 삼아 늦게 따라오는 흔들림을 더한다 (기획서 29)
     this.secondary.apply(bones, deltas, posed, dt, animation.secondary ?? 1);
     // 3) 흔들림까지 반영한 최종 자세로 정점을 옮긴다
-    const skin = computeSkinMatrices(bones, deltas);
+    const skin = computeSkinMatrices(bones, deltas, deformModes);
 
     if (!this.buffer || this.buffer.length !== mesh.vertices.length) {
       this.buffer = new Float32Array(mesh.vertices.length);
     }
-    return skinVertices(mesh, skin, this.buffer, deformModesFor(bones, animation));
+    return skinVertices(mesh, skin, this.buffer, deformModes);
   }
 
   /**
@@ -257,8 +258,9 @@ export class Puppet {
 
     const { bones } = this.project;
     const deltas = evaluateAnimation(animation, bones, time, animation.strength ?? 1, animation.mirror === true);
-    const skin = computeSkinMatrices(bones, deltas);
-    return skinVertices(mesh, skin, undefined, deformModesFor(bones, animation));
+    const deformModes = deformModesFor(bones, animation);
+    const skin = computeSkinMatrices(bones, deltas, deformModes);
+    return skinVertices(mesh, skin, undefined, deformModes);
   }
 }
 

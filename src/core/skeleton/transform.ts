@@ -88,6 +88,7 @@ export function restWorldTransforms(bones: readonly PuppetBone[]): Map<string, M
 export function computeSkinMatrices(
   bones: readonly PuppetBone[],
   deltas: ReadonlyMap<string, BoneDelta>,
+  deformModes: ReadonlyMap<string, DeformMode> = new Map(),
 ): Map<string, Mat2D> {
   const rest = restWorldTransforms(bones);
   const world = new Map<string, Mat2D>();
@@ -102,7 +103,10 @@ export function computeSkinMatrices(
     const local = parentRest ? multiply(invert(parentRest), restWorld) : restWorld;
 
     // 고정 계열은 자기 애니메이션뿐 아니라 부모 변환도 받지 않아 발 같은 기준점을 붙잡는다.
-    const pinned = bone.deform === "pinnedSoft" || bone.deform === "fixed";
+    // 애니메이션별 덮어쓰기가 있으면 저장된 공용값보다 우선한다. 정점 혼합에서만 덮어쓰기를
+    // 사용하면 고정 관절 자체는 부모를 따라가므로, 발 그림과 관절점의 결과가 서로 어긋난다.
+    const deform = deformModes.get(bone.id) ?? bone.deform;
+    const pinned = deform === "pinnedSoft" || deform === "fixed";
     if (pinned) {
       world.set(bone.id, restWorld);
       skin.set(bone.id, IDENTITY);
@@ -144,13 +148,15 @@ export function skinVertices(
       continue;
     }
 
-    // 완전 고정(fixed)과 위치 고정(pinnedSoft)은 스킨 행렬이 항등이라 여기서 따로 다루지 않는다.
-    // 그래서 가중치가 그대로 세기가 된다 — 100을 받은 자리는 아예 멈추고,
-    // 50을 받은 자리는 절반만 움직인다. 고정 영역의 경계가 딱 끊기지 않는 이유다.
+    // 위치 고정(pinnedSoft)은 항등 행렬과 이웃 행렬을 비율대로 섞어 경계를 부드럽게 만든다.
+    // 완전 고정(fixed)은 아래에서 주 영향인지 추가로 확인해 중심 영역까지 섞이는 일을 막는다.
 
     // Rigid 영역은 여러 행렬을 섞으면 형태가 찌그러지므로 하나로 통째로 움직인다.
     // 다만 **그 정점의 주인일 때만** 그렇게 한다 — 검이 살짝 걸친 정도로 스치는 자리까지
     // 검을 따라가 버리면, 정작 그 자리를 대부분 맡은 팔의 움직임이 사라진다.
+    let fixedSlot = -1;
+    let fixedWeight = 0;
+    let nonFixedTopWeight = 0;
     let rigidSlot = -1;
     let rigidWeight = 0;
     let topWeight = 0;
@@ -158,10 +164,24 @@ export function skinVertices(
       const boneId = vertexWeight.boneIds[slot];
       const weight = vertexWeight.weights[slot] ?? 0;
       if (weight > topWeight) topWeight = weight;
-      if (boneId && deformModes.get(boneId) === "rigid" && weight > rigidWeight) {
+      const mode = boneId ? deformModes.get(boneId) : undefined;
+      if (mode === "fixed" && weight > fixedWeight) {
+        fixedSlot = slot;
+        fixedWeight = weight;
+      } else if (mode !== "fixed" && weight > nonFixedTopWeight) {
+        nonFixedTopWeight = weight;
+      }
+      if (boneId && mode === "rigid" && weight > rigidWeight) {
         rigidSlot = slot;
         rigidWeight = weight;
       }
+    }
+    // 완전 고정이 이 정점의 가장 큰 영향이면 다른 부모·이웃 관절과 섞지 않는다. 정규화된
+    // 가중치에 다른 관절이 남아 있어도 발의 중심 영역은 월드 기준으로 완전히 붙잡혀야 한다.
+    if (fixedSlot >= 0 && fixedWeight > nonFixedTopWeight) {
+      result[i * 2] = x;
+      result[i * 2 + 1] = y;
+      continue;
     }
     if (rigidSlot >= 0 && rigidWeight >= topWeight) {
       const rigidBoneId = vertexWeight.boneIds[rigidSlot];

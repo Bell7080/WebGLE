@@ -115,9 +115,9 @@ function poseFrames(
     const keep = pass === passes - 1;
     for (const time of times) {
       const deltas = evaluateAnimation(animation, bones, time, amount, mirror);
-      const posed = computeSkinMatrices(bones, deltas);
+      const posed = computeSkinMatrices(bones, deltas, modes);
       secondary.apply(bones, deltas, posed, step, swing);
-      const skin = computeSkinMatrices(bones, deltas);
+      const skin = computeSkinMatrices(bones, deltas, modes);
       if (keep) frames.push(skinVertices(mesh, skin, undefined, modes));
     }
   }
