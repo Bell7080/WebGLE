@@ -5,9 +5,11 @@ import {
   TAG_AMPLITUDE,
   TAG_CATALOG,
   TAG_DESCRIPTIONS,
+  MESH_LABELS,
   TAG_GROUPS,
   type DeformMode,
   type Interpolation,
+  type MeshResolution,
   type OverlayLayer,
   type PuppetBone,
 } from "@core/format";
@@ -106,7 +108,7 @@ export interface EditorUICallbacks {
   onCharacterSetting(patch: {
     name?: string;
     pixelArt?: boolean;
-    resolution?: "low" | "normal" | "high";
+    resolution?: MeshResolution;
   }): void;
   /** 그림 · 관절 · 칠한 영역을 통째로 좌우 반전한다. */
   onFlipCharacter(): void;
@@ -231,6 +233,12 @@ const FILE_MENU: readonly FileMenuItem[] = [
   { action: "export", label: "내보내기" },
   { action: "sprite-sheet", label: "스프라이트 시트로 굽기" },
 ];
+
+/** 격자 선택지. 이름표는 `MESH_LABELS`가 들고 있어 여기서 다시 적지 않는다. */
+const MESH_CHOICES = (Object.keys(MESH_LABELS) as MeshResolution[]).map((value) => ({
+  value,
+  label: MESH_LABELS[value],
+}));
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -860,14 +868,10 @@ export class EditorUI {
         "격자",
         {
           title: "Mesh 해상도",
-          body: "이미지를 몇 칸으로 나눠 변형할지 정합니다. 촘촘할수록 섬세하게 휘지만 무거워지고, 성길수록 가볍지만 뭉툭하게 휩니다. 칠한 영역을 보여 주는 점 패턴과는 무관합니다.",
+          body: "이미지를 몇 칸으로 나눠 변형할지 정합니다. 촘촘할수록 섬세하게 휘지만 무거워지고, 성길수록 가볍지만 뭉툭하게 휩니다. 도트 그림은 과하게 휘면 깨져 보여 낮은 쪽이 좋습니다.",
           meta: "바꿔도 칠해 둔 영향 영역은 새 격자로 옮겨 담습니다",
         },
-        [
-          { value: "low" as const, label: "낮음" },
-          { value: "normal" as const, label: "보통" },
-          { value: "high" as const, label: "높음" },
-        ],
+        MESH_CHOICES,
         mesh?.resolution ?? "normal",
         (value) => {
           this.callbacks.onCharacterSetting({ resolution: value });

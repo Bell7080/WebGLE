@@ -109,11 +109,71 @@ export async function unpackProject(file: File): Promise<LoadedProject> {
 }
 
 /** 브라우저에서 파일로 내려받는다. */
-export function downloadBlob(blob: Blob, fileName: string): void {
+/** 파일을 어떤 방법으로 내보냈는지. 상태줄 문구를 고르는 데 쓴다. */
+export type SaveMethod = "share" | "download" | "tab" | "cancelled";
+
+/**
+ * 만든 파일을 사용자에게 넘긴다.
+ *
+ * 데스크톱에서는 `<a download>` 한 줄이면 되지만 휴대폰에서는 그렇지 않다.
+ * iOS Safari는 blob에 붙은 `download`를 무시하는 일이 잦고, 그러면 아무 일도 일어나지 않아
+ * "내보내기가 안 된다"가 된다. 그래서 순서를 둔다.
+ *
+ * 1. **공유 시트** — 휴대폰이 파일 공유를 지원하면 이걸 쓴다. 사용자가 파일 앱 · 드라이브 ·
+ *    메신저 어디로든 보낼 수 있어서 휴대폰에서는 이 방법이 가장 확실하다.
+ * 2. **내려받기** — 평소의 `<a download>`. 문서에 붙였다 떼는 것까지 한다.
+ *    일부 브라우저는 붙어 있지 않은 링크의 클릭을 무시한다.
+ * 3. **새 탭으로 열기** — 위 둘이 다 막힌 경우의 마지막 수단. 적어도 화면에는 뜬다.
+ */
+export async function saveFile(blob: Blob, fileName: string): Promise<SaveMethod> {
+  const shared = await shareFile(blob, fileName);
+  if (shared) return shared;
+
   const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  try {
+    const link = document.createElement("a");
+    if ("download" in link) {
+      link.href = url;
+      link.download = fileName;
+      link.rel = "noopener";
+      // 붙였다 떼야 한다. 떠 있지 않은 링크의 클릭을 무시하는 브라우저가 있다.
+      document.body.append(link);
+      link.click();
+      link.remove();
+      return "download";
+    }
+
+    window.open(url, "_blank", "noopener");
+    return "tab";
+  } finally {
+    // 내려받기가 시작될 시간을 준 뒤에 거둔다.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+}
+
+/**
+ * 공유 시트로 넘겨 본다. 쓸 수 없으면 null을 돌려주고 부르는 쪽이 다음 방법으로 넘어간다.
+ *
+ * 사용자가 공유 창을 닫은 것(AbortError)은 실패가 아니라 취소다.
+ * 그때 내려받기까지 이어서 하면 원치 않는 파일이 남는다.
+ */
+async function shareFile(blob: Blob, fileName: string): Promise<SaveMethod | null> {
+  if (typeof navigator === "undefined" || !navigator.canShare || !navigator.share) return null;
+
+  const file = new File([blob], fileName, { type: blob.type || "application/octet-stream" });
+  if (!navigator.canShare({ files: [file] })) return null;
+
+  try {
+    await navigator.share({ files: [file], title: fileName });
+    return "share";
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
+    // 그 밖의 실패(사용자 조작에서 너무 멀어졌다는 등)는 조용히 다음 방법으로 넘긴다.
+    return null;
+  }
+}
+
+/** 예전 이름. 기다리지 않아도 되는 자리에서 쓴다. */
+export function downloadBlob(blob: Blob, fileName: string): void {
+  void saveFile(blob, fileName);
 }

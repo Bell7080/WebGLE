@@ -76,8 +76,15 @@ export interface PuppetBone {
   color: string;
 }
 
-/** Mesh 해상도 프리셋. (기획서 15) */
-export type MeshResolution = "low" | "normal" | "high";
+/**
+ * Mesh 해상도 프리셋. (기획서 15)
+ *
+ * 값(칸 수)은 한 번 정하면 바꾸지 않는다. 파일에는 이 이름만 적히고 격자는 열 때
+ * 다시 만들어지므로, 같은 이름의 칸 수를 바꾸면 예전 파일의 정점 수가 어긋나
+ * **칠해 둔 영향 영역이 통째로 날아간다.** 더 촘촘한 것이 필요하면 이름을 새로 늘린다.
+ * 화면에 보이는 이름표는 `MESH_LABELS`가 따로 들고 있다.
+ */
+export type MeshResolution = "low" | "normal" | "high" | "ultra";
 
 /** 격자 Mesh. 정점/인덱스는 Mesh 단계에서 채운다. */
 export interface PuppetMesh {

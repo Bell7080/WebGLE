@@ -205,13 +205,38 @@ export const SUGGESTED_TAGS: Record<string, string[]> = {
 
 /**
  * Mesh 해상도별 격자 셀 수. (기획서 15, 49)
- * 영향 영역을 촘촘하게 칠할 수 있도록 기본값을 넉넉히 잡았다.
+ *
+ * 이 값들은 고정이다. 파일에는 이름만 적히고 격자는 열 때 다시 만들어지므로,
+ * 같은 이름의 칸 수를 바꾸면 예전 파일의 정점 수가 어긋나 칠해 둔 영향 영역이 날아간다.
+ * 더 촘촘한 것이 필요하면 이름을 늘리고 값을 새로 준다(ultra가 그렇게 생겼다).
  */
 export const MESH_GRID: Record<MeshResolution, number> = {
   low: 24,
   normal: 48,
   high: 72,
+  ultra: 108,
 };
+
+/**
+ * 화면에 보여 줄 이름표.
+ *
+ * 값과 이름을 따로 두는 이유는 하나다. 쓰다 보니 예전의 `높음`(72칸)이 실제로는
+ * 무난한 기본값이었고 그보다 촘촘한 것이 필요했다. 값은 그대로 두고 이름만 한 칸씩
+ * 내려서, 예전 파일이 열릴 때 격자가 달라지지 않게 했다.
+ */
+export const MESH_LABELS: Record<MeshResolution, string> = {
+  low: "최소",
+  normal: "낮음",
+  high: "보통",
+  ultra: "높음",
+};
+
+/**
+ * 그림을 처음 불러올 때 쓸 해상도.
+ * 도트는 과하게 휘면 깨져 보여 성기게 잡는다. (기획서 51)
+ */
+export const DEFAULT_RESOLUTION: MeshResolution = "high";
+export const PIXEL_ART_RESOLUTION: MeshResolution = "low";
 
 /**
  * 캔버스 표시 레이어. (기획서 35의 편집 모드를 표시 토글로 대체)

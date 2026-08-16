@@ -10,6 +10,7 @@ import {
   type PuppetProject,
 } from "@core/format";
 import { createGridMesh, vertexCount } from "@core/mesh";
+import { DEFAULT_RESOLUTION, MESH_LABELS, PIXEL_ART_RESOLUTION } from "@core/format";
 import type { MeshResolution } from "@core/format";
 import {
   normalizeWeights,
@@ -63,12 +64,13 @@ import {
 import { analyzePixels, judgePixelArt } from "@core/image/pixelart";
 import { renderWeightOverlay } from "@editor/tools/weightOverlay";
 import {
-  downloadBlob,
   exportFileName,
   forExport,
   packProject,
   projectFileName,
+  saveFile,
   unpackProject,
+  type SaveMethod,
 } from "@editor/tools/projectFile";
 import {
   clearSession,
@@ -539,7 +541,9 @@ function changeResolution(resolution: MeshResolution, project: PuppetProject): v
     project.character.width,
     project.character.height,
   );
-  ui.setStatus(`Mesh ${mesh.cols}×${mesh.rows} · 칠한 영역은 그대로 옮겼습니다.`);
+  ui.setStatus(
+    `격자 ${MESH_LABELS[resolution]} (${mesh.cols}×${mesh.rows}) · 칠한 영역은 그대로 옮겼습니다.`,
+  );
 }
 
 /** 이미 쓰는 이름이면 뒤에 번호를 붙인다. */
@@ -556,6 +560,25 @@ function uniqueAnimationName(base: string, taken: Record<string, unknown>): stri
  */
 function mirrored(): boolean {
   return player.current?.animation.mirror === true;
+}
+
+/**
+ * 파일을 내보낸 방법을 한 줄로 옮긴다.
+ *
+ * 휴대폰에서는 공유 시트가 뜨는 것이 정상 동작인데, 아무 말이 없으면
+ * "눌렀는데 아무 일도 안 일어났다"로 읽힌다.
+ */
+function describeSave(method: SaveMethod, fileName: string): string {
+  switch (method) {
+    case "share":
+      return `${fileName} · 공유 시트로 넘겼습니다`;
+    case "tab":
+      return `${fileName} · 새 탭으로 열었습니다. 길게 눌러 저장하세요`;
+    case "cancelled":
+      return "내보내기를 취소했습니다.";
+    default:
+      return `${fileName} 저장`;
+  }
 }
 
 /** 프로젝트 변경 한 번을 Undo 단위로 기록한다. (기획서 36) */
@@ -1301,7 +1324,11 @@ async function importImage(file: File): Promise<void> {
 
     // Mesh는 이미지 크기에 맞춰 자동으로 만든다. (기획서 73)
     // 도트 그림은 과하게 휘면 깨져 보이므로 격자를 성기게 잡는다. (기획서 51)
-    const mesh = createGridMesh(image.width, image.height, verdict.pixelArt ? "low" : "normal");
+    const mesh = createGridMesh(
+      image.width,
+      image.height,
+      verdict.pixelArt ? PIXEL_ART_RESOLUTION : DEFAULT_RESOLUTION,
+    );
 
     store.update((project) => ({
       ...project,
@@ -1346,8 +1373,9 @@ async function saveProject(): Promise<void> {
   const { project, textureUrl } = store.get();
   try {
     const blob = await packProject(project, textureUrl);
-    downloadBlob(blob, projectFileName(project));
-    ui.setStatus(`저장: ${projectFileName(project)}`);
+    const name = projectFileName(project);
+    const how = await saveFile(blob, name);
+    ui.setStatus(describeSave(how, name));
   } catch (error) {
     ui.setStatus(error instanceof Error ? error.message : "저장하지 못했습니다.");
   }
@@ -1392,13 +1420,18 @@ async function exportSpriteSheets(): Promise<void> {
     ];
 
     const safe = (project.character.name || "character").replace(/[\\/:*?"<>|]/g, "_").trim();
-    downloadBlob(
+    const name = `${safe || "character"}.sheets.zip`;
+    const how = await saveFile(
       new Blob([createZip(entries) as unknown as BlobPart], { type: "application/zip" }),
-      `${safe || "character"}.sheets.zip`,
+      name,
     );
 
     const total = sheets.reduce((sum, sheet) => sum + sheet.frames, 0);
-    ui.setStatus(`시트 ${sheets.length}장 · 프레임 ${total}개 (${sheets.map((s) => s.name).join(", ")})`);
+    ui.setStatus(
+      how === "download"
+        ? `시트 ${sheets.length}장 · 프레임 ${total}개 (${sheets.map((s) => s.name).join(", ")})`
+        : describeSave(how, name),
+    );
   } catch (error) {
     ui.setStatus(error instanceof Error ? error.message : "시트를 굽지 못했습니다.");
   }
@@ -1416,8 +1449,13 @@ async function exportProject(): Promise<void> {
 
   try {
     const blob = await packProject(shipped, textureUrl, true);
-    downloadBlob(blob, exportFileName(project));
-    ui.setStatus(`내보냄: ${names.length}개 (${names.join(", ")})`);
+    const name = exportFileName(project);
+    const how = await saveFile(blob, name);
+    ui.setStatus(
+      how === "download"
+        ? `내보냄: ${names.length}개 (${names.join(", ")})`
+        : describeSave(how, name),
+    );
   } catch (error) {
     ui.setStatus(error instanceof Error ? error.message : "내보내지 못했습니다.");
   }
