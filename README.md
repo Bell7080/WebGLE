@@ -101,13 +101,6 @@ const vertices = 거미.update(dt);   // 변형된 정점(Float32Array), 멈춰 
 
 라이브러리는 몬스터 수와 무관하게 **한 벌만** 들어간다 (gzip 9.7KB).
 
-### npm에 올리기
-
-터미널에서는 `npm publish` 한 줄이다. 터미널이 없으면(폰 등)
-GitHub `Actions` 탭 → `npm에 올리기` → `Run workflow`로도 된다.
-미리 한 번만 npm 토큰을 저장소 Secret `NPM_TOKEN`에 넣어 두면 된다
-(`.github/workflows/publish.yml` 맨 위에 순서를 적어 두었다).
-
 아직 없는 것: Phaser 어댑터(`PuppetCreature`), 편집기 안에서 키프레임 만들기 · 고치기, 애니메이션 블렌딩,
 IndexedDB 자동 저장, Runtime 패키지 분리, 스프라이트 시트 내보내기.
 순서는 기획서 70을 따른다.

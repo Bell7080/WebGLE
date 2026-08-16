@@ -59,14 +59,6 @@ PuppetForge의 버전과 dev 로그. 최신 항목이 위에 온다.
   npm이 git 의존성에서 자동으로 부르는 `prepare`에 빌드를 걸어 해결했다.
   `git+file://`로 실제 설치해 재생까지 확인했다.
 
-### 추가 (이어서)
-
-- **`.github/workflows/publish.yml`** — 터미널 없이 GitHub 화면에서 npm에 올린다.
-  폰에서도 `Actions` → `Run workflow` 버튼으로 실행된다.
-  실제로 올리기 전에 확인만 하는 `연습` 옵션을 두었다.
-  깨끗한 클론에서 `npm ci` → `npm test` → `npm run build` → `npm pack`이
-  전부 통과하는 것을 확인했다 (`prepare`가 라이브러리를 만들어 준다).
-
 ### 알려진 한계
 
 - Phaser 어댑터(`puppetforge/phaser`의 `PuppetCreature`)는 아직 없다. Phase 10이다.
