@@ -34,6 +34,8 @@ export interface TimelineCallbacks {
   onMoveKey(from: number, to: number, done: boolean): void;
   /** 고른 관절의 그 시각 키를 지운다. */
   onDeleteKey(time: number): void;
+  /** 현재 시각에 원본 자세(이동·회전 0)의 키를 찍는다. */
+  onAddBaseKey(): void;
 }
 
 export interface TimelineState {
@@ -64,6 +66,8 @@ function el<K extends keyof HTMLElementTagNameMap>(
 export class Timeline {
   private readonly playButton = el("button", "tl-play");
   private readonly rewindButton = el("button", "tl-rewind");
+  private readonly addKeyButton = el("button", "tl-key-action");
+  private readonly deleteKeyButton = el("button", "tl-key-action danger");
   private readonly readout = el("span", "tl-readout");
   private readonly track = el("div", "tl-track");
   private readonly ticks = el("div", "tl-ticks");
@@ -103,6 +107,29 @@ export class Timeline {
       meta: "단축키 Space · 한 프레임씩은 ← →",
     });
     this.playButton.addEventListener("click", () => this.callbacks.onTogglePlay());
+
+    // 텍스트를 함께 보여 줘서 작은 모바일 화면에서도 두 동작을 혼동하지 않게 한다.
+    this.addKeyButton.type = "button";
+    this.addKeyButton.textContent = "기본 키";
+    attachTooltip(this.addKeyButton, {
+      title: "기본 키 찍기",
+      body: "고른 관절의 움직이지 않은 자세를 현재 시각에 기록합니다.",
+      meta: "처음 키를 만들면 0초와 끝에도 원본 자세를 보호 키로 추가합니다.",
+    });
+    this.addKeyButton.addEventListener("click", () => this.callbacks.onAddBaseKey());
+
+    this.deleteKeyButton.type = "button";
+    this.deleteKeyButton.textContent = "키 삭제";
+    attachTooltip(this.deleteKeyButton, {
+      title: "현재 키 삭제",
+      body: "고른 관절에서 재생 헤드가 가리키는 직접 만든 키를 모두 지웁니다.",
+      meta: "모바일에서는 이 버튼을, 마우스에서는 우클릭도 사용할 수 있습니다.",
+    });
+    this.deleteKeyButton.addEventListener("click", () => {
+      // 재생 헤드는 눈금 사이에도 설 수 있으므로 화면상 같은 프레임의 실제 키 시각을 넘긴다.
+      const nearest = this.myKeys.find((time) => Math.abs(time - this.currentTime) <= FRAME / 2);
+      if (nearest !== undefined) this.callbacks.onDeleteKey(nearest);
+    });
 
     this.track.append(this.ticks, this.keyLayer, this.head);
     attachTooltip(this.track, {
@@ -166,7 +193,15 @@ export class Timeline {
       this.callbacks.onDeleteKey(time);
     });
 
-    this.root.append(this.rewindButton, this.playButton, this.readout, this.track, this.hint);
+    this.root.append(
+      this.rewindButton,
+      this.playButton,
+      this.addKeyButton,
+      this.deleteKeyButton,
+      this.readout,
+      this.track,
+      this.hint,
+    );
   }
 
   /** 포인터가 가리키는 시각. */
@@ -213,6 +248,8 @@ export class Timeline {
 
   /** 직접 찍은 키 시각. 이것만 집을 수 있다. */
   private myKeys: readonly number[] = [];
+  /** 버튼 삭제가 포인터 없는 모바일에서도 정확한 재생 헤드 시각을 쓰게 한다. */
+  private currentTime = 0;
 
   render(state: TimelineState): void {
     this.myKeys = state.ownKeys;
@@ -222,6 +259,12 @@ export class Timeline {
     if (!visible) return;
 
     this.duration = state.duration;
+    this.currentTime = state.time;
+    const hasBone = state.boneName !== null;
+    this.addKeyButton.disabled = !hasBone;
+    this.deleteKeyButton.disabled = !hasBone || !state.ownKeys.some(
+      (time) => Math.abs(time - state.time) <= FRAME / 2,
+    );
     setIcon(this.playButton, state.playing ? "pause" : "play");
     this.playButton.setAttribute("aria-pressed", String(state.playing));
 

@@ -809,7 +809,28 @@ function putKey(
   const flip = mirrored() && (property === "x" || property === "rotation") ? -1 : 1;
   const value = keyValueFor(desired * flip, others[property], scale, 1);
 
-  const next = setKey(current.animation, { kind: "bone", boneId }, property, time, value);
+  // 첫 편집 키 앞뒤에는 원본 자세로 되돌아오는 보호 키를 둔다. 직접 키이므로 사용자가
+  // 필요 없는 루프에서는 평소와 똑같이 옮기거나 삭제할 수 있다.
+  let guarded = current.animation;
+  const target = { kind: "bone" as const, boneId };
+  const ownTrack = guarded.tracks.find(
+    (track) => track.target.kind === "bone" && track.target.boneId === boneId && track.property === property,
+  );
+  if (!ownTrack) {
+    for (const boundary of [0, guarded.duration]) {
+      const boundaryOthers = deltaWithoutOwnKeys(
+        guarded,
+        project.bones,
+        boneId,
+        boundary,
+        current.amount,
+      );
+      const boundaryScale = propertyScale(guarded, bone, property, current.amount);
+      const neutral = keyValueFor(0, boundaryOthers[property], boundaryScale, 1);
+      guarded = setKey(guarded, target, property, boundary, neutral);
+    }
+  }
+  const next = setKey(guarded, target, property, time, value);
   // 드래그 한 번이 Undo 한 단위다. 히스토리는 onDragStart에서 이미 쌓았으므로
   // 여기서는 commit이 아니라 store만 갱신한다.
   store.update((draft) => ({
@@ -1009,6 +1030,25 @@ const timeline = new Timeline(document.getElementById("timeline") as HTMLElement
     refreshTimeline();
   },
   onTogglePlay: () => togglePlay(),
+
+  onAddBaseKey: () => {
+    const { selectedBoneId, project } = store.get();
+    const bone = project.bones.find((candidate) => candidate.id === selectedBoneId);
+    if (!selectedBoneId || !bone || (!player.current && !loadSelectedAnimation())) return;
+
+    // x/y/rotation을 모두 기록해야 다른 속성의 기존 보간이 기본 키 사이로 새어 들지 않는다.
+    player.pause();
+    store.set({ playing: null });
+    pushHistory();
+    const at = keyTime();
+    putKey(selectedBoneId, "x", 0, at);
+    putKey(selectedBoneId, "y", 0, at);
+    putKey(selectedBoneId, "rotation", 0, at);
+    applyPose();
+    refreshTimeline();
+    refreshUndoButtons();
+    ui.setStatus(`${bone.name}: ${at.toFixed(2)}초에 기본 키를 찍었습니다.`);
+  },
 
   onMoveKey: (from, to, done) => {
     const boneId = store.get().selectedBoneId;
