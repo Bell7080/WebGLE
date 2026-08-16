@@ -412,9 +412,14 @@ export class EditorUI {
       body: "이 동작만 좌우를 뒤집습니다. 앞으로 나가던 걸음과 공격이 반대쪽으로 갑니다. 그림과 관절 자리는 그대로입니다.",
       meta: "그림 자체를 뒤집으려면 설정의 좌우 뒤집기를 쓰세요 · 이 값도 내보내기에 따라갑니다",
     });
-    flip.addEventListener("click", () =>
-      this.callbacks.onAnimationSetting(id, { mirror: !animation.mirror }),
-    );
+    flip.addEventListener("click", () => {
+      // 누르는 시점의 값을 스토어에서 다시 읽는다.
+      // 이 줄은 같은 애니메이션이 골라져 있는 동안 다시 만들어지지 않아서(아래 빠른 갱신 경로),
+      // 여기서 바깥의 `animation`을 쓰면 처음 그렸을 때의 값에 영원히 묶인다.
+      // 그러면 켜지기만 하고 다시 눌러도 꺼지지 않는다.
+      const now = this.store.get().project.animations[id];
+      this.callbacks.onAnimationSetting(id, { mirror: !now?.mirror });
+    });
 
     const reset = document.createElement("button");
     reset.type = "button";
