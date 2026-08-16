@@ -10,6 +10,109 @@ export type LanguageCode = (typeof LANGUAGES)[number]["code"];
 const STORAGE_KEY = "puppetforge-language";
 
 /** 한국어 원문 뒤에 언어 목록과 같은 순서(한국어 제외)로 실제 번역을 둔다. */
+
+/**
+ * 긴 설명은 영어 원문을 별도 표로 둔다. UI 데이터의 한국어 설명을 그대로 키로 사용하므로
+ * 태그·프리셋 모델을 번역 때문에 바꾸지 않으면서 영어 화면에 한국어가 새는 일을 막는다.
+ */
+const englishRows: Record<string, string> = {
+  "최소": "Minimum", "낮음": "Low", "보통": "Medium", "높음": "High", "전체 보기": "Show all",
+  "중심 · 구조": "Core & structure", "팔다리": "Limbs", "부속": "Appendages", "얼굴": "Face", "역할": "Roles", "움직임 성격": "Motion style", "위치 구분": "Position",
+  "기본": "Basic", "이동": "Movement", "반응": "Reactions", "공격": "Attacks",
+  "대기": "Idle", "걷기": "Walk", "피격": "Hit", "사망": "Death", "점프": "Jump", "포효": "Roar", "달리기": "Run", "비행": "Fly", "헤엄": "Swim", "방어": "Guard", "회피": "Dodge", "기절": "Stun", "승리": "Victory", "물기": "Bite", "할퀴기": "Scratch", "휘두르기": "Swing", "찌르기": "Stab", "몸통박치기": "Slam", "캐스팅": "Cast", "돌진": "Charge", "회전 베기": "Spin attack", "내려찍기": "Stomp",
+  "숨쉬듯 미세하게 흔들린다": "Sways subtly as if breathing.",
+  "위아래로 튀며 팔다리를 번갈아 흔든다": "Bounces up and down while alternating the limbs.",
+  "뒤로 튕기며 몸이 눌리고 머리가 반동한다": "Recoils backward; the body compresses and the head follows through.",
+  "무릎이 꺾이고 몸이 옆으로 쓰러진다. 바닥에 닿은 뒤 머리가 늦게 떨어지고 눈을 감는다": "The knees buckle and the body falls sideways; the head drops later and the eyes close.",
+  "웅크렸다 도약하고 착지에서 눌린다": "Crouches, leaps, and compresses on landing.",
+  "웅크렸다가 몸을 부풀리고 고개를 젖혀 포효한다": "Crouches, expands the body, and throws the head back to roar.",
+  "앞으로 기운 자세로 크게 내딛는다. 걷기보다 빠르고 보폭이 크다": "Takes long strides while leaning forward; faster and broader than walking.",
+  "날개를 치며 떠 있는다. 날개가 내려갈 때 몸이 떠오른다": "Hovers by flapping; the body rises on each downstroke.",
+  "몸 전체를 훑고 지나가는 물결. 꼬리 · 지느러미 · 촉수가 순서대로 흐른다": "A wave travels through the body, then the tail, fins, and tentacles in sequence.",
+  "몸을 낮추고 앞을 막은 채 버틴다. 방패가 있으면 방패를 세운다": "Lowers the body and braces forward, raising a shield when present.",
+  "뒤로 확 빠졌다가 제자리로 돌아온다. 아주 짧다": "Darts backward and quickly returns to the starting point.",
+  "제어를 잃고 느리게 휘청인다. 머리가 크게 흔들리고 눈이 반쯤 감긴다": "Staggers slowly; the head sways widely and the eyes half-close.",
+  "튀어 오르며 팔을 들어 올린다": "Jumps up and raises the arms.",
+  "뒤로 당겼다가 한 번 크게 앞으로 내지른다. 어떤 캐릭터에나 무난하다": "Pulls back, then thrusts forward once; suitable for most characters.",
+  "머리째 달려들어 턱을 닫는다. 거미 · 늑대처럼 무는 몬스터용": "Lunges head-first and snaps the jaw shut; suited to biting creatures.",
+  "제자리에서 발톱으로 짧게 두 번 긁어내린다. 몸이 앞으로 나가는 공격과 다르다": "Scratches downward twice without lunging the whole body.",
+  "크게 젖혔다가 호를 그리며 후려친다. 검 든 캐릭터용": "Draws far back, then strikes in an arc; suited to sword users.",
+  "짧게 당겼다가 곧게 내지른다. 창 · 집게처럼 뾰족한 무기용": "Pulls back briefly, then thrusts straight; suited to spears and pincers.",
+  "몸 전체로 부딪친다. 팔다리가 없는 슬라임에게도 통한다": "Slams with the whole body; also works for limbless creatures.",
+  "팔을 들어 힘을 모았다 내린다": "Raises the arms to gather power, then lowers them.",
+  "팔이 아니라 몸 전체가 앞으로 튀어 나간다. 되돌아오지 않고 그 자리에 선다": "Launches the whole body forward and remains at the destination.",
+  "제자리에서 한 바퀴 돌며 휘두른다. 사방을 한 번에 치는 동작": "Spins once while swinging to strike in every direction.",
+  "위로 크게 들었다가 아래로 내리꽂는다. 착지에서 몸이 눌린다": "Raises high, slams downward, and compresses on impact.",
+};
+
+/**
+ * 태그 설명은 id가 변하지 않는 공개 데이터이므로 영어 설명을 id에 연결한다.
+ * 한국어 설명 문장을 고쳐도 영어 툴팁 연결이 조용히 끊어지지 않게 하기 위한 별도 키다.
+ */
+const englishTagDescriptions: Record<string, string> = {
+  root: "The character's global anchor, moved by idle bobbing and jump takeoff or landing.",
+  core: "The body center used for breathing, squash, and hit recoil.",
+  body: "Marks the torso mass; motions targeting the whole torso use this tag.",
+  spine: "The waist or spine connecting the core and head during bends and roars.",
+  hip: "The pelvis and lower-body origin that carries weight while walking and landing.",
+  neck: "A buffer between head and torso that shares part of the head rotation.",
+  arm: "An arm targeted by attack and idle arm-swing motions.",
+  hand: "A hand that follows the arm with a slight delay; add weapon when it holds one.",
+  leg: "A leg that bends and extends during walking and jumping.",
+  foot: "The landing contact; use position lock to keep it planted.",
+  claw: "A claw or talon used as the strongest endpoint of scratch motions.",
+  finger: "A finger endpoint that opens and closes in attacks; optional for most motions.",
+  tail: "A tail that trails behind the body.", wing: "A wing targeted by flapping and gliding motions.",
+  tentacle: "A tentacle that undulates slowly as if underwater.", hair: "Hair or a mane that sways with inertia.",
+  ear: "An ear that perks slightly or follows with a delay.", horn: "A horn that moves rigidly with the head.",
+  fin: "A fin that moves in a wave.", cloth: "Cloth, a cape, or a hem that trails and flutters.",
+  antenna: "An antenna that trembles very lightly.",
+  head: "A head that tilts in idle and recoils on hit; every tagged head moves.",
+  eye: "An eye that blinks in idle and squints on hit.", mouth: "A mouth or jaw opened by bite and roar motions.",
+  jaw: "The lower jaw opened by bite and roar motions; omit it when the jaw is not separate.",
+  attack: "A striking part pushed forward by motions such as stab and scratch.",
+  weapon: "A weapon or tool; rigid deformation usually preserves its shape best.",
+  shield: "A shield or blocking part held in front of the body during attacks.",
+  prop: "A held prop that follows the hand during attacks; rigid deformation is recommended.",
+  decoration: "A decoration that follows the body with a small stagger during idle.",
+  ground: "A contact marker only; it creates no motion. Use position lock to plant it.",
+  secondary: "A trailing part that follows its parent one beat later with inertia.",
+  float: "Adds a slow vertical floating feel for ghosts and hovering creatures.",
+  heavy: "Reduces all motion on this bone to 0.55×; it modifies motion rather than selecting a target.",
+  light: "Increases all motion on this bone to 1.6× for light parts such as hair or cloth.",
+  bounce: "Increases all motion on this bone to 1.35× for elastic parts such as slime.",
+  stiff: "Reduces all motion on this bone to 0.2× for nearly rigid parts such as armor or horns.",
+  front: "Marks the front side, which leads during movement when paired with back.",
+  back: "Marks the rear side, moving opposite front for a natural gait.",
+  upper: "Marks an upper part that swings more strongly in attacks.",
+  lower: "Marks a lower part that assists more subtly than upper.",
+};
+
+/**
+ * 실행 중 값이 끼어드는 카탈로그 문장 틀이다. 한국어 완성 문장을 사전에서 찾지 않고
+ * 각 언어의 어순으로 직접 조립해 모든 지원 언어에서 한국어가 남지 않게 한다.
+ */
+const catalogTemplates: Record<Exclude<LanguageCode, "ko">, {
+  tagTrack: string; tagModifier: string; tagHint: string; preset: string;
+  everyAnimation: string; usedBy: string; unused: string;
+  loop: string; once: string; tracks: string; alreadyAdded: string; tagsUsed: string;
+}> = {
+  en: { tagTrack: "Animation presets use this tag to find and move this part.", tagModifier: "This tag changes how strongly this bone moves.", tagHint: "Display-only tag; it does not create motion.", preset: "Built-in animation preset: {name}.", everyAnimation: "This bone's motion is multiplied by {value}× in every animation.", usedBy: "Animations using this tag: {value}", unused: "No built-in animation uses this tag yet.", loop: "Loop", once: "Once", tracks: "tracks", alreadyAdded: "Already added — adding again creates a copy", tagsUsed: "Tags used" },
+  "zh-CN": { tagTrack: "动画预设使用此标签查找并移动该部位。", tagModifier: "此标签会调整该骨骼的运动幅度。", tagHint: "仅用于标记；不会产生运动。", preset: "内置动画预设：{name}。", everyAnimation: "在所有动画中，此骨骼的运动乘以 {value} 倍。", usedBy: "使用此标签的动画：{value}", unused: "目前没有内置动画使用此标签。", loop: "循环", once: "一次", tracks: "轨道", alreadyAdded: "已添加 — 再次添加会创建副本", tagsUsed: "使用的标签" },
+  "zh-TW": { tagTrack: "動畫預設使用此標籤尋找並移動此部位。", tagModifier: "此標籤會調整此骨骼的動作幅度。", tagHint: "僅供標示；不會產生動作。", preset: "內建動畫預設：{name}。", everyAnimation: "在所有動畫中，此骨骼的動作乘以 {value} 倍。", usedBy: "使用此標籤的動畫：{value}", unused: "目前沒有內建動畫使用此標籤。", loop: "循環", once: "一次", tracks: "軌道", alreadyAdded: "已加入 — 再次加入會建立副本", tagsUsed: "使用的標籤" },
+  ja: { tagTrack: "アニメーションプリセットがこのタグを使って部位を見つけ、動かします。", tagModifier: "このタグはボーンの動きの強さを調整します。", tagHint: "表示専用タグで、動きは作りません。", preset: "内蔵アニメーションプリセット: {name}。", everyAnimation: "すべてのアニメーションで、このボーンの動きが {value} 倍になります。", usedBy: "このタグを使うアニメーション: {value}", unused: "このタグを使う内蔵アニメーションはまだありません。", loop: "ループ", once: "1回", tracks: "トラック", alreadyAdded: "追加済み — もう一度追加するとコピーを作成", tagsUsed: "使用タグ" },
+  es: { tagTrack: "Los preajustes usan esta etiqueta para encontrar y mover esta parte.", tagModifier: "Esta etiqueta ajusta la intensidad del movimiento del hueso.", tagHint: "Etiqueta solo informativa; no crea movimiento.", preset: "Preajuste de animación integrado: {name}.", everyAnimation: "El movimiento de este hueso se multiplica por {value} en todas las animaciones.", usedBy: "Animaciones que usan esta etiqueta: {value}", unused: "Ninguna animación integrada usa aún esta etiqueta.", loop: "Bucle", once: "Una vez", tracks: "pistas", alreadyAdded: "Ya añadida — añadirla de nuevo crea una copia", tagsUsed: "Etiquetas usadas" },
+  fr: { tagTrack: "Les préréglages utilisent ce tag pour trouver et déplacer cette partie.", tagModifier: "Ce tag ajuste l'intensité du mouvement de l'os.", tagHint: "Tag informatif uniquement ; il ne crée aucun mouvement.", preset: "Préréglage d'animation intégré : {name}.", everyAnimation: "Le mouvement de cet os est multiplié par {value} dans toutes les animations.", usedBy: "Animations utilisant ce tag : {value}", unused: "Aucune animation intégrée n'utilise encore ce tag.", loop: "Boucle", once: "Une fois", tracks: "pistes", alreadyAdded: "Déjà ajoutée — un nouvel ajout crée une copie", tagsUsed: "Tags utilisés" },
+  de: { tagTrack: "Animationsvorlagen finden und bewegen dieses Teil anhand dieses Tags.", tagModifier: "Dieses Tag passt die Bewegungsstärke des Knochens an.", tagHint: "Nur zur Kennzeichnung; erzeugt keine Bewegung.", preset: "Integrierte Animationsvorlage: {name}.", everyAnimation: "Die Bewegung dieses Knochens wird in allen Animationen mit {value} multipliziert.", usedBy: "Animationen mit diesem Tag: {value}", unused: "Noch keine integrierte Animation verwendet dieses Tag.", loop: "Schleife", once: "Einmal", tracks: "Spuren", alreadyAdded: "Bereits hinzugefügt — erneutes Hinzufügen erstellt eine Kopie", tagsUsed: "Verwendete Tags" },
+  "pt-BR": { tagTrack: "As predefinições usam esta tag para encontrar e mover esta parte.", tagModifier: "Esta tag ajusta a intensidade do movimento do osso.", tagHint: "Tag apenas informativa; não cria movimento.", preset: "Predefinição de animação integrada: {name}.", everyAnimation: "O movimento deste osso é multiplicado por {value} em todas as animações.", usedBy: "Animações que usam esta tag: {value}", unused: "Nenhuma animação integrada usa esta tag ainda.", loop: "Repetir", once: "Uma vez", tracks: "trilhas", alreadyAdded: "Já adicionada — adicionar novamente cria uma cópia", tagsUsed: "Tags usadas" },
+  ru: { tagTrack: "Пресеты используют этот тег, чтобы найти и двигать эту часть.", tagModifier: "Этот тег регулирует силу движения кости.", tagHint: "Информационный тег; он не создаёт движения.", preset: "Встроенный пресет анимации: {name}.", everyAnimation: "Движение этой кости умножается на {value} во всех анимациях.", usedBy: "Анимации с этим тегом: {value}", unused: "Встроенные анимации пока не используют этот тег.", loop: "Цикл", once: "Один раз", tracks: "треков", alreadyAdded: "Уже добавлено — повторное добавление создаст копию", tagsUsed: "Используемые теги" },
+};
+
+/** 문장 틀의 이름표를 실제 값으로 바꾸는 작은 포매터다. */
+function fillTemplate(template: string, values: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
+}
+
 const rows: Record<string, readonly string[]> = {
   "파일": ["File", "文件", "檔案", "ファイル", "Archivo", "Fichier", "Datei", "Arquivo", "Файл"],
   "설정": ["Settings", "设置", "設定", "設定", "Ajustes", "Paramètres", "Einstellungen", "Configurações", "Настройки"],
@@ -57,6 +160,67 @@ const rows: Record<string, readonly string[]> = {
   "현재 키 삭제": ["Delete current key", "删除当前关键帧", "刪除目前關鍵幀", "現在のキーを削除", "Eliminar clave actual", "Supprimer la clé actuelle", "Aktuellen Key löschen", "Excluir quadro atual", "Удалить текущий ключ"],
   "고른 관절에서 재생 헤드가 가리키는 직접 만든 키를 모두 지웁니다.": ["Deletes all user-made keys for the selected bone at the playhead.", "删除播放头处所选骨骼的全部自建关键帧。", "刪除播放頭處所選骨骼的全部自建關鍵幀。", "再生ヘッド位置にある選択ボーンの手動キーをすべて削除します。", "Elimina todas las claves creadas por el usuario del hueso seleccionado en el cabezal.", "Supprime toutes les clés manuelles de l’os sélectionné à la tête de lecture.", "Löscht alle eigenen Keys des gewählten Knochens am Abspielkopf.", "Exclui todos os quadros manuais do osso selecionado no cursor.", "Удаляет все пользовательские ключи выбранной кости на курсоре."],
   "모바일에서는 이 버튼을, 마우스에서는 우클릭도 사용할 수 있습니다.": ["Use this button on mobile; a mouse can also right-click.", "移动设备请使用此按钮；鼠标也可右键单击。", "行動裝置請使用此按鈕；滑鼠也可按右鍵。", "モバイルではこのボタン、マウスでは右クリックも使えます。", "En móvil usa este botón; con ratón también puedes hacer clic derecho.", "Sur mobile, utilisez ce bouton ; avec une souris, le clic droit fonctionne aussi.", "Mobil diese Schaltfläche verwenden; mit der Maus geht auch Rechtsklick.", "No celular, use este botão; com mouse, também é possível clicar com o botão direito.", "На мобильном используйте эту кнопку; мышью также можно щёлкнуть правой кнопкой."],
+  // 동적으로 생성되는 버튼과 툴팁도 고정 HTML과 동일한 번역 경로를 통과한다.
+  "애니메이션 없음": ["No animations", "暂无动画", "尚無動畫", "アニメーションなし", "Sin animaciones", "Aucune animation", "Keine Animationen", "Sem animações", "Нет анимаций"],
+  "애니메이션 추가": ["Add animation", "添加动画", "新增動畫", "アニメーションを追加", "Añadir animación", "Ajouter une animation", "Animation hinzufügen", "Adicionar animação", "Добавить анимацию"],
+  "닫기": ["Close", "关闭", "關閉", "閉じる", "Cerrar", "Fermer", "Schließen", "Fechar", "Закрыть"],
+  "되돌리기": ["Reset", "重置", "重設", "リセット", "Restablecer", "Réinitialiser", "Zurücksetzen", "Redefinir", "Сбросить"],
+  "길이": ["Duration", "时长", "時長", "長さ", "Duración", "Durée", "Dauer", "Duração", "Длительность"],
+  "속도": ["Speed", "速度", "速度", "速度", "Velocidad", "Vitesse", "Geschwindigkeit", "Velocidade", "Скорость"],
+  "강도": ["Strength", "强度", "強度", "強さ", "Intensidad", "Intensité", "Stärke", "Intensidade", "Сила"],
+  "흔들림": ["Secondary motion", "次级运动", "次要動態", "揺れ", "Movimiento secundario", "Mouvement secondaire", "Sekundärbewegung", "Movimento secundário", "Вторичное движение"],
+  "영향 영역": ["Influence area", "影响区域", "影響區域", "影響領域", "Área de influencia", "Zone d’influence", "Einflussbereich", "Área de influência", "Область влияния"],
+  "칠하기": ["Paint", "绘制", "繪製", "塗る", "Pintar", "Peindre", "Malen", "Pintar", "Рисовать"],
+  "지우개": ["Eraser", "橡皮擦", "橡皮擦", "消しゴム", "Borrador", "Gomme", "Radierer", "Borracha", "Ластик"],
+  "자동": ["Auto", "自动", "自動", "自動", "Automático", "Auto", "Automatisch", "Automático", "Авто"],
+  "직접": ["Manual", "手动", "手動", "手動", "Manual", "Manuel", "Manuell", "Manual", "Вручную"],
+  "색": ["Color", "颜色", "顏色", "色", "Color", "Couleur", "Farbe", "Cor", "Цвет"],
+  "가중치": ["Weight", "权重", "權重", "ウェイト", "Peso", "Poids", "Gewicht", "Peso", "Вес"],
+  "키": ["Keys", "关键帧", "關鍵幀", "キー", "Claves", "Clés", "Keys", "Quadros-chave", "Ключи"],
+  "보간": ["Interpolation", "插值", "內插", "補間", "Interpolación", "Interpolation", "Interpolation", "Interpolação", "Интерполяция"],
+  "변형": ["Deformation", "变形", "變形", "変形", "Deformación", "Déformation", "Verformung", "Deformação", "Деформация"],
+  "공용": ["Shared", "通用", "共用", "共通", "Compartido", "Commun", "Gemeinsam", "Compartilhado", "Общее"],
+  "이 동작에서만": ["This animation only", "仅此动画", "僅此動畫", "このアニメーションのみ", "Solo esta animación", "Cette animation uniquement", "Nur diese Animation", "Somente esta animação", "Только эта анимация"],
+  "최소": ["Minimum", "最低", "最低", "最小", "Mínimo", "Minimum", "Minimum", "Mínimo", "Минимум"],
+  "낮음": ["Low", "低", "低", "低", "Bajo", "Faible", "Niedrig", "Baixo", "Низкое"],
+  "보통": ["Medium", "中", "中", "中", "Medio", "Moyen", "Mittel", "Médio", "Среднее"],
+  "높음": ["High", "高", "高", "高", "Alto", "Élevé", "Hoch", "Alto", "Высокое"],
+  "전체 보기": ["Show all", "显示全部", "顯示全部", "すべて表示", "Mostrar todo", "Tout afficher", "Alle anzeigen", "Mostrar tudo", "Показать всё"],
+  "연결": ["Links", "连接", "連結", "接続", "Enlaces", "Liens", "Verbindungen", "Ligações", "Связи"],
+  "태그": ["Tags", "标签", "標籤", "タグ", "Etiquetas", "Tags", "Tags", "Tags", "Теги"],
+  "중심 · 구조": ["Core & structure", "核心与结构", "核心與結構", "中心・構造", "Centro y estructura", "Centre et structure", "Kern & Struktur", "Centro e estrutura", "Центр и структура"],
+  "팔다리": ["Limbs", "四肢", "四肢", "手足", "Extremidades", "Membres", "Gliedmaßen", "Membros", "Конечности"],
+  "부속": ["Appendages", "附属部位", "附屬部位", "付属部位", "Apéndices", "Appendices", "Anhänge", "Apêndices", "Придатки"],
+  "얼굴": ["Face", "面部", "臉部", "顔", "Cara", "Visage", "Gesicht", "Rosto", "Лицо"],
+  "역할": ["Roles", "作用", "作用", "役割", "Roles", "Rôles", "Rollen", "Funções", "Роли"],
+  "움직임 성격": ["Motion style", "运动风格", "動作風格", "動きの性格", "Estilo de movimiento", "Style de mouvement", "Bewegungsstil", "Estilo de movimento", "Стиль движения"],
+  "위치 구분": ["Position", "位置", "位置", "位置", "Posición", "Position", "Position", "Posição", "Положение"],
+  "기본": ["Basic", "基础", "基本", "基本", "Básico", "Base", "Basis", "Básico", "Основные"],
+  "이동": ["Movement", "移动", "移動", "移動", "Movimiento", "Déplacement", "Bewegung", "Movimento", "Движение"],
+  "반응": ["Reactions", "反应", "反應", "リアクション", "Reacciones", "Réactions", "Reaktionen", "Reações", "Реакции"],
+  "공격": ["Attack", "攻击", "攻擊", "攻撃", "Ataque", "Attaque", "Angriff", "Ataque", "Атака"],
+  "대기": ["Idle", "待机", "待機", "待機", "Reposo", "Repos", "Leerlauf", "Espera", "Ожидание"],
+  "걷기": ["Walk", "行走", "行走", "歩く", "Caminar", "Marche", "Gehen", "Caminhar", "Ходьба"],
+  "피격": ["Hit", "受击", "受擊", "被弾", "Golpe", "Impact", "Treffer", "Acerto", "Получение удара"],
+  "사망": ["Death", "死亡", "死亡", "死亡", "Muerte", "Mort", "Tod", "Morte", "Смерть"],
+  "점프": ["Jump", "跳跃", "跳躍", "ジャンプ", "Salto", "Saut", "Sprung", "Salto", "Прыжок"],
+  "포효": ["Roar", "咆哮", "咆哮", "咆哮", "Rugido", "Rugissement", "Brüllen", "Rugido", "Рёв"],
+  "달리기": ["Run", "奔跑", "奔跑", "走る", "Correr", "Course", "Laufen", "Correr", "Бег"],
+  "비행": ["Fly", "飞行", "飛行", "飛行", "Volar", "Vol", "Fliegen", "Voar", "Полёт"],
+  "헤엄": ["Swim", "游泳", "游泳", "泳ぐ", "Nadar", "Nage", "Schwimmen", "Nadar", "Плавание"],
+  "방어": ["Guard", "防御", "防禦", "防御", "Defensa", "Garde", "Abwehr", "Defesa", "Защита"],
+  "회피": ["Dodge", "闪避", "閃避", "回避", "Esquivar", "Esquive", "Ausweichen", "Esquiva", "Уклонение"],
+  "기절": ["Stun", "眩晕", "暈眩", "気絶", "Aturdimiento", "Étourdissement", "Betäubung", "Atordoamento", "Оглушение"],
+  "승리": ["Victory", "胜利", "勝利", "勝利", "Victoria", "Victoire", "Sieg", "Vitória", "Победа"],
+  "물기": ["Bite", "撕咬", "撕咬", "噛みつき", "Mordisco", "Morsure", "Biss", "Mordida", "Укус"],
+  "할퀴기": ["Scratch", "抓挠", "抓撓", "ひっかき", "Arañazo", "Griffure", "Kratzen", "Arranhão", "Царапание"],
+  "휘두르기": ["Swing", "挥砍", "揮砍", "振り回し", "Balanceo", "Coup circulaire", "Schwingen", "Golpe amplo", "Замах"],
+  "찌르기": ["Stab", "突刺", "突刺", "突き", "Estocada", "Estoc", "Stich", "Estocada", "Укол"],
+  "몸통박치기": ["Slam", "撞击", "撞擊", "体当たり", "Embestida", "Percussion", "Rammen", "Investida", "Таран"],
+  "캐스팅": ["Cast", "施法", "施法", "詠唱", "Conjuro", "Incantation", "Zaubern", "Conjuração", "Заклинание"],
+  "돌진": ["Charge", "冲锋", "衝鋒", "突進", "Carga", "Charge", "Ansturm", "Investida", "Рывок"],
+  "회전 베기": ["Spin attack", "旋转斩", "旋轉斬", "回転斬り", "Ataque giratorio", "Attaque tournoyante", "Wirbelangriff", "Ataque giratório", "Круговая атака"],
+  "내려찍기": ["Stomp", "重击", "重擊", "叩きつけ", "Golpe descendente", "Écrasement", "Niederschlag", "Golpe descendente", "Удар сверху"],
 };
 
 /** 저장값이 없으면 브라우저 언어와 가장 가까운 지원 언어를 고른다. */
@@ -75,7 +239,87 @@ export function setLanguage(language: LanguageCode): void { localStorage.setItem
 export function translate(source: string): string {
   const language = getLanguage();
   if (language === "ko") return source;
+  if (language === "en" && englishRows[source]) return englishRows[source];
   return rows[source]?.[LANGUAGES.findIndex((item) => item.code === language) - 1] ?? source;
+}
+
+/** 태그 id를 기준으로 긴 설명을 번역하고, 별도 번역이 없으면 공용 문구 표를 사용한다. */
+export function translateTagDescription(tagId: string, source: string): string {
+  const language = getLanguage();
+  if (language === "ko") return source;
+  if (language === "en") return englishTagDescriptions[tagId] ?? catalogTemplates.en.tagTrack;
+  const template = catalogTemplates[language];
+  if (["heavy", "light", "bounce", "stiff"].includes(tagId)) return template.tagModifier;
+  if (tagId === "ground") return template.tagHint;
+  return template.tagTrack;
+}
+
+/** 프리셋의 긴 설명도 선택 언어에서 항상 번역된 설명을 돌려준다. */
+export function translatePresetDescription(name: string, source: string): string {
+  const language = getLanguage();
+  if (language === "ko") return source;
+  if (language === "en") return englishRows[source] ?? fillTemplate(catalogTemplates.en.preset, { name });
+  return fillTemplate(catalogTemplates[language].preset, { name });
+}
+
+/** 태그 배율처럼 실행 중 숫자가 포함되는 설명을 언어별 어순으로 조립한다. */
+export function formatTagMultiplier(value: number): string {
+  const language = getLanguage();
+  if (language === "ko") return `모든 동작에서 이 관절의 움직임이 ${value}배가 됩니다`;
+  return fillTemplate(catalogTemplates[language].everyAnimation, { value });
+}
+
+/** 태그를 사용하는 프리셋 목록 또는 빈 목록 안내를 현재 언어로 만든다. */
+export function formatTagUsage(labels: string[]): string {
+  const language = getLanguage();
+  if (language === "ko") return labels.length ? `이 태그를 쓰는 동작: ${labels.join(" · ")}` : "아직 이 태그를 쓰는 기본 동작은 없습니다";
+  const template = catalogTemplates[language];
+  return labels.length ? fillTemplate(template.usedBy, { value: labels.join(" · ") }) : template.unused;
+}
+
+/** 길이·반복·트랙 수가 달라지는 애니메이션 요약을 현재 언어로 만든다. */
+export function formatAnimationSummary(duration: number, loop: boolean, tracks: number): string {
+  const language = getLanguage();
+  if (language === "ko") return `${duration}초 · ${loop ? "반복" : "한 번"} · 트랙 ${tracks}개`;
+  const template = catalogTemplates[language];
+  return `${duration}s · ${loop ? template.loop : template.once} · ${tracks} ${template.tracks}`;
+}
+
+/** 프리셋 보유 여부와 사용 태그를 애니메이션 요약 뒤에 붙인다. */
+export function formatPresetMeta(summary: string, has: boolean, tags: string): string {
+  const language = getLanguage();
+  if (language === "ko") return has ? `${summary} · 이미 담겨 있습니다 — 또 담으면 사본이 생깁니다` : `${summary} · 쓰는 태그: ${tags}`;
+  const template = catalogTemplates[language];
+  return has ? `${summary} · ${template.alreadyAdded}` : `${summary} · ${template.tagsUsed}: ${tags}`;
+}
+
+/** 새로 생긴 DOM 하위 트리의 텍스트와 접근성 문구를 현재 언어로 바꾼다. */
+function localizeTree(root: Node): void {
+  const localizeElement = (element: HTMLElement): void => {
+    for (const attribute of ["title", "aria-label", "placeholder"]) {
+      const value = element.getAttribute(attribute);
+      if (!value) continue;
+      const localized = translate(value);
+      if (localized !== value) element.setAttribute(attribute, localized);
+    }
+  };
+  // textContent 대입은 텍스트 노드 하나를 addedNode로 전달하므로 root 자체도 처리한다.
+  if (root.nodeType === Node.TEXT_NODE) {
+    const original = root.textContent ?? "";
+    const trimmed = original.trim();
+    if (trimmed) root.textContent = original.replace(trimmed, translate(trimmed));
+    return;
+  }
+  if (root instanceof HTMLElement) localizeElement(root);
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (node.nodeType === Node.TEXT_NODE) {
+      const original = node.textContent ?? "";
+      const trimmed = original.trim();
+      if (trimmed) node.textContent = original.replace(trimmed, translate(trimmed));
+    } else if (node instanceof HTMLElement) localizeElement(node);
+  }
 }
 
 /** index.html의 고정 문구와 접근성 이름을 UI 생성 전에 번역한다. */
@@ -94,4 +338,16 @@ export function localizeStaticDocument(): void {
       if (value) element.setAttribute(attribute, translate(value));
     }
   }
+  // 패널은 상태가 바뀐 뒤에도 계속 다시 그려지므로 추가되는 노드도 즉시 번역한다.
+  new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) localizeTree(node);
+      if (mutation.type === "attributes") localizeTree(mutation.target);
+    }
+  }).observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["title", "aria-label", "placeholder"],
+  });
 }
