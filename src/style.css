@@ -77,9 +77,24 @@ body {
 }
 
 .menu,
+.history,
 .layers {
   display: flex;
   gap: 2px;
+}
+
+/* 실행 취소 · 다시 실행. 되돌릴 것이 없으면 흐리게. */
+.history button {
+  min-width: 30px;
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1;
+  border-color: var(--line);
+}
+
+.history button:disabled {
+  opacity: 0.4;
+  border-color: transparent;
 }
 
 .layers {
@@ -1296,7 +1311,12 @@ button.choice {
   transform: rotate(45deg);
 }
 
-/* 고른 관절의 키는 더 밝게 */
+/* 고른 관절이 움직이지만 프리셋이 만든 키. 손댈 수 없다. */
+.tl-key.affects {
+  background: var(--text-2);
+}
+
+/* 직접 찍은 키. 끌거나 지울 수 있어서 가장 밝고 크다. */
 .tl-key.mine {
   background: var(--sel-line);
   width: 9px;

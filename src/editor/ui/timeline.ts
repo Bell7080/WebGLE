@@ -19,6 +19,9 @@ export const FRAME = 1 / 30;
  */
 const EDGE = 6;
 
+/** 키를 집을 수 있는 화면상 반경(px). */
+const KEY_GRAB = 7;
+
 export interface TimelineCallbacks {
   /** 재생 헤드를 옮긴다. */
   onSeek(time: number): void;
@@ -26,6 +29,10 @@ export interface TimelineCallbacks {
   onTogglePlay(): void;
   /** 처음으로. */
   onRewind(): void;
+  /** 고른 관절의 키를 다른 시각으로 옮긴다. 놓을 때 `done`이 true다. */
+  onMoveKey(from: number, to: number, done: boolean): void;
+  /** 고른 관절의 그 시각 키를 지운다. */
+  onDeleteKey(time: number): void;
 }
 
 export interface TimelineState {
@@ -36,8 +43,10 @@ export interface TimelineState {
   playing: boolean;
   /** 키가 찍힌 시각들. 눈금 위에 마름모로 찍는다. */
   keys: readonly number[];
-  /** 고른 관절의 키. 나머지보다 진하게 그린다. */
+  /** 고른 관절이 움직이는 시각. 프리셋(태그)의 키도 포함된다. */
   boneKeys: readonly number[];
+  /** 그중 **직접 찍은** 키. 이것만 끌거나 지울 수 있어서 따로 그린다. */
+  ownKeys: readonly number[];
   /** 고른 관절 이름. 없으면 null. */
   boneName: string | null;
 }
@@ -63,6 +72,10 @@ export class Timeline {
 
   private duration = 0;
   private scrubbing = false;
+  /** 끌고 있는 키의 원래 시각. 없으면 키를 끌고 있지 않다. */
+  private draggingKey: number | null = null;
+  /** 끌고 있는 키가 지금 가 있는 시각. */
+  private draggingTo = 0;
 
   constructor(
     private readonly root: HTMLElement,
@@ -98,15 +111,44 @@ export class Timeline {
     });
 
     this.track.addEventListener("pointerdown", (event) => {
-      this.scrubbing = true;
+      // 왼쪽 버튼만 잡는다. 오른쪽은 키 지우기(contextmenu)의 몫이다.
+      if (event.button !== 0) return;
       this.track.setPointerCapture(event.pointerId);
+
+      // 고른 관절의 키를 집었으면 그 키를 옮긴다. 아니면 재생 헤드를 옮긴다.
+      const grabbed = this.keyUnder(event);
+      if (grabbed !== null) {
+        this.draggingKey = grabbed;
+        this.draggingTo = grabbed;
+        return;
+      }
+
+      this.scrubbing = true;
       this.seekFromPointer(event);
     });
+
     this.track.addEventListener("pointermove", (event) => {
-      if (this.scrubbing) this.seekFromPointer(event);
+      if (this.draggingKey !== null) {
+        this.draggingTo = this.timeFromPointer(event);
+        this.callbacks.onMoveKey(this.draggingKey, this.draggingTo, false);
+        return;
+      }
+      if (this.scrubbing) {
+        this.seekFromPointer(event);
+        return;
+      }
+      // 키 위에서는 집을 수 있다는 표시를 준다.
+      this.track.style.cursor = this.keyUnder(event) !== null ? "grab" : "ew-resize";
     });
+
     const end = (event: PointerEvent) => {
-      if (!this.scrubbing) return;
+      if (this.draggingKey !== null) {
+        // 집기만 하고 움직이지 않았으면 아무 일도 하지 않는다.
+        if (this.draggingTo !== this.draggingKey) {
+          this.callbacks.onMoveKey(this.draggingKey, this.draggingTo, true);
+        }
+        this.draggingKey = null;
+      }
       this.scrubbing = false;
       if (this.track.hasPointerCapture(event.pointerId)) {
         this.track.releasePointerCapture(event.pointerId);
@@ -115,15 +157,52 @@ export class Timeline {
     this.track.addEventListener("pointerup", end);
     this.track.addEventListener("pointercancel", end);
 
+    // 키 위에서 오른쪽 버튼을 누르면 지운다.
+    this.track.addEventListener("contextmenu", (event) => {
+      const time = this.keyUnder(event as PointerEvent);
+      if (time === null) return;
+      event.preventDefault();
+      this.callbacks.onDeleteKey(time);
+    });
+
     this.root.append(this.rewindButton, this.playButton, this.readout, this.track, this.hint);
   }
 
-  private seekFromPointer(event: PointerEvent): void {
+  /** 포인터가 가리키는 시각. */
+  private timeFromPointer(event: { clientX: number }): number {
     const box = this.track.getBoundingClientRect();
     const width = box.width - EDGE * 2;
-    if (width <= 0) return;
+    if (width <= 0) return 0;
     const ratio = Math.min(1, Math.max(0, (event.clientX - box.left - EDGE) / width));
-    this.callbacks.onSeek(ratio * this.duration);
+    return ratio * this.duration;
+  }
+
+  private seekFromPointer(event: PointerEvent): void {
+    this.callbacks.onSeek(this.timeFromPointer(event));
+  }
+
+  /**
+   * 포인터 아래에 있는 **고른 관절의** 키 시각. 없으면 null.
+   * 다른 관절의 키는 집히지 않는다 — 안 보고 있던 것을 실수로 옮기면 곤란하다.
+   */
+  private keyUnder(event: { clientX: number }): number | null {
+    if (this.myKeys.length === 0 || this.duration <= 0) return null;
+
+    const box = this.track.getBoundingClientRect();
+    const width = box.width - EDGE * 2;
+    if (width <= 0) return null;
+
+    const at = this.timeFromPointer(event);
+    let nearest: number | null = null;
+    let best = (KEY_GRAB / width) * this.duration;
+    for (const time of this.myKeys) {
+      const distance = Math.abs(time - at);
+      if (distance <= best) {
+        best = distance;
+        nearest = time;
+      }
+    }
+    return nearest;
   }
 
   /** 타임라인을 붙잡고 있는 중인지. 붙잡은 동안에는 재생을 멈춰 둔다. */
@@ -131,7 +210,11 @@ export class Timeline {
     return this.scrubbing;
   }
 
+  /** 직접 찍은 키 시각. 이것만 집을 수 있다. */
+  private myKeys: readonly number[] = [];
+
   render(state: TimelineState): void {
+    this.myKeys = state.ownKeys;
     const visible = state.animationId !== null && state.duration > 0;
     this.root.hidden = !visible;
     document.getElementById("app")?.classList.toggle("has-timeline", visible);
@@ -152,7 +235,7 @@ export class Timeline {
     this.renderKeys(state);
 
     this.hint.textContent = state.boneName
-      ? `${state.boneName}: 키 ${state.boneKeys.length}개`
+      ? `${state.boneName}: 내 키 ${state.ownKeys.length} / 전체 ${state.boneKeys.length}`
       : `키 ${state.keys.length}개`;
   }
 
@@ -174,17 +257,28 @@ export class Timeline {
     }
   }
 
+  /**
+   * 마름모 세 갈래.
+   * - 흐림: 다른 관절의 키
+   * - 중간: 고른 관절이 움직이지만 프리셋(태그)이 만든 키 — 손댈 수 없다
+   * - 밝음: 직접 찍은 키 — 끌어서 옮기고 우클릭으로 지울 수 있다
+   */
   private renderKeys(state: TimelineState): void {
-    const signature = `${state.duration}|${state.keys.join(",")}|${state.boneKeys.join(",")}`;
+    const signature = [state.duration, state.keys, state.boneKeys, state.ownKeys].join("|");
     if (this.keyLayer.dataset.signature === signature) return;
     this.keyLayer.dataset.signature = signature;
     this.keyLayer.replaceChildren();
 
-    const mine = new Set(state.boneKeys);
+    const affects = new Set(state.boneKeys);
+    const own = new Set(state.ownKeys);
+
     for (const time of state.keys) {
-      const key = el("div", mine.has(time) ? "tl-key mine" : "tl-key");
+      const kind = own.has(time) ? "tl-key mine" : affects.has(time) ? "tl-key affects" : "tl-key";
+      const key = el("div", kind);
       key.style.left = `${((time / state.duration) * 100).toFixed(3)}%`;
-      key.title = `${time.toFixed(2)}초`;
+      key.title = own.has(time)
+        ? `${time.toFixed(2)}초 · 끌어서 옮기고 우클릭으로 지웁니다`
+        : `${time.toFixed(2)}초 · 프리셋의 키라 손댈 수 없습니다`;
       this.keyLayer.append(key);
     }
   }

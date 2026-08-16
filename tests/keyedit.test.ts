@@ -11,7 +11,9 @@ import {
   evaluateAnimation,
   findTrack,
   keyValueFor,
+  moveOwnKeys,
   removeKey,
+  removeOwnKeys,
   setKey,
   withoutOwnTracks,
 } from "../src/core/animation";
@@ -153,5 +155,73 @@ describe("프리셋과 섞였을 때 적을 값", () => {
     const value = keyValueFor(0.7, 0, 1, 1);
     const next = setKey(empty, 팔, "rotation", 1, value);
     expect(evaluateAnimation(next, bones, 1).get("팔")?.rotation).toBeCloseTo(0.7);
+  });
+});
+
+describe("키 옮기기 · 지우기", () => {
+  const 팔트랙 = { kind: "bone" as const, boneId: "팔" };
+  const 태그트랙 = { kind: "tag" as const, tag: "arm" };
+
+  function 준비(): PuppetAnimation {
+    let a = setKey(empty, 팔트랙, "rotation", 0.5, 0.3);
+    a = setKey(a, 팔트랙, "x", 0.5, 10);
+    a = setKey(a, 팔트랙, "rotation", 1.5, 0.9);
+    return setKey(a, 태그트랙, "rotation", 0.5, 0.1);
+  }
+
+  it("한 시각의 키를 모든 속성에서 함께 옮긴다", () => {
+    const next = moveOwnKeys(준비(), "팔", 0.5, 1.0);
+    expect(findTrack(next, 팔트랙, "rotation")?.keys.map((k) => k.time)).toEqual([1.0, 1.5]);
+    expect(findTrack(next, 팔트랙, "x")?.keys.map((k) => k.time)).toEqual([1.0]);
+  });
+
+  it("값은 그대로 두고 시간만 바꾼다", () => {
+    const next = moveOwnKeys(준비(), "팔", 0.5, 1.0);
+    expect(findTrack(next, 팔트랙, "x")?.keys[0]?.value).toBe(10);
+  });
+
+  it("태그 Track은 건드리지 않는다", () => {
+    // 프리셋의 것이라 여기서 옮기면 다른 관절까지 움직인다.
+    const next = moveOwnKeys(준비(), "팔", 0.5, 1.0);
+    expect(findTrack(next, 태그트랙, "rotation")?.keys[0]?.time).toBe(0.5);
+  });
+
+  it("옮긴 자리에 있던 키는 밀려난다", () => {
+    const next = moveOwnKeys(준비(), "팔", 0.5, 1.5);
+    const keys = findTrack(next, 팔트랙, "rotation")?.keys;
+    expect(keys).toHaveLength(1);
+    expect(keys?.[0]?.value).toBe(0.3);
+  });
+
+  it("길이 밖으로는 나가지 않는다", () => {
+    expect(findTrack(moveOwnKeys(준비(), "팔", 0.5, 99), 팔트랙, "x")?.keys[0]?.time).toBe(2);
+  });
+
+  it("제자리로 옮기면 그대로 둔다", () => {
+    const a = 준비();
+    expect(moveOwnKeys(a, "팔", 0.5, 0.5)).toBe(a);
+  });
+
+  it("없는 키를 옮기려 하면 그대로 둔다", () => {
+    const a = 준비();
+    expect(moveOwnKeys(a, "팔", 1.9, 1.0)).toBe(a);
+    expect(moveOwnKeys(a, "다리", 0.5, 1.0)).toBe(a);
+  });
+
+  it("한 시각의 키를 모든 속성에서 지운다", () => {
+    const next = removeOwnKeys(준비(), "팔", 0.5);
+    expect(findTrack(next, 팔트랙, "rotation")?.keys.map((k) => k.time)).toEqual([1.5]);
+    // x는 그 키뿐이었으므로 Track째 사라진다.
+    expect(findTrack(next, 팔트랙, "x")).toBeUndefined();
+  });
+
+  it("지울 때도 태그 Track은 남는다", () => {
+    const next = removeOwnKeys(준비(), "팔", 0.5);
+    expect(findTrack(next, 태그트랙, "rotation")?.keys).toHaveLength(1);
+  });
+
+  it("없는 키를 지우려 하면 그대로 둔다", () => {
+    const a = 준비();
+    expect(removeOwnKeys(a, "팔", 1.9)).toBe(a);
   });
 });

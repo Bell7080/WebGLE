@@ -37,6 +37,9 @@ import {
   evaluateAnimation,
   keyTimes,
   keyValueFor,
+  moveOwnKeys,
+  ownKeyTimes,
+  removeOwnKeys,
   setKey,
 } from "@core/animation";
 import { SecondaryMotion } from "@core/physics/secondary";
@@ -466,6 +469,37 @@ function poseEditable(): boolean {
 /** 회전을 시작할 때의 값. 끄는 동안 누적 각도를 여기에 더한다. */
 let rotateBase: number | null = null;
 
+/** 키를 끌기 시작한 시각. 끄는 동안 이어서 옮기기 위한 것이다. */
+let keyDragFrom: number | null = null;
+
+/**
+ * 고른 애니메이션을 갈아 끼운다. 재생 커서가 들고 있는 것도 함께 바꾼다.
+ * 히스토리는 부르는 쪽이 알아서 쌓는다 — 드래그 한 번이 한 단위여야 하기 때문이다.
+ *
+ * 실제로 바뀐 것이 있으면 true. 상태줄에 거짓말을 하지 않기 위한 것이다.
+ */
+function editAnimation(edit: (animation: PuppetAnimation) => PuppetAnimation): boolean {
+  const { selectedAnimation } = store.get();
+  const current = player.current;
+  if (!current || !selectedAnimation) return false;
+
+  const next = edit(current.animation);
+  if (next === current.animation) return false;
+
+  store.update((draft) => ({
+    ...draft,
+    animations: { ...draft.animations, [selectedAnimation]: next },
+  }));
+
+  const at = player.time;
+  player.play(next, { speed: current.speed, amount: current.amount });
+  player.pause();
+  player.seek(at);
+  applyPose();
+  refreshTimeline();
+  return true;
+}
+
 /** 지금 재생 헤드가 선 시각. 한 프레임에 맞춰 떨어뜨린다. */
 function keyTime(): number {
   return Math.round(player.time / FRAME) * FRAME;
@@ -679,6 +713,41 @@ const timeline = new Timeline(document.getElementById("timeline") as HTMLElement
     refreshTimeline();
   },
   onTogglePlay: () => togglePlay(),
+
+  onMoveKey: (from, to, done) => {
+    const boneId = store.get().selectedBoneId;
+    if (!boneId) return;
+
+    // 끄는 동안에는 스토어만 갱신하고, 시작할 때 한 번만 Undo에 쌓는다.
+    if (keyDragFrom === null) {
+      keyDragFrom = from;
+      history.push(store.get().project);
+      refreshUndoButtons();
+    }
+
+    const at = Math.round(to / FRAME) * FRAME;
+    if (editAnimation((animation) => moveOwnKeys(animation, boneId, keyDragFrom ?? from, at))) {
+      keyDragFrom = at;
+      if (done) ui.setStatus(`키를 ${at.toFixed(2)}초로 옮겼습니다.`);
+    }
+
+    if (done) keyDragFrom = null;
+  },
+
+  onDeleteKey: (time) => {
+    const { selectedBoneId, project } = store.get();
+    if (!selectedBoneId) return;
+    const bone = project.bones.find((b) => b.id === selectedBoneId);
+
+    history.push(project);
+    if (editAnimation((animation) => removeOwnKeys(animation, selectedBoneId, time))) {
+      ui.setStatus(`${bone?.name ?? "관절"}: ${time.toFixed(2)}초 키를 지웠습니다.`);
+      refreshUndoButtons();
+    } else {
+      history.undo(project);
+      ui.setStatus("직접 찍은 키만 지울 수 있습니다. 프리셋의 키는 손댈 수 없습니다.");
+    }
+  },
   onRewind: () => {
     if (!player.current && !loadSelectedAnimation()) return;
     player.seek(0);
@@ -750,6 +819,7 @@ function refreshTimeline(): void {
     playing: player.current?.playing ?? false,
     keys: animation ? keyTimes(animation, project.bones) : [],
     boneKeys: animation && bone ? keyTimes(animation, project.bones, bone.id) : [],
+    ownKeys: animation && bone ? ownKeyTimes(animation, bone.id) : [],
     boneName: bone?.name ?? null,
   });
 }
@@ -775,6 +845,23 @@ window.addEventListener("keydown", (event) => {
   } else if (event.key === " ") {
     event.preventDefault();
     togglePlay();
+    return;
+  } else if (event.key === "Delete" || event.key === "Backspace") {
+    // 재생 헤드가 선 자리의 키를 지운다. 고른 관절의 것만 지운다.
+    const { selectedBoneId, project } = store.get();
+    if (!selectedBoneId) return;
+    event.preventDefault();
+
+    const at = keyTime();
+    const bone = project.bones.find((b) => b.id === selectedBoneId);
+    history.push(project);
+    if (editAnimation((animation) => removeOwnKeys(animation, selectedBoneId, at))) {
+      ui.setStatus(`${bone?.name ?? "관절"}: ${at.toFixed(2)}초 키를 지웠습니다.`);
+      refreshUndoButtons();
+    } else {
+      history.undo(project);
+      ui.setStatus(`${at.toFixed(2)}초에 직접 찍은 키가 없습니다.`);
+    }
     return;
   } else {
     return;
@@ -1128,35 +1215,77 @@ if (import.meta.env.DEV) {
   };
 }
 
+// ── 실행 취소 · 다시 실행 ──────────────────────────────────────
+
+const undoButton = document.getElementById("undoButton") as HTMLButtonElement;
+const redoButton = document.getElementById("redoButton") as HTMLButtonElement;
+
+/** 되돌릴 것이 있는지에 맞춰 버튼을 켜고 끈다. */
+function refreshUndoButtons(): void {
+  undoButton.disabled = !history.canUndo;
+  redoButton.disabled = !history.canRedo;
+}
+
+function undo(): void {
+  const previous = history.undo(store.get().project);
+  ui.setStatus(previous ? "실행 취소" : "되돌릴 것이 없습니다.");
+  if (previous) applyHistory(previous);
+  refreshUndoButtons();
+}
+
+function redo(): void {
+  const next = history.redo(store.get().project);
+  ui.setStatus(next ? "다시 실행" : "다시 실행할 것이 없습니다.");
+  if (next) applyHistory(next);
+  refreshUndoButtons();
+}
+
+undoButton.addEventListener("click", () => undo());
+redoButton.addEventListener("click", () => redo());
+// 프로젝트가 바뀌면 쌓인 만큼 버튼 상태도 맞춘다.
+store.subscribe(() => refreshUndoButtons());
+
 window.addEventListener("keydown", (event) => {
   if (!event.ctrlKey && !event.metaKey) return;
   const key = event.key.toLowerCase();
+  if (key !== "z" && key !== "y" && key !== "s") return;
+
+  // 브라우저 기본 동작(페이지 저장 등)을 **먼저** 막는다.
+  // 뒤에서 오류가 나더라도 화면이 넘어가지 않아야 한다.
+  event.preventDefault();
+
+  // 이름을 고쳐 쓰는 중이면 글자 편집이 우선이다. 저장만 그대로 받는다.
+  const target = event.target as HTMLElement | null;
+  const typing = Boolean(target && /^(INPUT|TEXTAREA)$/.test(target.tagName));
+  if (typing && key !== "s") return;
+
   if (key === "z" && !event.shiftKey) {
-    const previous = history.undo(store.get().project);
-    if (previous) {
-      applyHistory(previous);
-      ui.setStatus("실행 취소");
-    }
-    event.preventDefault();
+    undo();
   } else if (key === "y" || (key === "z" && event.shiftKey)) {
-    const next = history.redo(store.get().project);
-    if (next) {
-      applyHistory(next);
-      ui.setStatus("다시 실행");
-    }
-    event.preventDefault();
-  } else if (key === "s") {
+    redo();
+  } else {
     void saveProject();
-    event.preventDefault();
   }
 });
 
-/** Undo / Redo는 가중치 편집 상태도 함께 되돌린다. */
+/**
+ * Undo / Redo는 가중치 편집 상태도 함께 되돌린다.
+ *
+ * 고르고 있던 관절과 칠하기 상태는 지키려 애쓴다.
+ * 한 획 되돌렸다고 붓을 내려놓게 되면 이어서 칠할 수가 없다.
+ */
 function applyHistory(project: PuppetProject): void {
+  const { selectedBoneId } = store.get();
+  // 되돌린 뒤에도 남아 있는 관절이면 선택을 지킨다.
+  const keep = project.bones.some((bone) => bone.id === selectedBoneId) ? selectedBoneId : null;
+
   store.set({
     project,
-    selectedBoneId: null,
+    selectedBoneId: keep,
     weights: project.mesh ? toWeightMap(project.mesh.weights) : {},
   });
+
+  // 선택이 살아 있으면 칠하기도 그대로 이어 간다.
+  syncPaintMode();
   if (project.mesh) view.scene.updateMeshVertices(null);
 }

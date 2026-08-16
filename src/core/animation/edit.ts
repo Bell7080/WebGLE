@@ -105,6 +105,79 @@ export function removeKey(
   };
 }
 
+/**
+ * 이 관절의 키를 다른 시각으로 옮긴다. 값은 그대로 두고 시간만 바꾼다.
+ *
+ * `boneId`가 직접 가리키는 Track만 건드린다 — 태그 Track은 프리셋의 것이라
+ * 여기서 옮기면 다른 관절까지 함께 움직인다.
+ * 옮긴 자리에 이미 키가 있으면 그 키를 밀어내고 자리를 차지한다.
+ */
+export function moveOwnKeys(
+  animation: PuppetAnimation,
+  boneId: string,
+  from: number,
+  to: number,
+): PuppetAnimation {
+  const at = Math.min(Math.max(0, to), animation.duration);
+  if (Math.abs(at - from) <= KEY_EPSILON) return animation;
+
+  let touched = false;
+  const tracks = animation.tracks.map((track) => {
+    if (track.target.kind !== "bone" || track.target.boneId !== boneId) return track;
+
+    const moving = track.keys.find((key) => Math.abs(key.time - from) <= KEY_EPSILON);
+    if (!moving) return track;
+    touched = true;
+
+    const keys = track.keys
+      // 옮기려는 자리에 있던 키와 원래 자리의 키를 먼저 뺀다.
+      .filter(
+        (key) =>
+          Math.abs(key.time - from) > KEY_EPSILON && Math.abs(key.time - at) > KEY_EPSILON,
+      )
+      .concat({ ...moving, time: at })
+      .sort((a, b) => a.time - b.time);
+
+    return { ...track, keys };
+  });
+
+  return touched ? { ...animation, tracks } : animation;
+}
+
+/**
+ * 이 관절에 **직접 찍은** 키의 시각들. 편집기에서 옮기거나 지울 수 있는 것들이다.
+ *
+ * 태그 Track의 키는 여기 들어오지 않는다 — 프리셋의 것이라 손대면 다른 관절까지 움직인다.
+ * 화면에서도 이 둘을 다르게 그려야 무엇을 잡을 수 있는지 알 수 있다.
+ */
+export function ownKeyTimes(animation: PuppetAnimation, boneId: string): number[] {
+  const times = new Set<number>();
+  for (const track of animation.tracks) {
+    if (track.target.kind !== "bone" || track.target.boneId !== boneId) continue;
+    for (const key of track.keys) times.add(key.time);
+  }
+  return [...times].sort((a, b) => a - b);
+}
+
+/** 이 관절의 그 시각 키를 모든 속성에서 지운다. */
+export function removeOwnKeys(
+  animation: PuppetAnimation,
+  boneId: string,
+  time: number,
+): PuppetAnimation {
+  let touched = false;
+  const tracks = animation.tracks.flatMap((track) => {
+    if (track.target.kind !== "bone" || track.target.boneId !== boneId) return [track];
+
+    const keys = track.keys.filter((key) => Math.abs(key.time - time) > KEY_EPSILON);
+    if (keys.length === track.keys.length) return [track];
+    touched = true;
+    return keys.length > 0 ? [{ ...track, keys }] : [];
+  });
+
+  return touched ? { ...animation, tracks } : animation;
+}
+
 /** 이 관절을 직접 가리키는 Track을 모두 뺀 애니메이션. 값을 역산할 때 쓴다. */
 export function withoutOwnTracks(
   animation: PuppetAnimation,
