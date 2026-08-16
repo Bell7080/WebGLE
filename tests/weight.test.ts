@@ -102,6 +102,13 @@ describe("가중치 정규화", () => {
     }
   });
 
+  it("절반 칠한 주요 영역은 옅게 겹친 영역보다 거의 고정된다", () => {
+    // 0.5 대 0.1의 원본 농도 차이를 강조해, 주요 관절이 실제 변형의 95% 이상을 잡는다.
+    const weights = normalizeWeights({ main: [0.5], overlap: [0.1] }, 1)[0]!;
+    const mainIndex = weights.boneIds.indexOf("main");
+    expect(weights.weights[mainIndex]).toBeGreaterThan(0.95);
+  });
+
   it("아무도 칠하지 않은 정점은 비어 있다", () => {
     const map = applyInfluence({}, "머리", mesh, circle(0, 0, 10));
     const weights = normalizeWeights(map, vertexCount(mesh));
@@ -196,8 +203,8 @@ describe("격자 해상도 변경", () => {
 describe("한 획으로 칠하기", () => {
   const mesh = createGridMesh(100, 100, "low");
 
-  it("같은 자리를 여러 번 훑어도 한 겹만 얹힌다", () => {
-    // 천천히 그으면 그 부분만 진해지던 것. 획은 속도와 상관없이 고른 한 겹이어야 한다.
+  it("한 획 안에서 같은 자리를 여러 번 훑으면 여러 겹 쌓인다", () => {
+    // 왕복하며 문지른 부분은 손을 떼지 않아도 수채화처럼 반복한 만큼 진해져야 한다.
     const brush = { radius: 30, strength: 0.4, softness: 0.7 };
     const stroke = beginStroke({}, "a", mesh);
     for (let i = 0; i < 10; i += 1) extendStroke(stroke, mesh, brush, 50, 50);
@@ -205,7 +212,8 @@ describe("한 획으로 칠하기", () => {
     const once = beginStroke({}, "a", mesh);
     extendStroke(once, mesh, brush, 50, 50);
 
-    expect(applyStroke({}, stroke).a).toEqual(applyStroke({}, once).a);
+    const peak = (map: Record<string, number[]>) => Math.max(...map.a!);
+    expect(peak(applyStroke({}, stroke))).toBeGreaterThan(peak(applyStroke({}, once)));
   });
 
   it("손을 뗐다 다시 그으면 그때 한 겹이 더 쌓인다", () => {
@@ -247,7 +255,8 @@ describe("한 획으로 칠하기", () => {
     for (let i = 0; i < 6; i += 1) extendStroke(stroke, mesh, brush, 50, 50);
 
     const erased = applyStroke(full, stroke, true).a!;
-    expect(Math.min(...erased)).toBeCloseTo(0.5, 5);
+    // 같은 곳을 여섯 번 문질렀으므로 중심은 여러 겹 깎여 완전히 지워진다.
+    expect(Math.min(...erased)).toBe(0);
     expect(Math.max(...erased)).toBe(1);
   });
 

@@ -8,6 +8,12 @@ export type WeightMap = Record<string, number[]>;
 export const MAX_BONES_PER_VERTEX = 4;
 
 /**
+ * 칠한 농도의 차이를 실제 변형에서 더 분명하게 만드는 지수.
+ * 0.5 대 0.1처럼 주요 영역이 충분히 칠해졌다면 제곱 후 정규화해 약한 겹침보다 거의 고정되게 한다.
+ */
+const WEIGHT_DOMINANCE_POWER = 2;
+
+/**
  * 원 또는 캡슐 모양의 영향 영역. (기획서 18)
  * x1,y1 == x2,y2 이면 원이고, 다르면 두 점을 잇는 캡슐이다.
  */
@@ -146,7 +152,9 @@ export function normalizeWeights(map: WeightMap, count: number): VertexWeight[] 
   return Array.from({ length: count }, (_unused, index) => {
     const candidates: { boneId: string; value: number }[] = [];
     for (const boneId of boneIds) {
-      const value = map[boneId]?.[index] ?? 0;
+      const painted = map[boneId]?.[index] ?? 0;
+      // 저장되는 값만 강조하고 편집용 원본 농도는 보존해, 지우개와 덧칠의 감각은 그대로 유지한다.
+      const value = Math.pow(Math.max(0, Math.min(1, painted)), WEIGHT_DOMINANCE_POWER);
       if (value > 0.001) candidates.push({ boneId, value });
     }
 
