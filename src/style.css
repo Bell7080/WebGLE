@@ -1358,3 +1358,46 @@ button.choice {
 #app.has-timeline .anim-settings {
   bottom: calc(var(--animbar-h) + var(--timeline-h));
 }
+
+/* ── 직접 찍은 키 목록 ─────────────────────── */
+.key-section {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.key-anim {
+  margin-left: 6px;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.key-tracks {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0 10px;
+}
+
+.key-tracks li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.key-count {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+button.key-remove {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 6px 10px 0;
+  font-size: 12px;
+}

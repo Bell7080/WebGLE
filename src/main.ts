@@ -39,8 +39,10 @@ import {
   keyValueFor,
   moveOwnKeys,
   ownKeyTimes,
+  ownKeysAt,
   removeOwnKeys,
   setKey,
+  setOwnKeyEase,
 } from "@core/animation";
 import { SecondaryMotion } from "@core/physics/secondary";
 import { createCanvasView } from "@renderer/phaser";
@@ -310,6 +312,41 @@ const ui = new EditorUI(store, {
     );
   },
 
+  onKeyQuery: (boneId) => {
+    const current = player.current;
+    if (!current) return null;
+
+    const at = keyTime();
+    const keys = ownKeysAt(current.animation, boneId, at);
+    if (keys.length === 0) return null;
+
+    // 속성마다 다를 수 있으므로 첫 번째 것을 대표로 보여 준다.
+    return { time: at, count: keys.length, ease: keys[0]!.key.ease ?? "linear" };
+  },
+
+  onKeyEase: (boneId, ease) => {
+    const at = keyTime();
+    history.push(store.get().project);
+    if (editAnimation((animation) => setOwnKeyEase(animation, boneId, at, ease))) {
+      ui.setStatus(`${at.toFixed(2)}초 키의 보간을 바꿨습니다.`);
+      refreshUndoButtons();
+    } else {
+      history.undo(store.get().project);
+    }
+  },
+
+  onKeyDelete: (boneId) => {
+    const at = keyTime();
+    const bone = store.get().project.bones.find((b) => b.id === boneId);
+    history.push(store.get().project);
+    if (editAnimation((animation) => removeOwnKeys(animation, boneId, at))) {
+      ui.setStatus(`${bone?.name ?? "관절"}: ${at.toFixed(2)}초 키를 지웠습니다.`);
+      refreshUndoButtons();
+    } else {
+      history.undo(store.get().project);
+    }
+  },
+
   onExport: () => void exportProject(),
 });
 
@@ -486,15 +523,18 @@ function editAnimation(edit: (animation: PuppetAnimation) => PuppetAnimation): b
   const next = edit(current.animation);
   if (next === current.animation) return false;
 
+  // 재생 커서를 **먼저** 갈아 끼운다. 스토어를 먼저 바꾸면 그 자리에서 화면을 다시 그리는데,
+  // 그때 커서가 아직 옛 애니메이션을 들고 있어 방금 바꾼 값이 반영되지 않는다.
+  const at = player.time;
+  player.play(next, { speed: current.speed, amount: current.amount });
+  player.pause();
+  player.seek(at);
+
   store.update((draft) => ({
     ...draft,
     animations: { ...draft.animations, [selectedAnimation]: next },
   }));
 
-  const at = player.time;
-  player.play(next, { speed: current.speed, amount: current.amount });
-  player.pause();
-  player.seek(at);
   applyPose();
   refreshTimeline();
   return true;

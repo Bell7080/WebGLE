@@ -8,6 +8,7 @@
  */
 import type {
   AnimationTrack,
+  Interpolation,
   Keyframe,
   PuppetAnimation,
   PuppetBone,
@@ -138,6 +139,62 @@ export function moveOwnKeys(
       .concat({ ...moving, time: at })
       .sort((a, b) => a.time - b.time);
 
+    return { ...track, keys };
+  });
+
+  return touched ? { ...animation, tracks } : animation;
+}
+
+/**
+ * 이 관절이 그 시각에 직접 찍어 둔 키들. 속성별로 하나씩이다.
+ * 트랙 목록과 보간 방식 편집에 쓴다.
+ */
+export function ownKeysAt(
+  animation: PuppetAnimation,
+  boneId: string,
+  time: number,
+): { property: TrackProperty; key: Keyframe }[] {
+  const found: { property: TrackProperty; key: Keyframe }[] = [];
+  for (const track of animation.tracks) {
+    if (track.target.kind !== "bone" || track.target.boneId !== boneId) continue;
+    const key = track.keys.find((candidate) => Math.abs(candidate.time - time) <= KEY_EPSILON);
+    if (key) found.push({ property: track.property, key });
+  }
+  return found;
+}
+
+/** 이 관절이 직접 찍은 Track들. 속성과 키 개수를 목록으로 보여 줄 때 쓴다. */
+export function ownTracks(animation: PuppetAnimation, boneId: string): AnimationTrack[] {
+  return animation.tracks.filter(
+    (track) => track.target.kind === "bone" && track.target.boneId === boneId,
+  );
+}
+
+/**
+ * 그 시각 키의 보간 방식을 바꾼다. 이 관절의 모든 속성에서 함께 바꾼다.
+ *
+ * 보간은 "이 키에서 **다음** 키로 갈 때 어떻게 갈지"를 정한다.
+ * 그래서 마지막 키에 정해 둔 값은 당장은 드러나지 않고, 뒤에 키를 더 찍으면 살아난다.
+ */
+export function setOwnKeyEase(
+  animation: PuppetAnimation,
+  boneId: string,
+  time: number,
+  ease: Interpolation,
+): PuppetAnimation {
+  let touched = false;
+  const tracks = animation.tracks.map((track) => {
+    if (track.target.kind !== "bone" || track.target.boneId !== boneId) return track;
+
+    let changed = false;
+    const keys = track.keys.map((key) => {
+      if (Math.abs(key.time - time) > KEY_EPSILON || (key.ease ?? "linear") === ease) return key;
+      changed = true;
+      return { ...key, ease };
+    });
+
+    if (!changed) return track;
+    touched = true;
     return { ...track, keys };
   });
 

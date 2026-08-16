@@ -12,9 +12,12 @@ import {
   findTrack,
   keyValueFor,
   moveOwnKeys,
+  ownKeysAt,
+  ownTracks,
   removeKey,
   removeOwnKeys,
   setKey,
+  setOwnKeyEase,
   withoutOwnTracks,
 } from "../src/core/animation";
 
@@ -223,5 +226,89 @@ describe("키 옮기기 · 지우기", () => {
   it("없는 키를 지우려 하면 그대로 둔다", () => {
     const a = 준비();
     expect(removeOwnKeys(a, "팔", 1.9)).toBe(a);
+  });
+});
+
+describe("보간 방식 고치기", () => {
+  const 팔트랙 = { kind: "bone" as const, boneId: "팔" };
+  const 태그트랙 = { kind: "tag" as const, tag: "arm" };
+
+  function 준비(): PuppetAnimation {
+    let a = setKey(empty, 팔트랙, "rotation", 0.5, 0.3, "linear");
+    a = setKey(a, 팔트랙, "x", 0.5, 10, "linear");
+    a = setKey(a, 팔트랙, "rotation", 1.5, 0.9, "linear");
+    return setKey(a, 태그트랙, "rotation", 0.5, 0.1, "linear");
+  }
+
+  it("그 시각의 키를 모든 속성에서 함께 바꾼다", () => {
+    const next = setOwnKeyEase(준비(), "팔", 0.5, "step");
+    expect(findTrack(next, 팔트랙, "rotation")?.keys[0]?.ease).toBe("step");
+    expect(findTrack(next, 팔트랙, "x")?.keys[0]?.ease).toBe("step");
+  });
+
+  it("다른 시각의 키는 그대로 둔다", () => {
+    const next = setOwnKeyEase(준비(), "팔", 0.5, "step");
+    expect(findTrack(next, 팔트랙, "rotation")?.keys[1]?.ease).toBe("linear");
+  });
+
+  it("태그 Track은 건드리지 않는다", () => {
+    const next = setOwnKeyEase(준비(), "팔", 0.5, "step");
+    expect(findTrack(next, 태그트랙, "rotation")?.keys[0]?.ease).toBe("linear");
+  });
+
+  it("이미 그 방식이면 그대로 둔다", () => {
+    const a = 준비();
+    expect(setOwnKeyEase(a, "팔", 0.5, "linear")).toBe(a);
+  });
+
+  it("없는 시각이면 그대로 둔다", () => {
+    const a = 준비();
+    expect(setOwnKeyEase(a, "팔", 1.9, "step")).toBe(a);
+  });
+
+  it("실제 보간 결과가 달라진다", () => {
+    const bones = [bone("팔", ["arm"])];
+    let a: PuppetAnimation = { name: "t", duration: 2, loop: false, tracks: [] };
+    a = setKey(a, 팔트랙, "rotation", 0, 0, "linear");
+    a = setKey(a, 팔트랙, "rotation", 1, 1, "linear");
+
+    // 일정하게: 가운데가 정확히 절반
+    expect(evaluateAnimation(a, bones, 0.5).get("팔")?.rotation).toBeCloseTo(0.5);
+
+    // 뚝 끊어서: 다음 키에 닿기 전까지 앞의 값 그대로
+    const stepped = setOwnKeyEase(a, "팔", 0, "step");
+    expect(evaluateAnimation(stepped, bones, 0.5).get("팔")?.rotation).toBeCloseTo(0);
+
+    // 부드럽게: 가운데는 절반이지만 양 끝이 느리다
+    const smooth = setOwnKeyEase(a, "팔", 0, "smooth");
+    expect(evaluateAnimation(smooth, bones, 0.5).get("팔")?.rotation).toBeCloseTo(0.5);
+    expect(evaluateAnimation(smooth, bones, 0.2).get("팔")?.rotation).toBeLessThan(
+      evaluateAnimation(a, bones, 0.2).get("팔")!.rotation,
+    );
+  });
+});
+
+describe("찍어 둔 키 조회", () => {
+  const 팔트랙 = { kind: "bone" as const, boneId: "팔" };
+
+  it("그 시각의 속성별 키를 모은다", () => {
+    let a = setKey(empty, 팔트랙, "rotation", 0.5, 0.3);
+    a = setKey(a, 팔트랙, "x", 0.5, 10);
+    a = setKey(a, 팔트랙, "y", 1.5, 4);
+
+    const here = ownKeysAt(a, "팔", 0.5);
+    expect(here.map((k) => k.property).sort()).toEqual(["rotation", "x"]);
+    expect(here.find((k) => k.property === "x")?.key.value).toBe(10);
+  });
+
+  it("없으면 비어 있다", () => {
+    expect(ownKeysAt(setKey(empty, 팔트랙, "x", 0.5, 1), "팔", 1.2)).toEqual([]);
+    expect(ownKeysAt(setKey(empty, 팔트랙, "x", 0.5, 1), "다리", 0.5)).toEqual([]);
+  });
+
+  it("직접 찍은 Track만 목록에 나온다", () => {
+    let a = setKey(empty, 팔트랙, "rotation", 0.5, 0.3);
+    a = setKey(a, { kind: "tag", tag: "arm" }, "rotation", 0.5, 0.1);
+    expect(ownTracks(a, "팔")).toHaveLength(1);
   });
 });

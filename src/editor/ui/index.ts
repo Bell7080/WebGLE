@@ -6,10 +6,12 @@ import {
   TAG_DESCRIPTIONS,
   TAG_GROUPS,
   type DeformMode,
+  type Interpolation,
   type OverlayLayer,
   type PuppetBone,
 } from "@core/format";
 import { canReparent } from "@core/skeleton";
+import { ownTracks } from "@core/animation";
 import type { BrushState, EditorStore } from "../state/store";
 import { createColorWheel } from "./colorWheel";
 import { findPreset, PRESETS } from "../../presets";
@@ -69,6 +71,12 @@ export interface EditorUICallbacks {
    * 이 애니메이션에서만 쓸 관절 변형 방식. mode가 null이면 덮어쓰기를 지우고 공용 값을 따른다.
    */
   onAnimationDeform(animationId: string, boneId: string, mode: DeformMode | null): void;
+  /** 재생 헤드가 선 자리에 이 관절의 키가 있는지. 없으면 null. */
+  onKeyQuery(boneId: string): { time: number; count: number; ease: Interpolation } | null;
+  /** 그 자리 키의 보간 방식을 바꾼다. */
+  onKeyEase(boneId: string, ease: Interpolation): void;
+  /** 그 자리 키를 지운다. */
+  onKeyDelete(boneId: string): void;
   onExport(): void;
   /** 캐릭터 전체 설정. 관절을 고르지 않았을 때 속성 패널에 나온다. */
   onCharacterSetting(patch: {
@@ -80,6 +88,37 @@ export interface EditorUICallbacks {
 }
 
 /** 변형 방식 선택지. 짧은 이름은 버튼에, 나머지는 툴팁에 쓴다. */
+/** 속성 이름을 한국어로. 트랙 목록에 그대로 보여 준다. */
+const PROPERTY_NAMES: Record<string, string> = {
+  x: "가로 이동",
+  y: "세로 이동",
+  rotation: "회전",
+  scaleX: "가로 크기",
+  scaleY: "세로 크기",
+};
+
+/** 키에서 다음 키로 이어지는 방식. (기획서 22) */
+const EASE_OPTIONS = [
+  {
+    id: "smooth" as const,
+    label: "부드럽게",
+    help: "시작과 끝에서 느려지고 가운데서 빠릅니다. 살아 있는 것의 움직임은 대개 이렇습니다.",
+    example: "예: 팔을 휘두르는 동작, 숨쉬기",
+  },
+  {
+    id: "linear" as const,
+    label: "일정하게",
+    help: "처음부터 끝까지 같은 속도로 갑니다. 기계처럼 딱딱한 움직임에 씁니다.",
+    example: "예: 톱니바퀴, 일정하게 도는 물체",
+  },
+  {
+    id: "step" as const,
+    label: "뚝 끊어서",
+    help: "중간을 만들지 않고 다음 키에서 한 번에 바뀝니다. 도트 그림의 프레임 전환처럼 씁니다.",
+    example: "예: 눈 깜빡임, 도트 애니메이션",
+  },
+];
+
 const DEFORM_OPTIONS = [
   {
     id: "soft",
@@ -915,7 +954,106 @@ export class EditorUI {
     const coords = document.createElement("p");
     coords.className = "hint";
     coords.textContent = `위치 ${Math.round(bone.x)}, ${Math.round(bone.y)}`;
-    this.inspector.append(coords, this.weightSection(bone));
+    this.inspector.append(coords, this.keySection(bone), this.weightSection(bone));
+  }
+
+  /**
+   * 이 관절에 직접 찍어 둔 키. (기획서 21, 26)
+   *
+   * 프리셋(태그)의 키는 여기 나오지 않는다 — 손댈 수 없는 것을 보여 주면 헷갈린다.
+   * 재생 헤드가 키 위에 서 있으면 그 키의 보간 방식을 바로 고칠 수 있다.
+   */
+  private keySection(bone: PuppetBone): HTMLElement {
+    const wrapper = document.createElement("section");
+    wrapper.className = "key-section";
+
+    const state = this.store.get();
+    const animationId = state.selectedAnimation;
+    const animation = animationId ? state.project.animations[animationId] : undefined;
+    if (!animation) return wrapper;
+
+    const title = document.createElement("h3");
+    title.className = "inspector-title";
+    title.textContent = "키";
+    // 애니메이션 이름은 사용자가 지은 것이라 대문자로 바꾸지 않고 그대로 둔다.
+    const which = document.createElement("span");
+    which.className = "key-anim";
+    which.textContent = animationId ?? "";
+    title.append(which);
+    wrapper.append(title);
+
+    const tracks = ownTracks(animation, bone.id);
+    if (tracks.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent =
+        "직접 찍은 키가 없습니다. 일시정지한 뒤 관절을 끌면 그 시점에 키가 생깁니다.";
+      wrapper.append(empty);
+      return wrapper;
+    }
+
+    const list = document.createElement("ul");
+    list.className = "key-tracks";
+    for (const track of tracks) {
+      const row = document.createElement("li");
+      const name = document.createElement("span");
+      name.textContent = PROPERTY_NAMES[track.property] ?? track.property;
+      const count = document.createElement("span");
+      count.className = "key-count";
+      count.textContent = `${track.keys.length}개`;
+      row.append(name, count);
+      list.append(row);
+    }
+    wrapper.append(list);
+
+    // 재생 헤드가 선 자리에 키가 있으면 보간 방식을 고칠 수 있다.
+    const here = this.callbacks.onKeyQuery(bone.id);
+    if (!here) {
+      const away = document.createElement("p");
+      away.className = "hint";
+      away.textContent = "재생 헤드를 키 위에 두면 보간 방식을 고칠 수 있습니다.";
+      wrapper.append(away);
+      return wrapper;
+    }
+
+    const row = document.createElement("div");
+    row.className = "field field-choice";
+    const label = document.createElement("label");
+    label.textContent = "보간";
+    attachTooltip(label, {
+      title: "다음 키까지 어떻게 갈지",
+      body: "이 키에서 다음 키로 이어질 때의 방식입니다. 마지막 키의 값은 당장 드러나지 않고, 뒤에 키를 더 찍으면 살아납니다.",
+      meta: `${here.time.toFixed(2)}초의 키 ${here.count}개에 함께 적용됩니다`,
+    });
+
+    const choices = document.createElement("div");
+    choices.className = "choice-row";
+    for (const option of EASE_OPTIONS) {
+      const button = document.createElement("button");
+      button.type = "button";
+      const on = here.ease === option.id;
+      button.className = on ? "choice active-fill" : "choice";
+      button.textContent = option.label;
+      button.setAttribute("aria-pressed", String(on));
+      attachTooltip(button, { title: option.label, body: option.help, meta: option.example });
+      button.addEventListener("click", () => this.callbacks.onKeyEase(bone.id, option.id));
+      choices.append(button);
+    }
+    row.append(label, choices);
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "outlined key-remove";
+    remove.textContent = `${here.time.toFixed(2)}초 키 지우기`;
+    attachTooltip(remove, {
+      title: "이 시각의 키 지우기",
+      body: "재생 헤드가 선 자리에 직접 찍어 둔 키를 모든 속성에서 지웁니다.",
+      meta: "단축키 Delete · 타임라인 마름모 우클릭도 같습니다",
+    });
+    remove.addEventListener("click", () => this.callbacks.onKeyDelete(bone.id));
+
+    wrapper.append(row, remove);
+    return wrapper;
   }
 
   /**
