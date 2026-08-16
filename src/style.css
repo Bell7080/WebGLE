@@ -1853,3 +1853,7 @@ button.tool .glyph .icon {
   border-color: var(--text-3);
   color: var(--text);
 }
+
+/* 기존 설정 필드와 같은 색·테두리를 써 언어 선택만 별도 위젯처럼 튀지 않게 한다. */
+.settings-language { display: grid; grid-template-columns: minmax(72px, 1fr) minmax(150px, 2fr); align-items: center; gap: 8px; margin-bottom: 10px; }
+.settings-language select { width: 100%; padding: 6px 8px; border: 1px solid var(--line-strong); color: var(--text); background: var(--bg-control); }

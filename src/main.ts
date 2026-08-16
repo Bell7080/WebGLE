@@ -90,6 +90,10 @@ import { setIcon } from "@editor/ui/icons";
 import { setupMobileShell } from "@editor/ui/mobile";
 import { FRAME, Timeline } from "@editor/ui/timeline";
 import { findPreset, PRESETS } from "./presets";
+import { localizeStaticDocument } from "@editor/i18n";
+
+// 동적 패널을 만들기 전에 문서의 고정 문구부터 선택 언어로 맞춘다.
+localizeStaticDocument();
 
 /**
  * 조절 막대를 끌고 있는 애니메이션 이름. 끌지 않는 동안에는 null이다.

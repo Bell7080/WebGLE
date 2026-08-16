@@ -20,6 +20,7 @@ import { createColorWheel } from "./colorWheel";
 import { findPreset, PRESET_GROUPS, PRESETS } from "../../presets";
 import { icon, setIcon, type IconName } from "./icons";
 import { attachTooltip, hideTooltip } from "./tooltip";
+import { getLanguage, LANGUAGES, setLanguage, translate } from "../i18n";
 
 /** 이 태그를 실제로 쓰는 애니메이션 이름들. 툴팁 아래에 붙여 준다. */
 function animationsUsingTag(tag: string): string {
@@ -724,7 +725,7 @@ export class EditorUI {
       button.dataset.menu = item.action;
 
       const label = document.createElement("span");
-      label.textContent = item.label;
+      label.textContent = translate(item.label);
       button.append(label);
 
       if (item.shortcut) {
@@ -817,16 +818,38 @@ export class EditorUI {
     const { project, textureUrl, pixelArtReason } = this.store.get();
     this.settingsPanel.replaceChildren();
 
+    // 언어는 프로젝트가 아닌 브라우저 설정이므로 이미지가 없어도 항상 맨 위에 노출한다.
+    const language = document.createElement("label");
+    language.className = "field settings-language";
+    const languageLabel = document.createElement("span");
+    languageLabel.textContent = translate("언어");
+    const languageSelect = document.createElement("select");
+    languageSelect.setAttribute("aria-label", translate("언어"));
+    for (const item of LANGUAGES) {
+      const option = document.createElement("option");
+      option.value = item.code;
+      option.textContent = item.name;
+      option.selected = item.code === getLanguage();
+      languageSelect.append(option);
+    }
+    languageSelect.addEventListener("change", () => {
+      setLanguage(languageSelect.value as (typeof LANGUAGES)[number]["code"]);
+      // 이미 생성된 동적 UI와 툴팁도 빠짐없이 새 언어로 다시 만들기 위해 새로고침한다.
+      window.location.reload();
+    });
+    language.append(languageLabel, languageSelect);
+    this.settingsPanel.append(language);
+
     if (!textureUrl) {
       const hint = document.createElement("p");
       hint.className = "hint";
-      hint.textContent = "이미지를 불러오면 설정할 수 있습니다.";
+      hint.textContent = translate("이미지를 불러오면 설정할 수 있습니다.");
       this.settingsPanel.append(hint);
       return;
     }
 
     this.settingsPanel.append(
-      this.textField("이름", project.character.name, (value) =>
+      this.textField(translate("이름"), project.character.name, (value) =>
         this.callbacks.onCharacterSetting({ name: value.trim() || "character" }),
       ),
     );
@@ -839,15 +862,15 @@ export class EditorUI {
     // 그림 종류 — 불러올 때 자동으로 판정하고, 틀렸으면 여기서 바꾼다. (기획서 51)
     this.settingsPanel.append(
       this.choiceField(
-        "그림",
+        translate("그림"),
         {
           title: "그림 종류",
           body: "도트로 보면 확대해도 픽셀이 또렷하게 남고, 일반으로 보면 부드럽게 뭉갭니다. 불러올 때 자동으로 판정합니다.",
           meta: "여기서 바꾸면 자동 판정을 덮어씁니다",
         },
         [
-          { value: false, label: "일반" },
-          { value: true, label: "도트" },
+          { value: false, label: translate("일반") },
+          { value: true, label: translate("도트") },
         ],
         project.character.pixelArt,
         (value) => this.callbacks.onCharacterSetting({ pixelArt: value }),
@@ -865,7 +888,7 @@ export class EditorUI {
     const mesh = project.mesh;
     this.settingsPanel.append(
       this.choiceField(
-        "격자",
+        translate("격자"),
         {
           title: "Mesh 해상도",
           body: "이미지를 몇 칸으로 나눠 변형할지 정합니다. 촘촘할수록 섬세하게 휘지만 무거워지고, 성길수록 가볍지만 뭉툭하게 휩니다. 도트 그림은 과하게 휘면 깨져 보여 낮은 쪽이 좋습니다.",
@@ -892,7 +915,7 @@ export class EditorUI {
     const flip = document.createElement("button");
     flip.type = "button";
     flip.className = "settings-action";
-    flip.textContent = "좌우 뒤집기";
+    flip.textContent = translate("좌우 뒤집기");
     attachTooltip(flip, {
       title: "그림과 관절을 통째로 뒤집기",
       body: "그림 · 관절 자리 · 칠해 둔 영향 영역을 모두 좌우로 옮깁니다. 왼쪽을 보는 그림을 받았을 때 아예 오른쪽을 보게 만드는 용도입니다.",
