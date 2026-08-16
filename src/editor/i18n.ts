@@ -57,6 +57,27 @@ const rows: Record<string, readonly string[]> = {
   "현재 키 삭제": ["Delete current key", "删除当前关键帧", "刪除目前關鍵幀", "現在のキーを削除", "Eliminar clave actual", "Supprimer la clé actuelle", "Aktuellen Key löschen", "Excluir quadro atual", "Удалить текущий ключ"],
   "고른 관절에서 재생 헤드가 가리키는 직접 만든 키를 모두 지웁니다.": ["Deletes all user-made keys for the selected bone at the playhead.", "删除播放头处所选骨骼的全部自建关键帧。", "刪除播放頭處所選骨骼的全部自建關鍵幀。", "再生ヘッド位置にある選択ボーンの手動キーをすべて削除します。", "Elimina todas las claves creadas por el usuario del hueso seleccionado en el cabezal.", "Supprime toutes les clés manuelles de l’os sélectionné à la tête de lecture.", "Löscht alle eigenen Keys des gewählten Knochens am Abspielkopf.", "Exclui todos os quadros manuais do osso selecionado no cursor.", "Удаляет все пользовательские ключи выбранной кости на курсоре."],
   "모바일에서는 이 버튼을, 마우스에서는 우클릭도 사용할 수 있습니다.": ["Use this button on mobile; a mouse can also right-click.", "移动设备请使用此按钮；鼠标也可右键单击。", "行動裝置請使用此按鈕；滑鼠也可按右鍵。", "モバイルではこのボタン、マウスでは右クリックも使えます。", "En móvil usa este botón; con ratón también puedes hacer clic derecho.", "Sur mobile, utilisez ce bouton ; avec une souris, le clic droit fonctionne aussi.", "Mobil diese Schaltfläche verwenden; mit der Maus geht auch Rechtsklick.", "No celular, use este botão; com mouse, também é possível clicar com o botão direito.", "На мобильном используйте эту кнопку; мышью также можно щёлкнуть правой кнопкой."],
+  // 동적으로 생성되는 버튼과 툴팁도 고정 HTML과 동일한 번역 경로를 통과한다.
+  "애니메이션 없음": ["No animations", "暂无动画", "尚無動畫", "アニメーションなし", "Sin animaciones", "Aucune animation", "Keine Animationen", "Sem animações", "Нет анимаций"],
+  "애니메이션 추가": ["Add animation", "添加动画", "新增動畫", "アニメーションを追加", "Añadir animación", "Ajouter une animation", "Animation hinzufügen", "Adicionar animação", "Добавить анимацию"],
+  "닫기": ["Close", "关闭", "關閉", "閉じる", "Cerrar", "Fermer", "Schließen", "Fechar", "Закрыть"],
+  "되돌리기": ["Reset", "重置", "重設", "リセット", "Restablecer", "Réinitialiser", "Zurücksetzen", "Redefinir", "Сбросить"],
+  "길이": ["Duration", "时长", "時長", "長さ", "Duración", "Durée", "Dauer", "Duração", "Длительность"],
+  "속도": ["Speed", "速度", "速度", "速度", "Velocidad", "Vitesse", "Geschwindigkeit", "Velocidade", "Скорость"],
+  "강도": ["Strength", "强度", "強度", "強さ", "Intensidad", "Intensité", "Stärke", "Intensidade", "Сила"],
+  "흔들림": ["Secondary motion", "次级运动", "次要動態", "揺れ", "Movimiento secundario", "Mouvement secondaire", "Sekundärbewegung", "Movimento secundário", "Вторичное движение"],
+  "영향 영역": ["Influence area", "影响区域", "影響區域", "影響領域", "Área de influencia", "Zone d’influence", "Einflussbereich", "Área de influência", "Область влияния"],
+  "칠하기": ["Paint", "绘制", "繪製", "塗る", "Pintar", "Peindre", "Malen", "Pintar", "Рисовать"],
+  "지우개": ["Eraser", "橡皮擦", "橡皮擦", "消しゴム", "Borrador", "Gomme", "Radierer", "Borracha", "Ластик"],
+  "자동": ["Auto", "自动", "自動", "自動", "Automático", "Auto", "Automatisch", "Automático", "Авто"],
+  "직접": ["Manual", "手动", "手動", "手動", "Manual", "Manuel", "Manuell", "Manual", "Вручную"],
+  "색": ["Color", "颜色", "顏色", "色", "Color", "Couleur", "Farbe", "Cor", "Цвет"],
+  "가중치": ["Weight", "权重", "權重", "ウェイト", "Peso", "Poids", "Gewicht", "Peso", "Вес"],
+  "키": ["Keys", "关键帧", "關鍵幀", "キー", "Claves", "Clés", "Keys", "Quadros-chave", "Ключи"],
+  "보간": ["Interpolation", "插值", "內插", "補間", "Interpolación", "Interpolation", "Interpolation", "Interpolação", "Интерполяция"],
+  "변형": ["Deformation", "变形", "變形", "変形", "Deformación", "Déformation", "Verformung", "Deformação", "Деформация"],
+  "공용": ["Shared", "通用", "共用", "共通", "Compartido", "Commun", "Gemeinsam", "Compartilhado", "Общее"],
+  "이 동작에서만": ["This animation only", "仅此动画", "僅此動畫", "このアニメーションのみ", "Solo esta animación", "Cette animation uniquement", "Nur diese Animation", "Somente esta animação", "Только эта анимация"],
 };
 
 /** 저장값이 없으면 브라우저 언어와 가장 가까운 지원 언어를 고른다. */
@@ -78,6 +99,35 @@ export function translate(source: string): string {
   return rows[source]?.[LANGUAGES.findIndex((item) => item.code === language) - 1] ?? source;
 }
 
+/** 새로 생긴 DOM 하위 트리의 텍스트와 접근성 문구를 현재 언어로 바꾼다. */
+function localizeTree(root: Node): void {
+  const localizeElement = (element: HTMLElement): void => {
+    for (const attribute of ["title", "aria-label", "placeholder"]) {
+      const value = element.getAttribute(attribute);
+      if (!value) continue;
+      const localized = translate(value);
+      if (localized !== value) element.setAttribute(attribute, localized);
+    }
+  };
+  // textContent 대입은 텍스트 노드 하나를 addedNode로 전달하므로 root 자체도 처리한다.
+  if (root.nodeType === Node.TEXT_NODE) {
+    const original = root.textContent ?? "";
+    const trimmed = original.trim();
+    if (trimmed) root.textContent = original.replace(trimmed, translate(trimmed));
+    return;
+  }
+  if (root instanceof HTMLElement) localizeElement(root);
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (node.nodeType === Node.TEXT_NODE) {
+      const original = node.textContent ?? "";
+      const trimmed = original.trim();
+      if (trimmed) node.textContent = original.replace(trimmed, translate(trimmed));
+    } else if (node instanceof HTMLElement) localizeElement(node);
+  }
+}
+
 /** index.html의 고정 문구와 접근성 이름을 UI 생성 전에 번역한다. */
 export function localizeStaticDocument(): void {
   const language = getLanguage();
@@ -94,4 +144,16 @@ export function localizeStaticDocument(): void {
       if (value) element.setAttribute(attribute, translate(value));
     }
   }
+  // 패널은 상태가 바뀐 뒤에도 계속 다시 그려지므로 추가되는 노드도 즉시 번역한다.
+  new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) localizeTree(node);
+      if (mutation.type === "attributes") localizeTree(mutation.target);
+    }
+  }).observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["title", "aria-label", "placeholder"],
+  });
 }
