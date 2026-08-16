@@ -69,6 +69,14 @@ export class Puppet {
   private buffer: Float32Array | null = null;
   private playingId: string | null = null;
 
+  /**
+   * 이 캐릭터가 왼쪽을 보고 있어서 동작의 좌우를 뒤집어야 하는지.
+   * 파일의 `character.facing`이 그대로 들어온다. 게임이 따로 챙길 것은 없다.
+   */
+  private get mirrored(): boolean {
+    return this.project.character.facing === "left";
+  }
+
   private constructor(
     readonly project: PuppetProject,
     readonly texture: PuppetTexture | null,
@@ -180,6 +188,7 @@ export class Puppet {
     this.player.play(animation, {
       speed: options.speed ?? animation.speed ?? 1,
       amount: options.strength ?? animation.strength ?? 1,
+      mirror: this.mirrored,
     });
     this.playingId = name;
     this.secondary.reset();
@@ -254,7 +263,7 @@ export class Puppet {
     if (!mesh || !animation) return null;
 
     const { bones } = this.project;
-    const deltas = evaluateAnimation(animation, bones, time, animation.strength ?? 1);
+    const deltas = evaluateAnimation(animation, bones, time, animation.strength ?? 1, this.mirrored);
     const skin = computeSkinMatrices(bones, deltas);
     return skinVertices(mesh, skin, undefined, deformModesFor(bones, animation));
   }

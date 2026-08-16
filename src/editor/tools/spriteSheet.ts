@@ -101,6 +101,8 @@ function poseFrames(
   const { bones } = project;
   const modes = deformModesFor(bones, animation);
   const amount = animation.strength ?? 1;
+  // 편집기에서 본 것과 시트가 달라지면 안 되므로 보는 쪽도 그대로 따라간다.
+  const mirror = project.character.facing === "left";
   const swing = animation.secondary ?? 1;
   const secondary = new SecondaryMotion();
 
@@ -112,7 +114,7 @@ function poseFrames(
   for (let pass = 0; pass < passes; pass += 1) {
     const keep = pass === passes - 1;
     for (const time of times) {
-      const deltas = evaluateAnimation(animation, bones, time, amount);
+      const deltas = evaluateAnimation(animation, bones, time, amount, mirror);
       const posed = computeSkinMatrices(bones, deltas);
       secondary.apply(bones, deltas, posed, step, swing);
       const skin = computeSkinMatrices(bones, deltas);

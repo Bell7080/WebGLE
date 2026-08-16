@@ -1,6 +1,6 @@
 {
   "name": "puppetforge",
-  "version": "0.25.1",
+  "version": "0.26.0",
   "type": "module",
   "description": "2D 종이인형 애니메이션 툴과 게임용 런타임. Puppet JSON 하나로 편집기와 게임이 같은 데이터를 쓴다.",
   "scripts": {

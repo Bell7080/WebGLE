@@ -7,6 +7,7 @@
  * 특정 시점에 세워 두는 것이 키프레임 편집의 전제다 —
  * 0.6초에서 팔을 돌리려면 먼저 0.6초에 설 수 있어야 한다.
  */
+import { setIcon } from "./icons";
 import { attachTooltip } from "./tooltip";
 
 /** 한 프레임으로 볼 시간. `←` `→`로 이만큼씩 옮긴다. */
@@ -86,7 +87,7 @@ export class Timeline {
 
   private build(): void {
     this.rewindButton.type = "button";
-    this.rewindButton.textContent = "⏮";
+    setIcon(this.rewindButton, "rewind");
     attachTooltip(this.rewindButton, {
       title: "처음으로",
       body: "재생 헤드를 0초로 되돌립니다.",
@@ -95,7 +96,7 @@ export class Timeline {
     this.rewindButton.addEventListener("click", () => this.callbacks.onRewind());
 
     this.playButton.type = "button";
-    this.playButton.textContent = "▶";
+    setIcon(this.playButton, "play");
     attachTooltip(this.playButton, {
       title: "재생 / 일시정지",
       body: "일시정지는 자세를 그대로 둔 채 시간만 멈춥니다. 그 자리에서 이어서 재생됩니다.",
@@ -221,7 +222,7 @@ export class Timeline {
     if (!visible) return;
 
     this.duration = state.duration;
-    this.playButton.textContent = state.playing ? "❚❚" : "▶";
+    setIcon(this.playButton, state.playing ? "pause" : "play");
     this.playButton.setAttribute("aria-pressed", String(state.playing));
 
     const frame = Math.round(state.time / FRAME);

@@ -85,6 +85,28 @@ export function tagAmplitude(bone: PuppetBone): number {
 }
 
 /**
+ * 값 하나에 곱해지는 최종 배율. 화면에서 보이는 움직임의 크기다.
+ *
+ * 두 조절값이 하는 일이 서로 달라야 한다.
+ * - `강도`(strength)는 **움직임의 세기**다. 위치 · 회전 · 크기 모두에 걸린다.
+ *   0으로 내리면 아무것도 움직이지 않는다.
+ * - `흔들림`(secondary)은 **회전 계열에만** 더 걸린다. 갸웃거림 · 휘두름 · 출렁임처럼
+ *   축을 중심으로 도는 느낌만 키우거나 줄인다. 몸이 앞으로 나가는 거리는 그대로 두고
+ *   고개만 더 흔들리게 하고 싶을 때 쓰라는 것이다.
+ *
+ * 전에는 둘 다 모든 값에 똑같이 곱해져서, 슬라이더 두 개가 사실상 같은 일을 했다.
+ */
+export function propertyScale(
+  animation: PuppetAnimation,
+  bone: PuppetBone,
+  property: TrackProperty,
+  amount = 1,
+): number {
+  const base = bone.motionStrength * tagAmplitude(bone) * amount;
+  return property === "rotation" ? base * (animation.secondary ?? 1) : base;
+}
+
+/**
  * 이 Track에서 주인공이 될 대상들.
  *
  * null이면 주인공을 가리지 않는다는 뜻이다. focus가 없을 때가 그렇고,
@@ -169,6 +191,11 @@ export function evaluateAnimation(
   bones: readonly PuppetBone[],
   time: number,
   amount = 1,
+  /**
+   * 동작의 좌우를 뒤집을지. 캐릭터가 왼쪽을 보고 있을 때 켠다.
+   * 프리셋은 전부 오른쪽을 보는 캐릭터 기준이라, 그대로 두면 등 뒤로 주먹을 뻗는다.
+   */
+  mirror = false,
 ): Map<string, BoneDelta> {
   const deltas = new Map<string, BoneDelta>();
 
@@ -177,6 +204,8 @@ export function evaluateAnimation(
   const carriers = new Map<string, Set<string>>();
   /** 성격 태그 배율. 관절마다 한 번만 구한다. */
   const amplitudes = new Map<string, number>();
+  /** 흔들림. 회전 계열에만 한 번 더 곱해진다. (propertyScale 참고) */
+  const swing = animation.secondary ?? 1;
 
   for (const track of animation.tracks) {
     const targets = resolveTargets(track, bones);
@@ -186,6 +215,7 @@ export function evaluateAnimation(
     const otherShare = track.focusOther ?? DEFAULT_FOCUS_OTHER;
 
     const base = track.property === "scaleX" || track.property === "scaleY" ? 1 : 0;
+    const isRotation = track.property === "rotation";
     const stagger = track.stagger ?? 0;
     // 어긋냄이 없으면 모든 대상이 같은 값을 쓰므로 한 번만 뽑는다.
     const shared = stagger === 0 ? sampleTrack(track.keys, time, base) : 0;
@@ -210,21 +240,33 @@ export function evaluateAnimation(
         amplitude = tagAmplitude(bone);
         amplitudes.set(bone.id, amplitude);
       }
+      // 회전 계열만 흔들림 값을 한 번 더 받는다. (propertyScale과 같은 규칙)
+      const scale = bone.motionStrength * amplitude * amount * (isRotation ? swing : 1);
 
       let delta = deltas.get(bone.id);
       if (!delta) {
         delta = { ...NO_DELTA };
         deltas.set(bone.id, delta);
       }
-      applyProperty(
-        delta,
-        track.property,
-        value,
-        bone.motionStrength * amount * share * amplitude,
-      );
+      applyProperty(delta, track.property, value, scale * share);
     }
   }
 
+  return mirror ? mirrorDeltas(deltas) : deltas;
+}
+
+/**
+ * 동작의 좌우를 뒤집는다. 가로 이동과 회전의 부호만 바꾼다.
+ *
+ * 그림을 뒤집는 것이 아니다. 관절이 놓인 자리는 그대로 두고 **움직이는 방향만** 돌린다.
+ * 그래서 왼쪽을 보는 그림에 오른손잡이용 공격 프리셋을 그대로 얹어도 앞으로 내지른다.
+ * 세로 이동과 크기는 좌우와 관계가 없으므로 건드리지 않는다.
+ */
+export function mirrorDeltas(deltas: Map<string, BoneDelta>): Map<string, BoneDelta> {
+  for (const delta of deltas.values()) {
+    delta.x = -delta.x;
+    delta.rotation = -delta.rotation;
+  }
   return deltas;
 }
 
@@ -269,6 +311,8 @@ export interface PlaybackState {
   speed: number;
   /** 움직임 크기 배율. (기획서 31) */
   amount: number;
+  /** 동작의 좌우를 뒤집을지. 캐릭터가 왼쪽을 볼 때 켠다. */
+  mirror: boolean;
   playing: boolean;
 }
 
@@ -280,14 +324,25 @@ export class AnimationPlayer {
   private state: PlaybackState | null = null;
   private listeners = new Set<(event: string) => void>();
 
-  play(animation: PuppetAnimation, options: { speed?: number; amount?: number } = {}): void {
+  play(
+    animation: PuppetAnimation,
+    options: { speed?: number; amount?: number; mirror?: boolean } = {},
+  ): void {
     this.state = {
       animation,
       time: 0,
       speed: options.speed ?? 1,
       amount: options.amount ?? 1,
+      // 안 주면 직전 재생에서 쓰던 값을 이어 쓴다. 애니메이션을 바꿀 때마다
+      // 캐릭터가 보는 쪽을 다시 알려 줘야 한다면 잊기 쉽다.
+      mirror: options.mirror ?? this.state?.mirror ?? false,
       playing: true,
     };
+  }
+
+  /** 재생 중에 보는 쪽을 바꾼다. 설정에서 좌우 반전을 켜고 끌 때 쓴다. */
+  setMirror(mirror: boolean): void {
+    if (this.state) this.state.mirror = mirror;
   }
 
   stop(): void {
@@ -336,7 +391,7 @@ export class AnimationPlayer {
   sample(bones: readonly PuppetBone[]): Map<string, BoneDelta> {
     const state = this.state;
     if (!state) return new Map();
-    return evaluateAnimation(state.animation, bones, state.time, state.amount);
+    return evaluateAnimation(state.animation, bones, state.time, state.amount, state.mirror);
   }
 
   /** 재생 중에 속도를 바꾼다. 시간은 그대로 두고 흐르는 빠르기만 달라진다. */
@@ -382,7 +437,7 @@ export class AnimationPlayer {
     }
 
     state.time = time;
-    return evaluateAnimation(state.animation, bones, time, state.amount);
+    return evaluateAnimation(state.animation, bones, time, state.amount, state.mirror);
   }
 
   private emit(event: string): void {

@@ -144,28 +144,26 @@ export function skinVertices(
       continue;
     }
 
-    // 완전 고정 영역은 다른 Bone과 가중치가 겹쳐도 원래 위치와 형태를 우선 보존한다.
-    const hasFixedInfluence = vertexWeight.boneIds.some(
-      (boneId, slot) => deformModes.get(boneId) === "fixed" && (vertexWeight.weights[slot] ?? 0) > 0,
-    );
-    if (hasFixedInfluence) {
-      result[i * 2] = x;
-      result[i * 2 + 1] = y;
-      continue;
-    }
+    // 완전 고정(fixed)과 위치 고정(pinnedSoft)은 스킨 행렬이 항등이라 여기서 따로 다루지 않는다.
+    // 그래서 가중치가 그대로 세기가 된다 — 100을 받은 자리는 아예 멈추고,
+    // 50을 받은 자리는 절반만 움직인다. 고정 영역의 경계가 딱 끊기지 않는 이유다.
 
-    // Rigid 영역은 여러 행렬을 섞지 않고 가장 강한 Rigid Bone 하나로 통째로 움직인다.
+    // Rigid 영역은 여러 행렬을 섞으면 형태가 찌그러지므로 하나로 통째로 움직인다.
+    // 다만 **그 정점의 주인일 때만** 그렇게 한다 — 검이 살짝 걸친 정도로 스치는 자리까지
+    // 검을 따라가 버리면, 정작 그 자리를 대부분 맡은 팔의 움직임이 사라진다.
     let rigidSlot = -1;
     let rigidWeight = 0;
+    let topWeight = 0;
     for (let slot = 0; slot < vertexWeight.boneIds.length; slot += 1) {
       const boneId = vertexWeight.boneIds[slot];
       const weight = vertexWeight.weights[slot] ?? 0;
+      if (weight > topWeight) topWeight = weight;
       if (boneId && deformModes.get(boneId) === "rigid" && weight > rigidWeight) {
         rigidSlot = slot;
         rigidWeight = weight;
       }
     }
-    if (rigidSlot >= 0) {
+    if (rigidSlot >= 0 && rigidWeight >= topWeight) {
       const rigidBoneId = vertexWeight.boneIds[rigidSlot];
       const rigidMatrix = rigidBoneId ? skinMatrices.get(rigidBoneId) : undefined;
       const moved = rigidMatrix ? applyPoint(rigidMatrix, x, y) : { x, y };

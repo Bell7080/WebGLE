@@ -445,7 +445,13 @@ export class EditorScene extends Phaser.Scene {
    * 영향 영역 점 패턴을 이미지 위에 얹는다.
    * 캔버스로 구운 텍스처라 정점 수와 상관없이 촘촘하고, 매 프레임 다시 그리지 않는다.
    */
-  setWeightOverlay(canvas: HTMLCanvasElement | null): void {
+  /**
+   * 영향 영역 표시를 갈아 끼운다.
+   *
+   * `width` · `height`는 이 표시가 그림 위에 덮여야 할 크기다. 표시용 캔버스는
+   * 그보다 작게 구워 오므로(큰 그림에서도 칠하는 동안 다시 그릴 수 있게 하려는 것) 여기서 늘린다.
+   */
+  setWeightOverlay(canvas: HTMLCanvasElement | null, width = 0, height = 0): void {
     this.weightOverlay?.destroy();
     this.weightOverlay = null;
     if (this.textures.exists(WEIGHT_TEXTURE_KEY)) this.textures.remove(WEIGHT_TEXTURE_KEY);
@@ -457,6 +463,7 @@ export class EditorScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(5)
       .setVisible(this.visibility.weights);
+    if (width > 0 && height > 0) this.weightOverlay.setDisplaySize(width, height);
   }
 
   /** 변형된 정점 좌표를 반영한다. null이면 기준 자세로 되돌린다. */

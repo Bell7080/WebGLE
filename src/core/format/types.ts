@@ -19,8 +19,9 @@ export const PUPPET_FORMAT = "puppetforge" as const;
  * 11: 내보내기에 _readme 한 줄을 붙인다. 읽는 쪽은 무시한다.
  * 12: Bone에 autoWeight 추가. 없으면 false로 본다 — 예전 파일은 전부 손으로 칠한 것이므로
  *     자동 계산이 그 작업을 덮어쓰면 안 된다.
+ * 13: character에 facing 추가. 없으면 "right"로 본다.
  */
-export const PUPPET_VERSION = 12 as const;
+export const PUPPET_VERSION = 13 as const;
 
 /**
  * Bone의 변형 방식. (기획서 19 확장)
@@ -206,6 +207,19 @@ export interface PuppetCharacter {
   height: number;
   /** 도트 모드 여부. (기획서 51) */
   pixelArt: boolean;
+
+  /**
+   * 그림 속 캐릭터가 바라보는 쪽. 없으면 오른쪽으로 본다.
+   *
+   * 프리셋은 전부 "오른쪽을 보는 캐릭터"를 기준으로 만들어져 있다.
+   * 공격은 오른쪽으로 내지르고 걸음도 오른쪽으로 나간다.
+   * 왼쪽을 보는 그림을 넣으면 등 뒤로 주먹을 뻗는 꼴이 되므로,
+   * 이 값이 `"left"`면 가로 이동과 회전 방향을 통째로 뒤집는다.
+   *
+   * 그림을 뒤집는 것이 아니라 **동작을 뒤집는다.** 게임에서 캐릭터가 방향을 바꿀 때
+   * 스프라이트를 좌우 반전하는 것과는 다른 이야기다.
+   */
+  facing?: "right" | "left";
 }
 
 /** 저장/내보내기의 단일 소스. (기획서 7) */

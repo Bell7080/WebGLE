@@ -174,7 +174,10 @@ describe("정점 변형", () => {
       ["soft", "soft"],
     ]);
 
-    expect([...skinVertices(rigidMesh, matrices, undefined, modes)]).toEqual([10, 0, 20, 0]);
+    // 두 번째 정점은 rigid가 주인(0.75)이라 통째로 rigid를 따라간다 — 형태가 유지된다.
+    // 첫 번째 정점은 rigid가 살짝 걸친 정도(0.25)라 평소대로 섞인다.
+    // 스치기만 한 자리까지 rigid가 가져가면, 그 자리를 대부분 맡은 쪽의 움직임이 사라진다.
+    expect([...skinVertices(rigidMesh, matrices, undefined, modes)]).toEqual([-5, 0, 20, 0]);
   });
 
   it("Pinned Soft는 자기 위치를 고정하면서 이웃 영향으로는 부드럽게 변형된다", () => {
@@ -198,24 +201,46 @@ describe("정점 변형", () => {
     expect([...skinVertices(pinnedMesh, matrices, undefined, modes)]).toEqual([5, 0]);
   });
 
-  it("Fixed 영향 영역은 겹친 다른 Bone이 움직여도 원래 자리를 지킨다", () => {
+  it("Fixed는 받은 가중치만큼만 붙잡는다", () => {
+    // computeSkinMatrices가 고정 계열에 항등 행렬을 주므로, 여기서 따로 막지 않아도
+    // 가중치가 그대로 세기가 된다. 100을 받은 자리는 아예 멈추고 50은 절반만 움직인다.
     const fixedMesh: PuppetMesh = {
       resolution: "low",
       cols: 1,
       rows: 1,
-      vertices: [3, 4],
+      vertices: [0, 0, 0, 0, 0, 0],
       indices: [],
-      weights: [{ boneIds: ["fixed", "soft"], weights: [0.1, 0.9] }],
+      weights: [
+        { boneIds: ["fixed"], weights: [1] },
+        { boneIds: ["fixed", "soft"], weights: [0.5, 0.5] },
+        { boneIds: ["soft"], weights: [1] },
+      ],
     };
     const matrices = new Map([
-      ["fixed", compose(100, 0, 0, 1, 1)],
-      ["soft", compose(20, 0, 0, 1, 1)],
+      // 고정된 관절은 움직이지 않으므로 항등이다.
+      ["fixed", compose(0, 0, 0, 1, 1)],
+      ["soft", compose(100, 0, 0, 1, 1)],
     ]);
     const modes = new Map<string, DeformMode>([
       ["fixed", "fixed"],
       ["soft", "soft"],
     ]);
 
-    expect([...skinVertices(fixedMesh, matrices, undefined, modes)]).toEqual([3, 4]);
+    expect([...skinVertices(fixedMesh, matrices, undefined, modes)]).toEqual([0, 0, 50, 0, 100, 0]);
+  });
+
+  it("고정 관절은 부모가 움직여도 제자리에 선다", () => {
+    // 실제 경로(computeSkinMatrices)를 지나가는지 확인한다.
+    const bones: PuppetBone[] = [
+      { id: "root", name: "root", parentId: null, x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1,
+        tags: [], motionStrength: 1, deform: "soft", color: "#fff" },
+      { id: "foot", name: "foot", parentId: "root", x: 0, y: 50, rotation: 0, scaleX: 1, scaleY: 1,
+        tags: [], motionStrength: 1, deform: "fixed", color: "#fff" },
+    ];
+    const skin = computeSkinMatrices(bones, new Map([["root", { x: 40, y: 0, rotation: 0, scaleX: 1, scaleY: 1 }]]));
+
+    expect(applyPoint(skin.get("root")!, 0, 0)).toEqual({ x: 40, y: 0 });
+    // 발은 부모가 40px 갔어도 그대로다.
+    expect(applyPoint(skin.get("foot")!, 0, 50)).toEqual({ x: 0, y: 50 });
   });
 });

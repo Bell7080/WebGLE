@@ -1,14 +1,79 @@
 {
-  "name": "scratch",
-  "duration": 0.75,
-  "loop": false,
+  "name": "fly",
+  "duration": 0.8,
+  "loop": true,
   "tracks": [
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "wing"
+      },
+      "property": "rotation",
+      "stagger": 0.25,
+      "keys": [
+        {
+          "time": 0,
+          "value": -0.55,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.2,
+          "value": 0.5,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.4,
+          "value": 0.6,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.6,
+          "value": -0.4,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
+          "value": -0.55,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "wing"
+      },
+      "property": "scaleY",
+      "stagger": 0.25,
+      "keys": [
+        {
+          "time": 0,
+          "value": 1,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.2,
+          "value": 0.88,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.5,
+          "value": 1.05,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
+          "value": 1,
+          "ease": "smooth"
+        }
+      ]
+    },
     {
       "target": {
         "kind": "tag",
         "tag": "root"
       },
-      "property": "x",
+      "property": "y",
       "keys": [
         {
           "time": 0,
@@ -16,22 +81,17 @@
           "ease": "smooth"
         },
         {
-          "time": 0.12,
-          "value": -4,
+          "time": 0.28,
+          "value": -11,
           "ease": "smooth"
         },
         {
-          "time": 0.3,
-          "value": 3,
+          "time": 0.6,
+          "value": 4,
           "ease": "smooth"
         },
         {
-          "time": 0.5,
-          "value": 2,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.75,
+          "time": 0.8,
           "value": 0,
           "ease": "smooth"
         }
@@ -50,175 +110,41 @@
           "ease": "smooth"
         },
         {
-          "time": 0.12,
-          "value": -0.12,
+          "time": 0.25,
+          "value": -0.06,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.6,
+          "value": 0.05,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "body"
+      },
+      "property": "y",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
           "ease": "smooth"
         },
         {
           "time": 0.3,
-          "value": 0.1,
+          "value": -3,
           "ease": "smooth"
         },
         {
-          "time": 0.52,
-          "value": -0.08,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.75,
-          "value": 0,
-          "ease": "smooth"
-        }
-      ]
-    },
-    {
-      "target": {
-        "kind": "tag",
-        "tag": "attack"
-      },
-      "property": "rotation",
-      "focus": "weapon",
-      "keys": [
-        {
-          "time": 0,
-          "value": 0,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.1,
-          "value": -0.5,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.26,
-          "value": 0.62,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.42,
-          "value": -0.35,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.56,
-          "value": 0.5,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.75,
-          "value": 0,
-          "ease": "smooth"
-        }
-      ]
-    },
-    {
-      "target": {
-        "kind": "tag",
-        "tag": "attack"
-      },
-      "property": "y",
-      "focus": "weapon",
-      "keys": [
-        {
-          "time": 0,
-          "value": 0,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.1,
-          "value": -10,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.26,
-          "value": 12,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.42,
-          "value": -8,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.56,
-          "value": 10,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.75,
-          "value": 0,
-          "ease": "smooth"
-        }
-      ]
-    },
-    {
-      "target": {
-        "kind": "tag",
-        "tag": "claw"
-      },
-      "property": "rotation",
-      "keys": [
-        {
-          "time": 0,
-          "value": 0,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.1,
-          "value": -0.7,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.28,
-          "value": 0.85,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.44,
-          "value": -0.5,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.58,
-          "value": 0.7,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.75,
-          "value": 0,
-          "ease": "smooth"
-        }
-      ]
-    },
-    {
-      "target": {
-        "kind": "tag",
-        "tag": "finger"
-      },
-      "property": "rotation",
-      "keys": [
-        {
-          "time": 0,
-          "value": 0,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.1,
-          "value": -0.3,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.28,
-          "value": 0.4,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.58,
-          "value": 0.35,
-          "ease": "smooth"
-        },
-        {
-          "time": 0.75,
+          "time": 0.8,
           "value": 0,
           "ease": "smooth"
         }
@@ -237,17 +163,86 @@
           "ease": "smooth"
         },
         {
-          "time": 0.14,
-          "value": -0.12,
+          "time": 0.35,
+          "value": 0.05,
           "ease": "smooth"
         },
         {
-          "time": 0.32,
-          "value": 0.16,
+          "time": 0.8,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "leg"
+      },
+      "property": "rotation",
+      "stagger": 0.4,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0.25,
           "ease": "smooth"
         },
         {
-          "time": 0.75,
+          "time": 0.4,
+          "value": 0.35,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
+          "value": 0.25,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "tail"
+      },
+      "property": "rotation",
+      "stagger": 0.6,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.4,
+          "value": 0.2,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
+          "value": 0,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "float"
+      },
+      "property": "y",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.4,
+          "value": -6,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.8,
           "value": 0,
           "ease": "smooth"
         }
@@ -266,17 +261,17 @@
           "ease": "smooth"
         },
         {
-          "time": 0.2,
-          "value": 0.16,
+          "time": 0.35,
+          "value": 0.2,
           "ease": "smooth"
         },
         {
-          "time": 0.5,
-          "value": -0.12,
+          "time": 0.7,
+          "value": -0.15,
           "ease": "smooth"
         },
         {
-          "time": 0.75,
+          "time": 0.8,
           "value": 0,
           "ease": "smooth"
         }
@@ -285,12 +280,8 @@
   ],
   "events": [
     {
-      "time": 0.26,
-      "event": "hit"
-    },
-    {
-      "time": 0.56,
-      "event": "hit"
+      "time": 0.2,
+      "event": "flap"
     }
   ]
 }

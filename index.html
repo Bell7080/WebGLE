@@ -24,8 +24,9 @@
       <header class="topbar">
         <span class="brand">PuppetForge</span>
         <div class="history">
-          <button type="button" id="undoButton" title="실행 취소 (Ctrl+Z)" disabled>↩</button>
-          <button type="button" id="redoButton" title="다시 실행 (Ctrl+Y)" disabled>↪</button>
+          <!-- 아이콘은 src/editor/ui/icons.ts가 직접 그려 넣는다. 글꼴 기호는 쓰지 않는다. -->
+          <button type="button" id="undoButton" title="실행 취소 (Ctrl+Z)" aria-label="실행 취소" disabled></button>
+          <button type="button" id="redoButton" title="다시 실행 (Ctrl+Y)" aria-label="다시 실행" disabled></button>
         </div>
         <nav class="menu">
           <div class="dropdown">
@@ -80,8 +81,8 @@
         <div class="anim-buttons" id="animButtons"></div>
         <div class="anim-settings" id="animSettings"></div>
         <div class="transport">
-          <button type="button" id="playButton" title="재생">▶</button>
-          <button type="button" id="stopButton" title="정지">■</button>
+          <button type="button" id="playButton" title="재생" aria-label="재생"></button>
+          <button type="button" id="stopButton" title="정지" aria-label="정지"></button>
           <span class="status" id="statusText">준비됨</span>
         </div>
       </footer>

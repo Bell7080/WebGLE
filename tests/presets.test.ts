@@ -150,3 +150,95 @@ describe("내보내기 묶음", () => {
     expect(Object.keys(forExport(all).animations)).toEqual([]);
   });
 });
+
+/** 사람 모양 한 벌. 프리셋이 실제로 무엇을 하는지 재 보기 위한 것이다. */
+function humanoid(): PuppetBone[] {
+  const make = (id: string, tags: string[], x: number, y: number, parentId: string | null = null) => ({
+    ...bone(tags), id, name: id, x, y, parentId,
+  });
+  return [
+    make("root", ["root", "core", "body"], 50, 60),
+    make("head", ["head", "neck"], 50, 20, "root"),
+    make("arm1", ["arm", "attack", "hand"], 30, 55, "root"),
+    make("arm2", ["arm", "attack", "hand"], 70, 55, "root"),
+    make("leg1", ["leg", "foot"], 42, 95, "root"),
+    make("leg2", ["leg", "foot"], 58, 95, "root"),
+    make("tail", ["tail", "secondary"], 50, 80, "root"),
+  ];
+}
+
+/** 한 동작이 관절을 얼마나 크게 움직이는지. 최댓값만 본다. */
+function peak(id: string, prop: "x" | "y" | "rotation", boneId = "root"): number {
+  const animation = findPreset(id)!.animation;
+  const bones = humanoid();
+  let most = 0;
+  for (let i = 0; i <= 40; i += 1) {
+    const delta = evaluateAnimation(animation, bones, (i / 40) * animation.duration).get(boneId);
+    most = Math.max(most, Math.abs(delta?.[prop] ?? 0));
+  }
+  return most;
+}
+
+describe("사망은 찌그러지는 게 아니라 쓰러진다", () => {
+  it("몸 전체가 크게 기운다", () => {
+    // 이것이 없으면 제자리에서 눌리기만 한다. 60도(1.05rad) 넘게 넘어가야 쓰러져 보인다.
+    expect(peak("death", "rotation")).toBeGreaterThan(1.05);
+  });
+
+  it("바닥으로 내려간다", () => {
+    expect(peak("death", "y")).toBeGreaterThan(25);
+  });
+
+  it("무릎이 먼저 꺾인다", () => {
+    expect(peak("death", "rotation", "leg1")).toBeGreaterThan(0.2);
+  });
+
+  it("찌그러짐은 넘어진 뒤에만 온다", () => {
+    const animation = findPreset("death")!.animation;
+    const squash = animation.tracks.find(
+      (t) => t.target.kind === "tag" && t.target.tag === "core" && t.property === "scaleY",
+    )!;
+    // 처음 절반 동안은 1을 유지해야 한다. 계속 눌려 있으면 죽는 게 아니라 녹는 것처럼 보인다.
+    const early = squash.keys.filter((k) => k.time < animation.duration * 0.5);
+    for (const key of early) expect(key.value).toBeCloseTo(1);
+  });
+});
+
+describe("공격 계열은 서로 다른 동작이다", () => {
+  it("공격은 몸이 앞으로 나가고 할퀴기는 제자리다", () => {
+    // 둘이 비슷하다는 지적을 받은 부분이다. 몸통 이동량으로 구분한다.
+    expect(peak("attack", "x")).toBeGreaterThan(peak("scratch", "x") * 3);
+  });
+
+  it("할퀴기는 두 번 친다", () => {
+    expect(findPreset("scratch")!.animation.events).toHaveLength(2);
+    expect(findPreset("attack")!.animation.events).toHaveLength(1);
+  });
+
+  it("돌진은 어떤 공격보다 멀리 나간다", () => {
+    for (const id of ["attack", "scratch", "swing", "stab", "spin", "stomp"]) {
+      expect(peak("charge", "x"), id).toBeGreaterThan(peak(id, "x"));
+    }
+  });
+
+  it("회전 베기는 한 바퀴를 돈다", () => {
+    expect(peak("spin", "rotation")).toBeGreaterThan(Math.PI * 1.8);
+  });
+
+  it("내려찍기는 세로로 크게 움직인다", () => {
+    expect(peak("stomp", "y")).toBeGreaterThan(peak("stomp", "x") + 20);
+  });
+});
+
+describe("이동 계열도 서로 다르다", () => {
+  it("달리기가 걷기보다 크게 튀고 다리를 크게 젓는다", () => {
+    expect(peak("run", "y")).toBeGreaterThan(peak("walk", "y"));
+    expect(peak("run", "rotation", "leg1")).toBeGreaterThan(peak("walk", "rotation", "leg1"));
+  });
+
+  it("달리기는 앞으로 기운 자세를 유지한다", () => {
+    const animation = findPreset("run")!.animation;
+    const lean = evaluateAnimation(animation, humanoid(), 0).get("root")!.rotation;
+    expect(lean).toBeGreaterThan(0.05);
+  });
+});

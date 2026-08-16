@@ -1,8 +1,52 @@
 {
   "name": "death",
-  "duration": 1.4,
+  "duration": 1.6,
   "loop": false,
   "tracks": [
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "root"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.2,
+          "value": -0.1,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.45,
+          "value": 0.12,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0.62,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.25,
+          "value": 1.32,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.4,
+          "value": 1.42,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 1.38,
+          "ease": "smooth"
+        }
+      ]
+    },
     {
       "target": {
         "kind": "tag",
@@ -12,21 +56,165 @@
       "keys": [
         {
           "time": 0,
-          "value": 0
-        },
-        {
-          "time": 0.2,
-          "value": -6,
+          "value": 0,
           "ease": "smooth"
         },
         {
-          "time": 1.0,
-          "value": 26,
+          "time": 0.2,
+          "value": -3,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.45,
+          "value": 7,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 20,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.25,
+          "value": 38,
           "ease": "smooth"
         },
         {
           "time": 1.4,
-          "value": 28,
+          "value": 42,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 41,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "root"
+      },
+      "property": "x",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.25,
+          "value": -7,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 6,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.25,
+          "value": 16,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 19,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "leg"
+      },
+      "property": "rotation",
+      "stagger": 0.5,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.18,
+          "value": 0.22,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.45,
+          "value": -0.42,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": -0.5,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": -0.3,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "foot"
+      },
+      "property": "rotation",
+      "stagger": 0.4,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.45,
+          "value": 0.3,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.0,
+          "value": 0.15,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0.05,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "hip"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.45,
+          "value": -0.18,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.0,
+          "value": -0.28,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": -0.2,
           "ease": "smooth"
         }
       ]
@@ -40,21 +228,56 @@
       "keys": [
         {
           "time": 0,
-          "value": 0
-        },
-        {
-          "time": 0.25,
-          "value": -0.1,
+          "value": 0,
           "ease": "smooth"
         },
         {
-          "time": 1.0,
-          "value": 0.5,
+          "time": 0.3,
+          "value": 0.14,
           "ease": "smooth"
         },
         {
-          "time": 1.4,
-          "value": 0.55,
+          "time": 0.85,
+          "value": 0.3,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.25,
+          "value": 0.12,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0.08,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "spine"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.35,
+          "value": 0.16,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0.26,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0.14,
           "ease": "smooth"
         }
       ]
@@ -68,16 +291,61 @@
       "keys": [
         {
           "time": 0,
-          "value": 1
+          "value": 1,
+          "ease": "smooth"
         },
         {
-          "time": 1.0,
+          "time": 1.15,
+          "value": 1,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.3,
           "value": 0.9,
           "ease": "smooth"
         },
         {
-          "time": 1.4,
-          "value": 0.86,
+          "time": 1.45,
+          "value": 0.96,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0.94,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "core"
+      },
+      "property": "scaleX",
+      "keys": [
+        {
+          "time": 0,
+          "value": 1,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.15,
+          "value": 1,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.3,
+          "value": 1.07,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.45,
+          "value": 1.02,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 1.03,
           "ease": "smooth"
         }
       ]
@@ -91,21 +359,213 @@
       "keys": [
         {
           "time": 0,
-          "value": 0
+          "value": 0,
+          "ease": "smooth"
         },
         {
-          "time": 0.4,
-          "value": 0.15,
+          "time": 0.2,
+          "value": 0.2,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.6,
+          "value": -0.25,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.1,
+          "value": 0.3,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.45,
+          "value": 0.72,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0.66,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "neck"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.6,
+          "value": -0.12,
           "ease": "smooth"
         },
         {
           "time": 1.2,
-          "value": 0.7,
+          "value": 0.22,
           "ease": "smooth"
         },
         {
-          "time": 1.4,
-          "value": 0.72,
+          "time": 1.6,
+          "value": 0.3,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "head"
+      },
+      "property": "y",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.0,
+          "value": 4,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.45,
+          "value": 11,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 12,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "arm"
+      },
+      "property": "rotation",
+      "stagger": 0.3,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.25,
+          "value": -0.35,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.7,
+          "value": 0.45,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.25,
+          "value": 0.85,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0.8,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "hand"
+      },
+      "property": "rotation",
+      "stagger": 0.3,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.4,
+          "value": -0.2,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0.4,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0.62,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "eye"
+      },
+      "property": "scaleY",
+      "keys": [
+        {
+          "time": 0,
+          "value": 1,
+          "ease": "linear"
+        },
+        {
+          "time": 0.5,
+          "value": 0.8,
+          "ease": "linear"
+        },
+        {
+          "time": 0.95,
+          "value": 0.1,
+          "ease": "linear"
+        },
+        {
+          "time": 1.6,
+          "value": 0.05,
+          "ease": "linear"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "jaw"
+      },
+      "property": "rotation",
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.3,
+          "value": 0.2,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.9,
+          "value": 0.1,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0.06,
           "ease": "smooth"
         }
       ]
@@ -119,21 +579,22 @@
       "keys": [
         {
           "time": 0,
-          "value": 0
+          "value": 0,
+          "ease": "smooth"
         },
         {
-          "time": 0.6,
+          "time": 0.5,
           "value": 0.2,
           "ease": "smooth"
         },
         {
-          "time": 1.3,
-          "value": 0.62,
+          "time": 1.1,
+          "value": 0.42,
           "ease": "smooth"
         },
         {
-          "time": 1.4,
-          "value": 0.62,
+          "time": 1.6,
+          "value": 0.5,
           "ease": "smooth"
         }
       ]
@@ -152,18 +613,18 @@
           "ease": "smooth"
         },
         {
-          "time": 0.5,
-          "value": 0.25,
+          "time": 0.55,
+          "value": 0.28,
           "ease": "smooth"
         },
         {
-          "time": 1.0,
-          "value": 0.45,
-          "ease": "smooth"
-        },
-        {
-          "time": 1.4,
+          "time": 1.15,
           "value": 0.5,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0.55,
           "ease": "smooth"
         }
       ]
@@ -182,13 +643,13 @@
           "ease": "smooth"
         },
         {
-          "time": 0.6,
-          "value": 0.2,
+          "time": 0.7,
+          "value": 0.22,
           "ease": "smooth"
         },
         {
-          "time": 1.4,
-          "value": 0.4,
+          "time": 1.6,
+          "value": 0.45,
           "ease": "smooth"
         }
       ]
@@ -206,13 +667,43 @@
           "ease": "smooth"
         },
         {
-          "time": 0.7,
-          "value": 0.15,
+          "time": 0.8,
+          "value": 0.16,
           "ease": "smooth"
         },
         {
-          "time": 1.4,
-          "value": 0.3,
+          "time": 1.6,
+          "value": 0.32,
+          "ease": "smooth"
+        }
+      ]
+    },
+    {
+      "target": {
+        "kind": "tag",
+        "tag": "wing"
+      },
+      "property": "rotation",
+      "stagger": 0.4,
+      "keys": [
+        {
+          "time": 0,
+          "value": 0,
+          "ease": "smooth"
+        },
+        {
+          "time": 0.5,
+          "value": -0.2,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.1,
+          "value": 0.4,
+          "ease": "smooth"
+        },
+        {
+          "time": 1.6,
+          "value": 0.55,
           "ease": "smooth"
         }
       ]
@@ -220,8 +711,8 @@
   ],
   "events": [
     {
-      "time": 1.0,
-      "event": "collapse"
+      "time": 1.28,
+      "event": "down"
     }
   ]
 }

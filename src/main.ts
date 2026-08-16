@@ -44,7 +44,7 @@ import {
   removeOwnKeys,
   setKey,
   setDuration,
-  tagAmplitude,
+  propertyScale,
   setOwnKeyEase,
 } from "@core/animation";
 import { SecondaryMotion } from "@core/physics/secondary";
@@ -83,6 +83,7 @@ import {
   sheetManifest,
 } from "@editor/tools/spriteSheet";
 import { createZip } from "@core/format/zip";
+import { setIcon } from "@editor/ui/icons";
 import { setupMobileShell } from "@editor/ui/mobile";
 import { FRAME, Timeline } from "@editor/ui/timeline";
 import { findPreset, PRESETS } from "./presets";
@@ -326,8 +327,11 @@ const ui = new EditorUI(store, {
       if (patch.speed !== undefined) player.setSpeed(patch.speed);
       if (patch.strength !== undefined) player.setAmount(patch.strength);
     }
-    // 길이가 바뀌면 재생 커서가 든 애니메이션과 타임라인 눈금도 갈아 끼워야 한다.
-    if (duration !== undefined) reloadPlayer(animationId);
+    // 속도와 강도는 재생 커서가 따로 들고 있어 위에서 바로 갈아 끼웠다.
+    // 나머지(길이 · 흔들림)는 애니메이션 **데이터 자체**에 적히는 값이라,
+    // 커서가 붙들고 있는 옛 객체를 갈아 끼우지 않으면 화면에 아무 일도 일어나지 않는다.
+    // 흔들림 막대를 아무리 끌어도 변화가 없던 원인이 이것이었다.
+    if (duration !== undefined || simple.secondary !== undefined) reloadPlayer(animationId);
 
     if (done) settingGesture = null;
   },
@@ -351,6 +355,21 @@ const ui = new EditorUI(store, {
       // 텍스처 필터가 바뀌므로 이미지를 다시 올린다.
       if (textureUrl) void reloadTexture(textureUrl, patch.pixelArt);
       ui.setStatus(patch.pixelArt ? "도트 모드로 그립니다." : "일반 그림으로 그립니다.");
+    }
+
+    if (patch.facing !== undefined) {
+      commit((current) => ({
+        ...current,
+        character: { ...current.character, facing: patch.facing },
+      }));
+      // 재생 중이면 멈추지 않고 곧바로 방향이 바뀐다.
+      player.setMirror(patch.facing === "left");
+      applyPose();
+      ui.setStatus(
+        patch.facing === "left"
+          ? "왼쪽을 보는 캐릭터로 봅니다. 동작의 좌우가 뒤집힙니다."
+          : "오른쪽을 보는 캐릭터로 봅니다.",
+      );
     }
 
     if (patch.resolution !== undefined) changeResolution(patch.resolution, project);
@@ -461,6 +480,14 @@ function uniqueAnimationName(base: string, taken: Record<string, unknown>): stri
   let index = 2;
   while (`${base}${index}` in taken) index += 1;
   return `${base}${index}`;
+}
+
+/**
+ * 이 캐릭터가 왼쪽을 보고 있는지. 보고 있으면 동작의 좌우를 뒤집는다.
+ * 프리셋은 전부 오른쪽을 보는 캐릭터 기준으로 만들어져 있기 때문이다.
+ */
+function facingLeft(): boolean {
+  return store.get().project.character.facing === "left";
 }
 
 /** 프로젝트 변경 한 번을 Undo 단위로 기록한다. (기획서 36) */
@@ -614,7 +641,7 @@ function editAnimation(edit: (animation: PuppetAnimation) => PuppetAnimation): b
   // 재생 커서를 **먼저** 갈아 끼운다. 스토어를 먼저 바꾸면 그 자리에서 화면을 다시 그리는데,
   // 그때 커서가 아직 옛 애니메이션을 들고 있어 방금 바꾼 값이 반영되지 않는다.
   const at = player.time;
-  player.play(next, { speed: current.speed, amount: current.amount });
+  player.play(next, { speed: current.speed, amount: current.amount, mirror: facingLeft() });
   player.pause();
   player.seek(at);
 
@@ -644,7 +671,7 @@ function reloadPlayer(animationId: string): void {
 
   const playing = current.playing;
   const at = Math.min(player.time, next.duration);
-  player.play(next, { speed: current.speed, amount: current.amount });
+  player.play(next, { speed: current.speed, amount: current.amount, mirror: facingLeft() });
   if (!playing) player.pause();
   player.seek(at);
 
@@ -675,9 +702,13 @@ function putKey(
   if (!current || !bone || !selectedAnimation) return;
 
   const others = deltaWithoutOwnKeys(current.animation, project.bones, boneId, time, current.amount);
-  // 성격 태그(heavy · stiff 등)도 값에 곱해지므로 되돌릴 때 함께 나눠야 한다.
-  const scale = bone.motionStrength * tagAmplitude(bone);
-  const value = keyValueFor(desired, others[property], scale, current.amount);
+  // 화면에 나오기까지 곱해지는 것을 그대로 되나눠야 끌어 놓은 자리에 정확히 선다.
+  // 관절 강도 · 성격 태그 · 애니메이션 강도, 그리고 회전이면 흔들림까지 걸린다.
+  const scale = propertyScale(current.animation, bone, property, current.amount);
+  // 좌우 반전은 계산이 다 끝난 뒤 부호를 뒤집는다. 그래서 파일에 적을 값은
+  // 화면에서 원한 방향의 **반대**여야 한다. 가로와 회전만 해당한다.
+  const flip = facingLeft() && (property === "x" || property === "rotation") ? -1 : 1;
+  const value = keyValueFor(desired * flip, others[property], scale, 1);
 
   const next = setKey(current.animation, { kind: "bone", boneId }, property, time, value);
   // 드래그 한 번이 Undo 한 단위다. 히스토리는 onDragStart에서 이미 쌓았으므로
@@ -690,7 +721,7 @@ function putKey(
   // 재생 커서가 들고 있는 것도 갈아 끼워야 화면이 곧바로 따라온다.
   // 시각을 지키기 위해 다시 올린 뒤 그 자리로 돌려놓는다.
   const at = player.time;
-  player.play(next, { speed: current.speed, amount: current.amount });
+  player.play(next, { speed: current.speed, amount: current.amount, mirror: facingLeft() });
   player.pause();
   player.seek(at);
 }
@@ -725,6 +756,7 @@ function writeRotateKey(boneId: string, radians: number): void {
       project.bones,
       keyTime(),
       current.amount,
+      facingLeft(),
     ).get(boneId)?.rotation ?? 0;
   }
 
@@ -747,7 +779,7 @@ function baseMatrix(boneId: string): Mat2D | null {
   if (!bone) return null;
 
   // 이 관절의 델타만 0으로 둔 자세를 구하면 그 세계 변환이 곧 기준이 된다.
-  const deltas = evaluateAnimation(current.animation, bones, keyTime(), current.amount);
+  const deltas = evaluateAnimation(current.animation, bones, keyTime(), current.amount, facingLeft());
   deltas.set(boneId, { ...NO_DELTA });
   const skin = computeSkinMatrices(bones, deltas);
 
@@ -829,6 +861,7 @@ function playAnimation(animationId: string): void {
   player.play(animation, {
     speed: animation.speed ?? 1,
     amount: animation.strength ?? 1,
+    mirror: facingLeft(),
   });
   view.scene.setWeightOverlay(null);
   store.set({ playing: animationId, selectedAnimation: animationId });
@@ -930,6 +963,7 @@ function loadSelectedAnimation(): boolean {
   player.play(animation, {
     speed: animation.speed ?? 1,
     amount: animation.strength ?? 1,
+    mirror: facingLeft(),
   });
   player.pause();
   return true;
@@ -1349,6 +1383,15 @@ async function openProject(file: File): Promise<void> {
   }
 }
 
+// 캔버스를 만지면 위에 떠 있던 목록과 메뉴를 내린다.
+// 좁은 화면에서는 프리셋 목록이 화면 절반을 덮어서, 재생을 구경하려고 눌렀는데
+// 정작 캐릭터가 가려져 있는 일이 생긴다.
+canvasArea.addEventListener("pointerdown", () => ui.closePopups(), {
+  // 캔버스 자신의 조작(관절 집기 · 칠하기)을 막지 않도록 흘려 보낸다.
+  capture: true,
+  passive: true,
+});
+
 // 안내판을 누르면 파일 고르기가 열린다. 손가락으로는 끌어다 놓을 수 없기 때문이다.
 document.getElementById("dropzone")?.addEventListener("click", () => imageInput.click());
 
@@ -1401,16 +1444,16 @@ function refreshWeightOverlay(): void {
     return;
   }
 
-  view.scene.setWeightOverlay(
-    renderWeightOverlay({
-      mesh: state.project.mesh,
-      bones: state.project.bones,
-      weights: state.weights,
-      selectedBoneId: state.selectedBoneId,
-      showAll: state.visibility.weightsAll,
-      alpha: alphaMap,
-    }),
-  );
+  const overlay = renderWeightOverlay({
+    mesh: state.project.mesh,
+    bones: state.project.bones,
+    weights: state.weights,
+    selectedBoneId: state.selectedBoneId,
+    showAll: state.visibility.weightsAll,
+    alpha: alphaMap,
+  });
+  // 표시용 캔버스는 작게 구워 오므로 원본 크기로 늘려서 덮는다.
+  view.scene.setWeightOverlay(overlay?.canvas ?? null, overlay?.width, overlay?.height);
 }
 
 // 선택이 바뀌거나 칠하기를 끄면 브러시 연결도 따라간다.
@@ -1430,10 +1473,23 @@ if (import.meta.env.DEV) {
     history,
     player,
     secondary,
+    // 검증 스크립트가 화면을 거치지 않고 값을 재 보기 위한 것.
+    evaluate: evaluateAnimation,
   };
 }
 
 // ── 실행 취소 · 다시 실행 ──────────────────────────────────────
+
+// 상단과 하단의 아이콘 버튼을 직접 그린 SVG로 채운다. (icons.ts)
+for (const [id, name] of [
+  ["undoButton", "undo"],
+  ["redoButton", "redo"],
+  ["playButton", "play"],
+  ["stopButton", "stop"],
+] as const) {
+  const button = document.getElementById(id);
+  if (button) setIcon(button, name);
+}
 
 const undoButton = document.getElementById("undoButton") as HTMLButtonElement;
 const redoButton = document.getElementById("redoButton") as HTMLButtonElement;

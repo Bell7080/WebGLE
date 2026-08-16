@@ -16,6 +16,7 @@ import { MAX_DURATION, MIN_DURATION, ownTracks } from "@core/animation";
 import type { BrushState, EditorStore } from "../state/store";
 import { createColorWheel } from "./colorWheel";
 import { findPreset, PRESETS } from "../../presets";
+import { icon, setIcon, type IconName } from "./icons";
 import { attachTooltip, hideTooltip } from "./tooltip";
 
 /** 이 태그를 실제로 쓰는 애니메이션 이름들. 툴팁 아래에 붙여 준다. */
@@ -100,6 +101,7 @@ export interface EditorUICallbacks {
     name?: string;
     pixelArt?: boolean;
     resolution?: "low" | "normal" | "high";
+    facing?: "right" | "left";
   }): void;
   onBrushChange(patch: Partial<BrushState>): void;
   /** 이 관절의 영향 영역을 자동에 맡길지 직접 잡을지 바꾼다. */
@@ -537,7 +539,7 @@ export class EditorUI {
       const hide = document.createElement("button");
       hide.type = "button";
       hide.className = "anim-hide";
-      hide.textContent = animation.hidden ? "+" : "−";
+      setIcon(hide, animation.hidden ? "plus" : "minus");
       hide.title = animation.hidden
         ? "내보내기에 다시 포함"
         : "내보내기에서만 빼기 (파일에는 남는다)";
@@ -547,7 +549,7 @@ export class EditorUI {
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "anim-remove";
-      remove.textContent = "×";
+      remove.append(icon("close"));
       remove.title = `${presetLabel(id)} 삭제`;
       remove.setAttribute("aria-label", remove.title);
       remove.addEventListener("click", () => this.callbacks.onRemoveAnimation(id));
@@ -566,7 +568,13 @@ export class EditorUI {
     const add = document.createElement("button");
     add.type = "button";
     add.className = "anim-add";
-    add.textContent = this.animPickerOpen ? "닫기" : "+";
+    // 닫을 때는 말로 적는다. 아이콘만 두면 "무엇을 닫는지" 알기 어렵다.
+    if (this.animPickerOpen) {
+      add.dataset.icon = "";
+      add.textContent = "닫기";
+    } else {
+      setIcon(add, "plus");
+    }
     add.title = "애니메이션 추가";
     add.addEventListener("click", () => {
       this.animPickerOpen = !this.animPickerOpen;
@@ -679,6 +687,24 @@ export class EditorUI {
     this.setOpenMenu("settings");
   }
 
+  /**
+   * 캔버스 위에 떠 있는 것들을 전부 내린다. 캔버스를 만졌을 때 부른다.
+   *
+   * 좁은 화면에서는 프리셋 목록이 화면 절반을 덮는다. 재생을 구경하려고 화면을 눌렀는데
+   * 목록이 그대로 남아 있으면 정작 캐릭터가 보이지 않는다.
+   * 무언가 실제로 닫혔을 때만 true다 — 부르는 쪽이 헛일을 했는지 알 수 있게.
+   */
+  closePopups(): boolean {
+    const had = this.animPickerOpen || this.openMenu !== null;
+    if (!had) return false;
+
+    this.animPickerOpen = false;
+    this.setOpenMenu(null);
+    this.animPicker.classList.remove("open");
+    this.render();
+    return true;
+  }
+
   private setOpenMenu(menu: "file" | "settings" | null): void {
     this.openMenu = menu;
     hideTooltip();
@@ -749,6 +775,24 @@ export class EditorUI {
         ],
         project.character.pixelArt,
         (value) => this.callbacks.onCharacterSetting({ pixelArt: value }),
+      ),
+    );
+
+    // 보는 쪽 — 프리셋은 전부 오른쪽을 보는 캐릭터 기준이다. (기획서 20)
+    this.settingsPanel.append(
+      this.choiceField(
+        "보는 쪽",
+        {
+          title: "캐릭터가 바라보는 쪽",
+          body: "기본 동작들은 오른쪽을 보는 그림을 기준으로 만들어져 있습니다. 왼쪽을 보는 그림이라면 여기를 바꾸세요. 걸음과 공격이 앞쪽으로 나갑니다.",
+          meta: "그림을 뒤집는 것이 아니라 동작의 좌우를 뒤집습니다 · 내보내기에도 따라갑니다",
+        },
+        [
+          { value: "right" as const, label: "오른쪽" },
+          { value: "left" as const, label: "왼쪽" },
+        ],
+        project.character.facing ?? "right",
+        (value) => this.callbacks.onCharacterSetting({ facing: value }),
       ),
     );
 
@@ -888,7 +932,7 @@ export class EditorUI {
 
     const grip = document.createElement("span");
     grip.className = "grip";
-    grip.textContent = "⠿";
+    grip.append(icon("grip"));
     grip.setAttribute("aria-hidden", "true");
 
     const dot = document.createElement("span");
@@ -902,7 +946,7 @@ export class EditorUI {
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "remove";
-    remove.textContent = "×";
+    remove.append(icon("close"));
     remove.title = `${bone.name} 삭제`;
     remove.setAttribute("aria-label", `${bone.name} 삭제`);
     remove.addEventListener("click", (event) => {
@@ -1127,8 +1171,8 @@ export class EditorUI {
     const tools = document.createElement("div");
     tools.className = "tool-row";
     tools.append(
-      this.toolButton("brush", "✎", "칠하기", brush.tool === "brush"),
-      this.toolButton("eraser", "⌫", "지우개", brush.tool === "eraser"),
+      this.toolButton("brush", "brush", "칠하기", brush.tool === "brush"),
+      this.toolButton("eraser", "eraser", "지우개", brush.tool === "eraser"),
     );
     section.append(tools);
 
@@ -1183,7 +1227,7 @@ export class EditorUI {
 
   private toolButton(
     tool: "brush" | "eraser",
-    icon: string,
+    glyph: IconName,
     label: string,
     active: boolean,
   ): HTMLButtonElement {
@@ -1194,12 +1238,12 @@ export class EditorUI {
     button.setAttribute("aria-pressed", String(active));
     button.setAttribute("aria-label", label);
 
-    const glyph = document.createElement("span");
-    glyph.className = "glyph";
-    glyph.textContent = icon;
+    const mark = document.createElement("span");
+    mark.className = "glyph";
+    mark.append(icon(glyph));
     const text = document.createElement("span");
     text.textContent = label;
-    button.append(glyph, text);
+    button.append(mark, text);
 
     button.addEventListener("click", () =>
       this.callbacks.onBrushChange({ tool: active ? null : tool }),
@@ -1520,7 +1564,7 @@ export class EditorUI {
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "tag-remove";
-    remove.textContent = "×";
+    remove.append(icon("close"));
     remove.title = `${tag} 떼기`;
     remove.setAttribute("aria-label", `${tag} 떼기`);
     remove.addEventListener("click", () =>

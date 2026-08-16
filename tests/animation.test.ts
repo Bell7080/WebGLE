@@ -6,6 +6,8 @@ import {
   deformModesFor,
   evaluateAnimation,
   keyTimes,
+  mirrorDeltas,
+  propertyScale,
   resolveTargets,
   sampleTrack,
 } from "../src/core/animation";
@@ -355,5 +357,109 @@ describe("키가 찍힌 시각", () => {
 
   it("아무 Track도 건드리지 않는 관절이면 비어 있다", () => {
     expect(keyTimes(anim, [...bones, bone("날개", ["wing"])], "날개")).toEqual([]);
+  });
+});
+
+describe("강도와 흔들림은 서로 다른 일을 한다", () => {
+  function moving(id: string): PuppetBone {
+    return {
+      id, name: id, parentId: null, x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1,
+      tags: ["arm"], motionStrength: 1, deform: "soft", color: "#ffffff",
+    };
+  }
+
+  const both: PuppetAnimation = {
+    name: "t", duration: 1, loop: false,
+    tracks: [
+      { target: { kind: "tag", tag: "arm" }, property: "x", keys: [{ time: 0, value: 100 }] },
+      { target: { kind: "tag", tag: "arm" }, property: "rotation", keys: [{ time: 0, value: 1 }] },
+    ],
+  };
+
+  it("흔들림은 회전만 키운다 — 나아가는 거리는 그대로다", () => {
+    const plain = evaluateAnimation(both, [moving("a")], 0).get("a")!;
+    const swung = evaluateAnimation({ ...both, secondary: 2 }, [moving("a")], 0).get("a")!;
+
+    expect(swung.rotation).toBeCloseTo(plain.rotation * 2);
+    expect(swung.x).toBeCloseTo(plain.x);
+  });
+
+  it("흔들림 0이면 회전만 멈추고 이동은 남는다", () => {
+    const still = evaluateAnimation({ ...both, secondary: 0 }, [moving("a")], 0).get("a")!;
+    expect(still.rotation).toBe(0);
+    expect(still.x).toBe(100);
+  });
+
+  it("강도는 이동과 회전을 함께 줄인다", () => {
+    const half = evaluateAnimation(both, [moving("a")], 0, 0.5).get("a")!;
+    expect(half.x).toBeCloseTo(50);
+    expect(half.rotation).toBeCloseTo(0.5);
+  });
+
+  it("강도 0이면 아무것도 움직이지 않는다 — 흔들림이 켜져 있어도 그렇다", () => {
+    const frozen = evaluateAnimation({ ...both, secondary: 2 }, [moving("a")], 0, 0).get("a")!;
+    expect(frozen.x).toBe(0);
+    expect(frozen.rotation).toBe(0);
+  });
+
+  it("propertyScale이 키를 되돌릴 때 쓰는 배율과 같다", () => {
+    const bone = moving("a");
+    const animation = { ...both, secondary: 1.5 };
+    expect(propertyScale(animation, bone, "rotation", 0.5)).toBeCloseTo(0.75);
+    expect(propertyScale(animation, bone, "x", 0.5)).toBeCloseTo(0.5);
+  });
+});
+
+describe("좌우 반전", () => {
+  const bone: PuppetBone = {
+    id: "arm", name: "arm", parentId: null, x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1,
+    tags: ["arm"], motionStrength: 1, deform: "soft", color: "#ffffff",
+  };
+
+  const punch: PuppetAnimation = {
+    name: "punch", duration: 1, loop: false,
+    tracks: [
+      { target: { kind: "tag", tag: "arm" }, property: "x", keys: [{ time: 0, value: 20 }] },
+      { target: { kind: "tag", tag: "arm" }, property: "y", keys: [{ time: 0, value: -5 }] },
+      { target: { kind: "tag", tag: "arm" }, property: "rotation", keys: [{ time: 0, value: 0.4 }] },
+      { target: { kind: "tag", tag: "arm" }, property: "scaleX", keys: [{ time: 0, value: 1.2 }] },
+    ],
+  };
+
+  it("가로와 회전만 뒤집는다", () => {
+    const right = evaluateAnimation(punch, [bone], 0).get("arm")!;
+    const left = evaluateAnimation(punch, [bone], 0, 1, true).get("arm")!;
+
+    expect(left.x).toBe(-right.x);
+    expect(left.rotation).toBe(-right.rotation);
+    // 위아래와 크기는 좌우와 관계가 없다.
+    expect(left.y).toBe(right.y);
+    expect(left.scaleX).toBe(right.scaleX);
+  });
+
+  it("두 번 뒤집으면 원래대로다", () => {
+    const once = evaluateAnimation(punch, [bone], 0, 1, true).get("arm")!;
+    const twice = mirrorDeltas(new Map([["arm", { ...once }]])).get("arm")!;
+    const plain = evaluateAnimation(punch, [bone], 0).get("arm")!;
+
+    expect(twice.x).toBeCloseTo(plain.x);
+    expect(twice.rotation).toBeCloseTo(plain.rotation);
+  });
+
+  it("재생 커서가 보는 쪽을 들고 있고 도중에 바꿀 수 있다", () => {
+    const player = new AnimationPlayer();
+    player.play(punch, { mirror: true });
+    expect(player.sample([bone]).get("arm")!.x).toBe(-20);
+
+    player.setMirror(false);
+    expect(player.sample([bone]).get("arm")!.x).toBe(20);
+  });
+
+  it("애니메이션을 갈아 끼워도 보는 쪽은 유지된다", () => {
+    // 여기서 흘리면 프리셋을 바꿀 때마다 캐릭터가 등 뒤로 주먹을 뻗는다.
+    const player = new AnimationPlayer();
+    player.play(punch, { mirror: true });
+    player.play({ ...punch, name: "again" });
+    expect(player.sample([bone]).get("arm")!.x).toBe(-20);
   });
 });
