@@ -645,6 +645,33 @@ button.tag-option {
   margin: 0;
 }
 
+/* 전체 영역 작업은 서로 같은 범위의 동작임을 두 칸 버튼으로 보여 준다. */
+.weight-bulk-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.weight-bulk-tools button {
+  min-width: 0;
+}
+
+/* 자동/직접 chip과 같은 문법으로 전체 보정의 세 단계를 고른다. */
+.weight-strength {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.weight-strength .hint {
+  margin-right: auto;
+}
+
+.weight-strength .chip.active {
+  border-color: var(--text);
+  color: var(--text);
+}
+
 /* 칠하기 / 지우개 아이콘 토글 */
 .tool-row {
   display: flex;

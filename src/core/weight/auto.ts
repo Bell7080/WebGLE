@@ -161,3 +161,94 @@ export function withAutoWeights(
 export function autoManagedBones(bones: readonly PuppetBone[]): Set<string> {
   return new Set(bones.filter((bone) => bone.autoWeight === true).map((bone) => bone.id));
 }
+
+/** 전체 보정 도구의 단계. 같은 세 단계가 채우기와 정리에서 예측 가능한 강도로 쓰인다. */
+export type WeightCorrectionStrength = "weak" | "normal" | "strong";
+
+/** UI가 실제 변화량을 알려 줄 수 있도록 결과와 집계를 함께 돌려준다. */
+export interface WeightCorrectionResult {
+  weights: WeightMap;
+  filledVertices: number;
+  removedMarks: number;
+}
+
+/** 강할수록 이미 어느 정도 칠해진 정점도 거리 기반 값으로 다시 꽉 채운다. */
+const FILL_THRESHOLDS: Record<WeightCorrectionStrength, number> = {
+  weak: 0.001,
+  normal: Math.sqrt(0.001),
+  strong: 0.5,
+};
+
+/**
+ * 실루엣 안의 비어 있거나 선택 단계보다 약한 정점을 거리 기반 값으로 메운다.
+ * 약하게·보통은 수작업을 보존하고, 강하게는 50% 이하 영역까지 의도적으로 다시 계산한다.
+ */
+export function fillUnweighted(
+  current: WeightMap,
+  bones: readonly PuppetBone[],
+  mesh: PuppetMesh,
+  mask?: readonly boolean[] | null,
+  strength: WeightCorrectionStrength = "normal",
+): WeightCorrectionResult {
+  const computed = autoWeights(bones, mesh, { mask });
+  const count = vertexCount(mesh);
+  const result: WeightMap = Object.fromEntries(
+    bones.map((bone) => [bone.id, [...(current[bone.id] ?? new Array<number>(count).fill(0))]]),
+  );
+  let filledVertices = 0;
+
+  for (let index = 0; index < count; index += 1) {
+    if (mask && !mask[index]) continue;
+    // 단계별 기준보다 진한 정점은 사용자가 결정한 경계로 보고 그대로 둔다.
+    const strongest = Math.max(...bones.map((bone) => current[bone.id]?.[index] ?? 0));
+    if (strongest > FILL_THRESHOLDS[strength]) continue;
+    for (const bone of bones) result[bone.id]![index] = computed[bone.id]?.[index] ?? 0;
+    filledVertices += 1;
+  }
+  return { weights: result, filledVertices, removedMarks: 0 };
+}
+
+/**
+ * 한 정점에만 찍힌 고립 가중치와 거의 보이지 않는 잔여 값을 걷어낸 뒤 생긴 구멍을 다시 메운다.
+ * 8방향 이웃을 쓰므로 대각선으로 이어지는 가느다란 팔다리는 정상 영역으로 유지된다.
+ */
+export function cleanupWeights(
+  current: WeightMap,
+  bones: readonly PuppetBone[],
+  mesh: PuppetMesh,
+  mask?: readonly boolean[] | null,
+  strength: WeightCorrectionStrength = "normal",
+): WeightCorrectionResult {
+  const count = vertexCount(mesh);
+  const stride = mesh.cols + 1;
+  const cleaned: WeightMap = {};
+  const faintThreshold = strength === "weak" ? 0.01 : strength === "normal" ? 0.03 : 0.08;
+  const maximumNeighbors = strength === "strong" ? 1 : 0;
+  let removedMarks = 0;
+
+  for (const bone of bones) {
+    const source = current[bone.id] ?? new Array<number>(count).fill(0);
+    const channel = [...source];
+    for (let index = 0; index < count; index += 1) {
+      if ((mask && !mask[index]) || (source[index] ?? 0) <= 0) continue;
+      const row = Math.floor(index / stride);
+      const col = index % stride;
+      let supportingNeighbors = 0;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if ((dx === 0 && dy === 0) || row + dy < 0 || row + dy > mesh.rows || col + dx < 0 || col + dx > mesh.cols) continue;
+          if ((source[(row + dy) * stride + col + dx] ?? 0) > 0.01) supportingNeighbors += 1;
+        }
+      }
+      // 단계별로 아주 옅은 자국과 이웃의 지지가 부족한 작은 오점을 제거한다.
+      if ((source[index] ?? 0) < faintThreshold || supportingNeighbors <= maximumNeighbors) {
+        channel[index] = 0;
+        removedMarks += 1;
+      }
+    }
+    cleaned[bone.id] = channel;
+  }
+
+  const filled = fillUnweighted(cleaned, bones, mesh, mask, strength);
+  return { ...filled, removedMarks };
+}

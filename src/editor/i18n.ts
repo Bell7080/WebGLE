@@ -172,6 +172,15 @@ const rows: Record<string, readonly string[]> = {
   "영향 영역": ["Influence area", "影响区域", "影響區域", "影響領域", "Área de influencia", "Zone d’influence", "Einflussbereich", "Área de influência", "Область влияния"],
   "칠하기": ["Paint", "绘制", "繪製", "塗る", "Pintar", "Peindre", "Malen", "Pintar", "Рисовать"],
   "지우개": ["Eraser", "橡皮擦", "橡皮擦", "消しゴム", "Borrador", "Gomme", "Radierer", "Borracha", "Ластик"],
+  "모두 채우기": ["Fill all", "全部填充", "全部填滿", "すべて塗る", "Rellenar todo", "Tout remplir", "Alles füllen", "Preencher tudo", "Заполнить всё"],
+  "정리": ["Clean up", "清理", "整理", "整理", "Limpiar", "Nettoyer", "Bereinigen", "Limpar", "Очистить"],
+  "보정 강도": ["Correction strength", "修正强度", "修正強度", "補正強度", "Intensidad de corrección", "Intensité de correction", "Korrekturstärke", "Intensidade da correção", "Сила коррекции"],
+  "약하게": ["Light", "弱", "弱", "弱", "Suave", "Faible", "Leicht", "Leve", "Слабо"],
+  "강하게": ["Strong", "强", "強", "強", "Fuerte", "Forte", "Stark", "Forte", "Сильно"],
+  "모든 관절의 영향 영역을 채웁니다. 정말 진행할까요?": ["This fills influence areas for every bone. Continue?", "这将填充所有骨骼的影响区域。是否继续？", "這將填滿所有骨骼的影響區域。是否繼續？", "すべてのボーンの影響領域を塗ります。続行しますか？", "Esto rellenará las áreas de influencia de todos los huesos. ¿Continuar?", "Cette action remplit les zones d’influence de tous les os. Continuer ?", "Dadurch werden die Einflussbereiche aller Knochen gefüllt. Fortfahren?", "Isso preencherá as áreas de influência de todos os ossos. Continuar?", "Будут заполнены области влияния всех костей. Продолжить?"],
+  "모든 관절의 영향 영역을 정리합니다. 정말 진행할까요?": ["This cleans influence areas for every bone. Continue?", "这将清理所有骨骼的影响区域。是否继续？", "這將整理所有骨骼的影響區域。是否繼續？", "すべてのボーンの影響領域を整理します。続行しますか？", "Esto limpiará las áreas de influencia de todos los huesos. ¿Continuar?", "Cette action nettoie les zones d’influence de tous les os. Continuer ?", "Dadurch werden die Einflussbereiche aller Knochen bereinigt. Fortfahren?", "Isso limpará as áreas de influência de todos os ossos. Continuar?", "Будут очищены области влияния всех костей. Продолжить?"],
+  "현재 관절과 가중치를 기준으로 그림의 모든 빈 영역을 채웁니다.": ["Fills every empty part of the artwork using the current bones and weights.", "根据当前骨骼和权重填充图像中的所有空白区域。", "依目前骨骼與權重填滿圖像中的所有空白區域。", "現在のボーンとウェイトを基に、絵の空き領域をすべて塗ります。", "Rellena todas las zonas vacías de la ilustración según los huesos y pesos actuales.", "Remplit toutes les zones vides de l’illustration selon les os et poids actuels.", "Füllt alle leeren Bildbereiche anhand der aktuellen Knochen und Gewichte.", "Preenche todas as áreas vazias da ilustração com base nos ossos e pesos atuais.", "Заполняет все пустые области рисунка на основе текущих костей и весов."],
+  "고립된 작은 자국과 희미한 잔여 영역을 지우고 빈 곳을 메웁니다.": ["Removes isolated specks and faint remnants, then fills any gaps.", "移除孤立的小点和微弱残留，并填补空隙。", "移除孤立小點與微弱殘留，並填補空隙。", "孤立した小さな跡と薄い残りを消し、空きを埋めます。", "Elimina manchas aisladas y restos tenues, y después rellena los huecos.", "Supprime les taches isolées et résidus faibles, puis comble les vides.", "Entfernt vereinzelte Flecken und schwache Reste und füllt danach Lücken.", "Remove manchas isoladas e resíduos fracos e depois preenche as lacunas.", "Удаляет одиночные пятна и слабые остатки, затем заполняет пробелы."],
   "자동": ["Auto", "自动", "自動", "自動", "Automático", "Auto", "Automatisch", "Automático", "Авто"],
   "직접": ["Manual", "手动", "手動", "手動", "Manual", "Manuel", "Manuell", "Manual", "Вручную"],
   "색": ["Color", "颜色", "顏色", "色", "Color", "Couleur", "Farbe", "Cor", "Цвет"],
@@ -283,6 +292,28 @@ export function formatAnimationSummary(duration: number, loop: boolean, tracks: 
   if (language === "ko") return `${duration}초 · ${loop ? "반복" : "한 번"} · 트랙 ${tracks}개`;
   const template = catalogTemplates[language];
   return `${duration}s · ${loop ? template.loop : template.once} · ${tracks} ${template.tracks}`;
+}
+
+/** 전체 보정 뒤 바뀐 정점·오점 수를 현재 언어의 어순으로 알려 준다. */
+export function formatWeightCorrectionResult(
+  kind: "fill" | "cleanup",
+  result: { filledVertices: number; removedMarks: number },
+): string {
+  const language = getLanguage();
+  const values = { filled: result.filledVertices, removed: result.removedMarks };
+  const templates: Record<LanguageCode, { fill: string; cleanup: string }> = {
+    ko: { fill: "빈 정점 {filled}개를 채웠습니다. Ctrl+Z로 되돌릴 수 있습니다.", cleanup: "오점 {removed}개를 지우고 빈 정점 {filled}개를 채웠습니다. Ctrl+Z로 되돌릴 수 있습니다." },
+    en: { fill: "Filled {filled} empty vertices. Press Ctrl+Z to undo.", cleanup: "Removed {removed} marks and filled {filled} empty vertices. Press Ctrl+Z to undo." },
+    "zh-CN": { fill: "已填充 {filled} 个空白顶点。可按 Ctrl+Z 撤销。", cleanup: "已移除 {removed} 个杂点并填充 {filled} 个空白顶点。可按 Ctrl+Z 撤销。" },
+    "zh-TW": { fill: "已填滿 {filled} 個空白頂點。可按 Ctrl+Z 復原。", cleanup: "已移除 {removed} 個雜點並填滿 {filled} 個空白頂點。可按 Ctrl+Z 復原。" },
+    ja: { fill: "空の頂点を {filled} 個塗りました。Ctrl+Z で元に戻せます。", cleanup: "不要な跡を {removed} 個消し、空の頂点を {filled} 個塗りました。Ctrl+Z で元に戻せます。" },
+    es: { fill: "Se rellenaron {filled} vértices vacíos. Ctrl+Z para deshacer.", cleanup: "Se eliminaron {removed} marcas y se rellenaron {filled} vértices vacíos. Ctrl+Z para deshacer." },
+    fr: { fill: "{filled} sommets vides remplis. Ctrl+Z pour annuler.", cleanup: "{removed} traces supprimées et {filled} sommets vides remplis. Ctrl+Z pour annuler." },
+    de: { fill: "{filled} leere Punkte gefüllt. Mit Ctrl+Z rückgängig machen.", cleanup: "{removed} Flecken entfernt und {filled} leere Punkte gefüllt. Mit Ctrl+Z rückgängig machen." },
+    "pt-BR": { fill: "{filled} vértices vazios preenchidos. Ctrl+Z para desfazer.", cleanup: "{removed} marcas removidas e {filled} vértices vazios preenchidos. Ctrl+Z para desfazer." },
+    ru: { fill: "Заполнено пустых вершин: {filled}. Ctrl+Z — отменить.", cleanup: "Удалено пятен: {removed}; заполнено пустых вершин: {filled}. Ctrl+Z — отменить." },
+  };
+  return fillTemplate(templates[language][kind], values);
 }
 
 /** 프리셋 보유 여부와 사용 태그를 애니메이션 요약 뒤에 붙인다. */

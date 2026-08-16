@@ -16,6 +16,7 @@ import {
 import { canReparent } from "@core/skeleton";
 import { MAX_DURATION, MIN_DURATION, ownTracks } from "@core/animation";
 import type { BrushState, EditorStore } from "../state/store";
+import type { WeightCorrectionStrength } from "@core/weight/auto";
 import { createColorWheel } from "./colorWheel";
 import { findPreset, PRESET_GROUPS, PRESETS } from "../../presets";
 import { icon, setIcon, type IconName } from "./icons";
@@ -130,6 +131,10 @@ export interface EditorUICallbacks {
   onBrushChange(patch: Partial<BrushState>): void;
   /** 이 관절의 영향 영역을 자동에 맡길지 직접 잡을지 바꾼다. */
   onAutoWeight(boneId: string, enabled: boolean): void;
+  /** 현재 관절 전체를 기준으로 실루엣의 빈 영향 영역을 메운다. */
+  onFillAllWeights(strength: WeightCorrectionStrength): void;
+  /** 고립된 오점과 미세 잔여 가중치를 정돈하고 빈 곳을 메운다. */
+  onCleanupWeights(strength: WeightCorrectionStrength): void;
 }
 
 /** 변형 방식 선택지. 짧은 이름은 버튼에, 나머지는 툴팁에 쓴다. */
@@ -297,6 +302,8 @@ export class EditorUI {
   private animSignature = "";
   /** 속도 · 강도 줄이 지금 어느 애니메이션을 보여 주고 있는지. */
   private animSettingsId: string | null = null;
+  /** 전체 보정 단계는 패널이 다시 그려져도 사용자가 마지막으로 고른 값을 유지한다. */
+  private weightCorrectionStrength: WeightCorrectionStrength = "normal";
 
   constructor(
     private readonly store: EditorStore,
@@ -1270,6 +1277,45 @@ export class EditorUI {
     }
 
     section.append(this.autoWeightRow(bone));
+
+    // 기존 chip 모양을 그대로 써서 별도의 색이나 새로운 조작 문법을 만들지 않는다.
+    const strengthRow = document.createElement("div");
+    strengthRow.className = "weight-strength";
+    const strengthLabel = document.createElement("span");
+    strengthLabel.className = "hint";
+    strengthLabel.textContent = "보정 강도";
+    strengthRow.append(strengthLabel);
+    for (const [value, label] of [["weak", "약하게"], ["normal", "보통"], ["strong", "강하게"]] as const) {
+      const choice = document.createElement("button");
+      choice.type = "button";
+      choice.className = this.weightCorrectionStrength === value ? "chip active" : "chip";
+      choice.textContent = label;
+      choice.setAttribute("aria-pressed", String(this.weightCorrectionStrength === value));
+      choice.addEventListener("click", () => {
+        this.weightCorrectionStrength = value;
+        this.render();
+      });
+      strengthRow.append(choice);
+    }
+    section.append(strengthRow);
+
+    // 두 동작은 선택 관절 하나가 아니라 캐릭터 전체를 다루므로 같은 비중의 묶음으로 둔다.
+    const bulkTools = document.createElement("div");
+    bulkTools.className = "weight-bulk-tools";
+    const fillAll = document.createElement("button");
+    fillAll.type = "button";
+    fillAll.className = "outlined";
+    fillAll.textContent = "모두 채우기";
+    fillAll.title = "현재 관절과 가중치를 기준으로 그림의 모든 빈 영역을 채웁니다.";
+    fillAll.addEventListener("click", () => this.callbacks.onFillAllWeights(this.weightCorrectionStrength));
+    const cleanup = document.createElement("button");
+    cleanup.type = "button";
+    cleanup.className = "outlined";
+    cleanup.textContent = "정리";
+    cleanup.title = "고립된 작은 자국과 희미한 잔여 영역을 지우고 빈 곳을 메웁니다.";
+    cleanup.addEventListener("click", () => this.callbacks.onCleanupWeights(this.weightCorrectionStrength));
+    bulkTools.append(fillAll, cleanup);
+    section.append(bulkTools);
 
     // 칠하기 / 지우개는 한 줄에 모은 아이콘 토글이다.
     // 같은 것을 다시 누르면 꺼지고, 다른 것을 누르면 그쪽으로 바뀐다.

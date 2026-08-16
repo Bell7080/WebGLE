@@ -19,7 +19,7 @@ import {
   toWeightMap,
   type WeightMap,
 } from "@core/weight";
-import { autoManagedBones, withAutoWeights } from "@core/weight/auto";
+import { autoManagedBones, cleanupWeights, fillUnweighted, withAutoWeights } from "@core/weight/auto";
 import { applyStroke, beginStroke, extendStroke, type Stroke } from "@core/weight/stroke";
 import {
   applyPoint,
@@ -90,7 +90,7 @@ import { setIcon } from "@editor/ui/icons";
 import { setupMobileShell } from "@editor/ui/mobile";
 import { FRAME, Timeline } from "@editor/ui/timeline";
 import { findPreset, PRESETS } from "./presets";
-import { localizeStaticDocument } from "@editor/i18n";
+import { formatWeightCorrectionResult, localizeStaticDocument, translate } from "@editor/i18n";
 
 // 동적 패널을 만들기 전에 문서의 고정 문구부터 선택 언어로 맞춘다.
 localizeStaticDocument();
@@ -213,6 +213,28 @@ const ui = new EditorUI(store, {
         ? `${bone?.name ?? "관절"}: 자동으로 되돌렸습니다.`
         : `${bone?.name ?? "관절"}: 이제 직접 맡습니다. 자동 계산이 덮어쓰지 않습니다.`,
     );
+  },
+
+  onFillAllWeights: (strength) => {
+    const { project, weights, mask } = store.get();
+    if (!project.mesh || project.bones.length === 0) return;
+    // 전 관절의 값을 바꾸는 작업임을 실행 직전에 분명히 알리고 취소할 길을 둔다.
+    if (!window.confirm(translate("모든 관절의 영향 영역을 채웁니다. 정말 진행할까요?"))) return;
+    pushHistory();
+    const result = fillUnweighted(weights, project.bones, project.mesh, mask, strength);
+    setWeights(result.weights);
+    ui.setStatus(formatWeightCorrectionResult("fill", result));
+  },
+
+  onCleanupWeights: (strength) => {
+    const { project, weights, mask } = store.get();
+    if (!project.mesh || project.bones.length === 0) return;
+    // 확인 후에만 History를 쌓아 취소가 Undo 목록을 불필요하게 차지하지 않게 한다.
+    if (!window.confirm(translate("모든 관절의 영향 영역을 정리합니다. 정말 진행할까요?"))) return;
+    pushHistory();
+    const result = cleanupWeights(weights, project.bones, project.mesh, mask, strength);
+    setWeights(result.weights);
+    ui.setStatus(formatWeightCorrectionResult("cleanup", result));
   },
 
   onReorderBone: (boneId, targetId, place) => {
