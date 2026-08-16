@@ -242,7 +242,7 @@ export class EditorUI {
   private readonly animPicker = requireElement<HTMLDivElement>("animPicker");
   private readonly animSettings = requireElement<HTMLDivElement>("animSettings");
   private readonly statusText = requireElement<HTMLSpanElement>("statusText");
-  private readonly dropzone = requireElement<HTMLDivElement>("dropzone");
+  private readonly dropzone = requireElement<HTMLButtonElement>("dropzone");
   private readonly addBoneButton = requireElement<HTMLButtonElement>("addBoneButton");
   private readonly fileButton = requireElement<HTMLButtonElement>("fileButton");
   private readonly fileMenu = requireElement<HTMLDivElement>("fileMenu");

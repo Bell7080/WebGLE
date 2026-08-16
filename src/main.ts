@@ -83,6 +83,7 @@ import {
   sheetManifest,
 } from "@editor/tools/spriteSheet";
 import { createZip } from "@core/format/zip";
+import { setupMobileShell } from "@editor/ui/mobile";
 import { FRAME, Timeline } from "@editor/ui/timeline";
 import { findPreset, PRESETS } from "./presets";
 
@@ -93,6 +94,13 @@ import { findPreset, PRESETS } from "./presets";
 let settingGesture: string | null = null;
 
 const canvasArea = document.getElementById("canvasArea") as HTMLElement;
+
+/** 좁은 세로 화면에서 좌우 패널을 아래에서 끌어 올린다. 넓은 화면에서는 아무 일도 하지 않는다. */
+const mobile = setupMobileShell(
+  document.getElementById("app") as HTMLElement,
+  document.getElementById("mobileTabs") as HTMLElement,
+  canvasArea,
+);
 const imageInput = document.getElementById("imageInput") as HTMLInputElement;
 const projectInput = document.getElementById("projectInput") as HTMLInputElement;
 
@@ -119,6 +127,8 @@ const ui = new EditorUI(store, {
     const added = store.get().project.bones.at(-1);
     if (added) {
       store.set({ selectedBoneId: added.id });
+      // 좁은 화면에서는 목록 시트를 내려 준다. 방금 놓은 관절이 캔버스에 보여야 한다.
+      if (mobile.isNarrow) mobile.close();
       // 놓자마자 그림이 따라 움직이도록 영향 영역을 바로 깔아 준다.
       const painted = refreshAutoWeights();
       ui.setStatus(
@@ -193,6 +203,8 @@ const ui = new EditorUI(store, {
     const brush = { ...store.get().brush, ...patch };
     store.set({ brush });
     syncPaintMode(brush);
+    // 칠하기를 켰다는 것은 곧 캔버스를 만지겠다는 뜻이다. 좁은 화면에서는 시트를 비켜 준다.
+    if (brush.tool && mobile.isNarrow) mobile.close();
   },
 
   onMenu: (action) => {
@@ -1169,7 +1181,7 @@ function resetProject(): void {
 async function importImage(file: File): Promise<void> {
   try {
     const previous = store.get().textureUrl;
-    const { image, url, fileName } = await loadImageFile(file);
+    const { image, url, fileName, warning } = await loadImageFile(file);
     if (previous) URL.revokeObjectURL(previous);
 
     // 픽셀을 한 번 읽어 알파 마스크와 도트 판정에 함께 쓴다.
@@ -1212,7 +1224,9 @@ async function importImage(file: File): Promise<void> {
     // 관절을 먼저 놓고 그림을 나중에 불러온 경우에도 곧바로 움직이게 한다.
     refreshAutoWeights();
     ui.setStatus(
-      `${fileName} (${image.width}×${image.height}) · ${verdict.pixelArt ? "도트" : "일반"} 그림 · Mesh ${mesh.cols}×${mesh.rows}`,
+      warning
+        ? `${fileName} (${image.width}×${image.height}) · ${warning}`
+        : `${fileName} (${image.width}×${image.height}) · ${verdict.pixelArt ? "도트" : "일반"} 그림 · Mesh ${mesh.cols}×${mesh.rows}`,
     );
   } catch (error) {
     ui.setStatus(error instanceof Error ? error.message : "이미지를 불러오지 못했습니다.");
@@ -1334,6 +1348,9 @@ async function openProject(file: File): Promise<void> {
     ui.setStatus(error instanceof Error ? error.message : "프로젝트를 열지 못했습니다.");
   }
 }
+
+// 안내판을 누르면 파일 고르기가 열린다. 손가락으로는 끌어다 놓을 수 없기 때문이다.
+document.getElementById("dropzone")?.addEventListener("click", () => imageInput.click());
 
 attachDropTarget(canvasArea, (file) => {
   if (file.name.endsWith(".zip") || file.name.endsWith(".puppet.zip")) {

@@ -710,8 +710,10 @@ button.tool .glyph {
   gap: 6px;
   border: 1px dashed var(--line-strong);
   border-radius: 8px;
+  background: transparent;
   color: var(--text-3);
-  pointer-events: none;
+  /* 눌러서 파일 고르기를 열 수 있어야 한다. 감췄을 때는 display:none이라 캔버스를 막지 않는다. */
+  cursor: pointer;
   text-align: center;
 }
 
@@ -722,6 +724,16 @@ button.tool .glyph {
 }
 
 .dropzone.hidden {
+  display: none;
+}
+
+.dropzone:hover {
+  border-color: var(--text-3);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* 넓은 화면에서는 끌어다 놓기를, 좁은 화면에서는 누르기를 안내한다. */
+.drop-tap {
   display: none;
 }
 
@@ -1428,4 +1440,216 @@ button.key-remove {
   width: calc(100% - 20px);
   margin: 6px 10px 0;
   font-size: 12px;
+}
+
+/* ── 모바일 세로형 ───────────────────────────
+ *
+ * 세로로 긴 화면에서 캔버스 양옆에 패널을 두면 캔버스가 손톱만 해진다.
+ * 그래서 패널을 화면 밖으로 내리고 하단 탭으로 필요할 때만 끌어 올린다.
+ * "캔버스가 가장 크게 보인다"를 지키기 위한 것이다. (기획서 33)
+ *
+ * 기준은 `src/editor/ui/mobile.ts`의 NARROW_QUERY와 같은 문장이어야 한다.
+ * 폭뿐 아니라 높이도 본다 — 휴대폰을 옆으로 눕히면 폭은 넉넉해지지만
+ * 세로가 400px대라 좌우 패널을 두면 캔버스가 화면의 3분의 1로 줄어든다.
+ */
+.mobile-tabs {
+  display: none;
+}
+
+@media (max-width: 760px), (max-height: 520px) {
+  :root {
+    --topbar-h: 40px;
+    --animbar-h: 44px;
+    --timeline-h: 42px;
+    --tabbar-h: 46px;
+  }
+
+  #app {
+    grid-template-rows: var(--topbar-h) 1fr var(--animbar-h) var(--tabbar-h);
+    /* 주소창이 접혔다 펴져도 잘리지 않게 실제 보이는 높이를 쓴다. */
+    height: 100dvh;
+  }
+
+  #app.has-timeline {
+    grid-template-rows: var(--topbar-h) 1fr var(--timeline-h) var(--animbar-h) var(--tabbar-h);
+  }
+
+  /* 캔버스만 남기고 좌우 패널은 아래로 내려간다. */
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    gap: 8px;
+    padding: 0 8px;
+    overflow-x: auto;
+  }
+
+  /* 이름표는 좁은 화면에서 자리값을 못 한다. */
+  .topbar .brand {
+    display: none;
+  }
+
+  .layers {
+    overflow-x: auto;
+    flex: 1;
+  }
+
+  /* 아래에서 올라오는 시트. 기본은 화면 밖이다. */
+  .panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--tabbar-h);
+    z-index: 40;
+    height: min(56dvh, 460px);
+    border: none;
+    border-top: 1px solid var(--line-strong);
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+    transform: translateY(calc(100% + var(--tabbar-h)));
+    transition: transform 0.18s ease-out;
+    /* 내려가 있는 동안에는 손가락이 닿지 않아야 한다. */
+    visibility: hidden;
+  }
+
+  #app[data-sheet="left"] .panel-left,
+  #app[data-sheet="right"] .panel-right {
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  .panel-head {
+    height: 40px;
+  }
+
+  /* 하단 탭. 두 칸으로 나눠 손가락이 닿기 쉬운 크기로 둔다. */
+  .mobile-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+    border-top: 1px solid var(--line);
+    z-index: 50;
+    /* 아이폰 홈 인디케이터에 가리지 않게 한다. */
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .mobile-tabs button {
+    border: none;
+    border-radius: 0;
+    background: var(--bg-panel);
+    color: var(--text-2);
+    font-size: 12.5px;
+    letter-spacing: 0.06em;
+  }
+
+  .mobile-tabs button[aria-pressed="true"] {
+    background: var(--bg-control-hover);
+    color: var(--text);
+    box-shadow: inset 0 2px 0 var(--sel-line);
+  }
+
+  /*
+   * 애니메이션 바는 좁으면 넘치므로 목록만 옆으로 민다.
+   * 바 자체에 overflow를 주면 안 된다 — 프리셋 목록과 조절 막대가 이 안에
+   * absolute로 떠 있어서, 그 순간 바 높이에 잘려 손이 닿지 않게 된다.
+   */
+  .animbar {
+    gap: 6px;
+  }
+
+  .status {
+    display: none;
+  }
+
+  /* 프리셋 목록은 화면 폭을 다 쓰고, 길면 안에서 스크롤한다. */
+  .anim-picker {
+    left: 8px;
+    right: 8px;
+    max-width: none;
+    max-height: 52dvh;
+    overflow-y: auto;
+    z-index: 25;
+  }
+
+  /* 조절 막대 묶음은 화면 폭을 다 쓰고, 막대 자체를 손가락에 맞게 키운다. */
+  .anim-settings {
+    left: 8px;
+    right: 8px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .anim-settings-title {
+    width: 100%;
+    max-width: none;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding: 0 0 4px;
+  }
+
+  .anim-knob {
+    flex: 1 1 44%;
+  }
+
+  /* 손가락으로 집을 것들은 최소 크기를 준다. */
+  .knob-track,
+  .tl-track {
+    min-height: 22px;
+  }
+
+  .tag-option,
+  .part-select,
+  button.tool {
+    min-height: 34px;
+  }
+
+  /*
+   * 표시 토글은 줄바꿈되면 글자가 반토막 난다("관/절").
+   * 한 줄로 붙여 두고 넘치면 옆으로 밀어 본다.
+   */
+  .layers button {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  /*
+   * 타임라인은 시간 축이 주인공이다. 좁은 화면에서 숫자와 안내가 자리를 다 먹으면
+   * 정작 축이 손가락 두 개 폭으로 줄어들어 아무 데도 설 수 없게 된다.
+   */
+  .timeline {
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .tl-readout {
+    min-width: 0;
+    font-size: 11px;
+  }
+
+  .tl-hint {
+    display: none;
+  }
+
+  /* 손가락으로는 끌어다 놓을 수 없다. 누르라고 말해야 한다. */
+  .drop-drag {
+    display: none;
+  }
+
+  .drop-tap {
+    display: block;
+  }
+
+  /* 마우스 올림에만 뜨는 툴팁은 손가락에서는 방해만 된다. */
+  .tooltip {
+    display: none !important;
+  }
+}
+
+/* 가로로 눕힌 휴대폰. 세로 여백이 없으므로 패널을 더 낮게 잡는다. */
+@media (max-height: 520px) {
+  .panel {
+    height: min(70dvh, 320px);
+  }
 }

@@ -81,6 +81,19 @@ export class EditorScene extends Phaser.Scene {
   private painting = false;
   private brushWorld: { x: number; y: number } | null = null;
 
+  /**
+   * 화면에 닿아 있는 손가락들. id → 마지막 위치.
+   *
+   * Phaser의 포인터로도 멀티터치를 볼 수 있지만, 두 손가락 벌리기는 두 점의 **관계**를
+   * 봐야 해서 캔버스 DOM에서 직접 듣는 편이 훨씬 짧다.
+   */
+  private readonly touches = new Map<number, { x: number; y: number }>();
+  /** 두 손가락 제스처 중인지. 이 동안에는 관절 조작과 칠하기를 모두 멈춘다. */
+  private gesturing = false;
+  /** 직전 두 손가락 사이 거리와 중점. 확대율과 이동량을 여기서 뽑는다. */
+  private pinchDistance = 0;
+  private pinchCenter = { x: 0, y: 0 };
+
   private onZoomChange: ((zoom: number) => void) | null = null;
   private handlers: BoneInteractionHandlers | null = null;
   private paint: PaintHandlers | null = null;
@@ -104,7 +117,10 @@ export class EditorScene extends Phaser.Scene {
     // 창 크기가 바뀌면 이미지가 다시 화면에 들어오게 맞춘다.
     this.scale.on(Phaser.Scale.Events.RESIZE, () => this.fitToView());
 
+    this.attachTouchGestures();
+
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (pointer: Phaser.Input.Pointer) => {
+      if (this.gesturing) return;
       if (pointer.rightButtonDown() || pointer.middleButtonDown()) {
         this.panning = true;
         return;
@@ -136,7 +152,12 @@ export class EditorScene extends Phaser.Scene {
       if (picked) {
         this.draggingBoneId = picked.id;
         this.handlers?.onDragStart(picked.id);
+        return;
       }
+
+      // 손가락으로 빈 곳을 끌면 화면이 움직인다.
+      // 마우스에는 우클릭 드래그가 있지만 손가락에는 없어서, 빈 곳이 그 자리를 대신한다.
+      if (pointer.wasTouch) this.panning = true;
     });
 
     this.input.on(Phaser.Input.Events.POINTER_UP, () => {
@@ -156,6 +177,7 @@ export class EditorScene extends Phaser.Scene {
     });
 
     this.input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
+      if (this.gesturing) return;
       const camera = this.cameras.main;
 
       if (this.panning) {
@@ -197,6 +219,108 @@ export class EditorScene extends Phaser.Scene {
         this.input.setDefaultCursor(this.pickBone(pointer) ? "grab" : "default");
       }
     });
+  }
+
+  /**
+   * 두 손가락 확대 · 이동. (모바일)
+   *
+   * 마우스에는 휠과 우클릭 드래그가 있지만 손가락에는 그런 것이 없다.
+   * 벌리면 확대, 오므리면 축소, 두 손가락을 함께 끌면 화면이 따라 움직인다.
+   * 마우스 조작은 이 코드를 전혀 지나가지 않으므로 그대로다.
+   */
+  private attachTouchGestures(): void {
+    const canvas = this.game.canvas;
+    if (!canvas) return;
+
+    // 브라우저가 먼저 확대하거나 화면을 끌고 가 버리면 여기까지 오지 않는다.
+    canvas.style.touchAction = "none";
+
+    const center = () => {
+      const [a, b] = [...this.touches.values()];
+      return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : { x: 0, y: 0 };
+    };
+    const spread = () => {
+      const [a, b] = [...this.touches.values()];
+      return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+    };
+
+    const at = (event: PointerEvent) => {
+      const box = canvas.getBoundingClientRect();
+      return { x: event.clientX - box.left, y: event.clientY - box.top };
+    };
+
+    canvas.addEventListener("pointerdown", (event) => {
+      if (event.pointerType !== "touch") return;
+      this.touches.set(event.pointerId, at(event));
+
+      if (this.touches.size === 2) {
+        // 손가락이 하나 더 얹혔다. 그 전까지 하던 조작은 없던 일로 되돌린다 —
+        // 화면을 넓히려던 것이지 관절을 옮기려던 것이 아니다.
+        this.cancelPointerWork();
+        this.gesturing = true;
+        this.pinchDistance = spread();
+        this.pinchCenter = center();
+      }
+    });
+
+    canvas.addEventListener("pointermove", (event) => {
+      if (event.pointerType !== "touch" || !this.touches.has(event.pointerId)) return;
+      this.touches.set(event.pointerId, at(event));
+      if (!this.gesturing || this.touches.size < 2) return;
+
+      const camera = this.cameras.main;
+      const now = spread();
+      const middle = center();
+
+      // 벌어진 만큼 확대한다. 손가락 사이가 붙으면 0으로 나누게 되므로 막아 둔다.
+      if (this.pinchDistance > 8 && now > 8) {
+        const zoom = Phaser.Math.Clamp(
+          camera.zoom * (now / this.pinchDistance),
+          MIN_ZOOM,
+          MAX_ZOOM,
+        );
+        // 두 손가락 사이의 그림이 그 자리에 머무르게 한다.
+        const before = camera.getWorldPoint(middle.x, middle.y);
+        camera.setZoom(zoom);
+        const after = camera.getWorldPoint(middle.x, middle.y);
+        camera.scrollX += before.x - after.x;
+        camera.scrollY += before.y - after.y;
+        this.onZoomChange?.(camera.zoom);
+      }
+
+      // 중점이 움직인 만큼 화면도 함께 끌려간다.
+      camera.scrollX -= (middle.x - this.pinchCenter.x) / camera.zoom;
+      camera.scrollY -= (middle.y - this.pinchCenter.y) / camera.zoom;
+
+      this.pinchDistance = now;
+      this.pinchCenter = middle;
+      this.redrawOverlay();
+    });
+
+    const lift = (event: PointerEvent) => {
+      if (event.pointerType !== "touch") return;
+      this.touches.delete(event.pointerId);
+      if (this.touches.size < 2) this.gesturing = false;
+    };
+    canvas.addEventListener("pointerup", lift);
+    canvas.addEventListener("pointercancel", lift);
+  }
+
+  /** 하던 조작을 없던 일로 되돌린다. 손가락이 하나 더 얹혔을 때 쓴다. */
+  private cancelPointerWork(): void {
+    this.panning = false;
+    if (this.painting) {
+      this.painting = false;
+      this.paint?.onEnd();
+    }
+    if (this.draggingBoneId) {
+      this.handlers?.onDragEnd(this.draggingBoneId);
+      this.draggingBoneId = null;
+    }
+    if (this.rotatingBoneId) {
+      this.handlers?.onDragEnd(this.rotatingBoneId);
+      this.rotatingBoneId = null;
+    }
   }
 
   setZoomListener(listener: (zoom: number) => void): void {

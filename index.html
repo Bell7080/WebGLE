@@ -2,7 +2,16 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      휴대폰에서 두 손가락 확대는 캔버스가 직접 처리한다.
+      브라우저가 페이지째 확대해 버리면 관절을 정확히 집을 수 없어 막아 둔다.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#131315" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <title>PuppetForge - 종이인형 애니메이션 툴</title>
   </head>
   <body>
@@ -43,10 +52,12 @@
         </aside>
 
         <section class="canvas-area" id="canvasArea">
-          <div class="dropzone" id="dropzone">
-            <strong>PNG 이미지를 여기에 끌어다 놓으세요</strong>
+          <!-- 누르면 파일 고르기가 열린다. 손가락으로는 끌어다 놓을 수 없기 때문이다. -->
+          <button type="button" class="dropzone" id="dropzone">
+            <strong class="drop-drag">PNG 이미지를 여기에 끌어다 놓으세요</strong>
+            <strong class="drop-tap">눌러서 갤러리에서 사진 고르기</strong>
             <span>PNG · WebP · 투명 배경 권장</span>
-          </div>
+          </button>
         </section>
 
         <aside class="panel panel-right">
@@ -69,9 +80,16 @@
           <span class="status" id="statusText">준비됨</span>
         </div>
       </footer>
+
+      <!-- 좁은 세로 화면에서만 보인다. 좌우 패널을 아래에서 끌어 올린다. -->
+      <nav class="mobile-tabs" id="mobileTabs" aria-label="패널 열기">
+        <button type="button" data-sheet="left" aria-pressed="false">관절</button>
+        <button type="button" data-sheet="right" aria-pressed="false">속성</button>
+      </nav>
     </div>
 
-    <input type="file" id="imageInput" accept="image/png,image/webp" hidden />
+    <!-- image/* 로 열어야 휴대폰 갤러리가 사진을 걸러 내지 않고 그대로 보여 준다 -->
+    <input type="file" id="imageInput" accept="image/*" hidden />
     <input type="file" id="projectInput" accept=".zip,application/zip" hidden />
     <script type="module" src="/src/main.ts"></script>
   </body>
