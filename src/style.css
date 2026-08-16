@@ -56,6 +56,18 @@ body {
   display: grid;
   grid-template-rows: var(--topbar-h) 1fr var(--animbar-h);
   height: 100vh;
+
+  /*
+   * 더블탭으로 화면이 확대되는 것을 막는다.
+   *
+   * 뷰포트의 `user-scalable=no`로는 안 된다 — iOS Safari가 iOS 10부터 그 값을 무시한다.
+   * `manipulation`은 "평소 동작에서 더블탭 확대만 뺀 것"이라, 스크롤과 두 손가락 조작은
+   * 그대로 두면서 확대만 막는다.
+   *
+   * 더블탭으로 이름을 바꾸는 기능(애니메이션 이름)은 그대로다.
+   * 이 값은 브라우저의 확대 동작만 끄고 `dblclick` 이벤트는 건드리지 않는다.
+   */
+  touch-action: manipulation;
 }
 
 /* ── 상단 메뉴 ─────────────────────────────── */
@@ -152,6 +164,22 @@ button.dropdown-item kbd {
   font: inherit;
   font-size: 11px;
   color: var(--text-3);
+}
+
+/*
+ * 손가락으로 누르는 것들에도 직접 걸어 둔다.
+ *
+ * 규칙상 조상의 값과 교집합이 되므로 `#app` 하나로도 되어야 하지만, 실제로 문제가 되는 것은
+ * iOS Safari 쪽이라 눌리는 요소에 직접 적어 두는 편이 확실하다.
+ * 요소 선택자(0,0,1)라, 값을 끌어서 정하는 곳의 `none`(클래스 선택자)이 그대로 이긴다.
+ */
+button,
+select,
+label,
+input,
+li,
+h4 {
+  touch-action: manipulation;
 }
 
 /* ── 컨트롤 공통 ───────────────────────────── */
@@ -1102,6 +1130,8 @@ button.deform-scope-reset {
 .field-meter .meter {
   flex: 1;
   min-width: 0;
+  /* 여기도 끌어서 값을 정한다. */
+  touch-action: none;
   height: 16px;
   background: var(--bg-control);
   border: 1px solid var(--line-strong);
@@ -1227,6 +1257,8 @@ button.size-option.selected .size-dot {
 
 .knob-track {
   position: relative;
+  /* 손가락으로 끌어서 값을 정하는 곳. 브라우저가 먼저 화면을 끌고 가면 안 된다. */
+  touch-action: none;
   width: 76px;
   height: 14px;
   background: var(--bg-control);
@@ -1673,6 +1705,16 @@ button.key-remove {
 
   .anim-knob {
     flex: 1 1 44%;
+  }
+
+  /*
+   * iOS는 글자가 16px보다 작은 입력칸을 누르면 **화면을 저절로 확대한다.**
+   * 이름을 고치려고 눌렀을 뿐인데 화면이 튀어 오르는 것이 그래서다. 16px이면 그러지 않는다.
+   */
+  input[type="text"],
+  input[type="number"],
+  select {
+    font-size: 16px;
   }
 
   /* 손가락으로 집을 것들은 최소 크기를 준다. */
