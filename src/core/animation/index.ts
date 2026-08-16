@@ -363,3 +363,5 @@ export class AnimationPlayer {
     for (const listener of this.listeners) listener(event);
   }
 }
+
+export * from "./edit";

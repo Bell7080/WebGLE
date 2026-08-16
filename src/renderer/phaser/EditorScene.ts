@@ -10,9 +10,13 @@ import { toUV } from "@core/mesh";
 
 const TEXTURE_KEY = "character";
 const WEIGHT_TEXTURE_KEY = "weight-overlay";
-const BONE_RADIUS = 5;
+const BONE_RADIUS = 8;
 /** 관절을 집을 수 있는 화면상 반경(px). 점보다 넉넉하게 잡는다. */
-const PICK_RADIUS = 11;
+const PICK_RADIUS = 14;
+/** 선택된 관절을 돌리는 링의 반경(px). 이 부근을 끌면 회전이 된다. */
+const ROTATE_RADIUS = 26;
+/** 링을 집을 수 있는 두께(px). */
+const ROTATE_BAND = 9;
 const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 16;
 
@@ -22,6 +26,11 @@ export interface BoneInteractionHandlers {
   onDragStart(boneId: string): void;
   onDrag(boneId: string, x: number, y: number): void;
   onDragEnd(boneId: string): void;
+  /**
+   * 선택된 관절의 바깥 링을 끌었을 때. 라디안 단위의 누적 회전량이다.
+   * 안쪽 점을 끌면 이동, 링을 끌면 회전이다. (스파인과 같은 방식)
+   */
+  onRotate(boneId: string, radians: number): void;
 }
 
 export interface PaintHandlers {
@@ -57,11 +66,18 @@ export class EditorScene extends Phaser.Scene {
    * 그림이 휘는데 관절점만 기준 자세에 박혀 있으면 어디를 잡아야 할지 알 수 없다.
    */
   private posed: ReadonlyMap<string, { x: number; y: number }> | null = null;
+  /** 지금 자세를 편집할 수 있는 상태인지. 회전 링을 진하게 그릴지 정한다. */
+  private canPose = false;
   private selectedBoneId: string | null = null;
   private visibility: OverlayVisibility = { ...DEFAULT_OVERLAY_VISIBILITY };
 
   private panning = false;
   private draggingBoneId: string | null = null;
+  /** 바깥 링을 잡아 돌리는 중인 관절. */
+  private rotatingBoneId: string | null = null;
+  /** 잡은 순간의 각도와, 그 뒤로 누적된 회전량(라디안). */
+  private rotateFrom = 0;
+  private rotateAccum = 0;
   private painting = false;
   private brushWorld: { x: number; y: number } | null = null;
 
@@ -104,6 +120,16 @@ export class EditorScene extends Phaser.Scene {
         return;
       }
 
+      // 선택된 관절의 바깥 링을 잡았으면 회전이다.
+      const spinning = this.pickRotateHandle(pointer);
+      if (spinning) {
+        this.rotatingBoneId = spinning.id;
+        this.rotateFrom = this.angleTo(pointer, spinning.id);
+        this.rotateAccum = 0;
+        this.handlers?.onDragStart(spinning.id);
+        return;
+      }
+
       // 왼쪽 버튼: 관절 선택 후 그대로 끌어서 이동. (기획서 14)
       const picked = this.pickBone(pointer);
       this.handlers?.onSelect(picked?.id ?? null);
@@ -122,6 +148,10 @@ export class EditorScene extends Phaser.Scene {
       if (this.draggingBoneId) {
         this.handlers?.onDragEnd(this.draggingBoneId);
         this.draggingBoneId = null;
+      }
+      if (this.rotatingBoneId) {
+        this.handlers?.onDragEnd(this.rotatingBoneId);
+        this.rotatingBoneId = null;
       }
     });
 
@@ -144,12 +174,28 @@ export class EditorScene extends Phaser.Scene {
         return;
       }
 
+      if (this.rotatingBoneId) {
+        const now = this.angleTo(pointer, this.rotatingBoneId);
+        // 한 바퀴를 넘겨도 이어지도록 −π~π로 접어 누적한다.
+        let step = now - this.rotateFrom;
+        while (step > Math.PI) step -= Math.PI * 2;
+        while (step < -Math.PI) step += Math.PI * 2;
+        this.rotateFrom = now;
+        this.rotateAccum += step;
+        this.handlers?.onRotate(this.rotatingBoneId, this.rotateAccum);
+        return;
+      }
+
       if (this.draggingBoneId) {
         this.handlers?.onDrag(this.draggingBoneId, world.x, world.y);
         return;
       }
 
-      this.input.setDefaultCursor(this.pickBone(pointer) ? "grab" : "default");
+      if (this.pickRotateHandle(pointer)) {
+        this.input.setDefaultCursor("crosshair");
+      } else {
+        this.input.setDefaultCursor(this.pickBone(pointer) ? "grab" : "default");
+      }
     });
   }
 
@@ -171,6 +217,37 @@ export class EditorScene extends Phaser.Scene {
   }
 
   /** 포인터에 가장 가까운 관절. 화면 기준 반경 안에 없으면 undefined. */
+  /** 선택된 관절의 바깥 링을 잡았는지. 자세를 편집할 수 있을 때만 동작한다. */
+  private pickRotateHandle(pointer: Phaser.Input.Pointer): PuppetBone | undefined {
+    if (!this.canPose || !this.visibility.bones) return undefined;
+
+    const bone = this.bones.find((candidate) => candidate.id === this.selectedBoneId);
+    if (!bone) return undefined;
+
+    const camera = this.cameras.main;
+    const world = camera.getWorldPoint(pointer.x, pointer.y);
+    const at = this.positionOf(bone);
+    const distance = Phaser.Math.Distance.Between(world.x, world.y, at.x, at.y) * camera.zoom;
+
+    return Math.abs(distance - ROTATE_RADIUS) <= ROTATE_BAND ? bone : undefined;
+  }
+
+  /** 관절 중심에서 포인터를 바라보는 각도(라디안). */
+  private angleTo(pointer: Phaser.Input.Pointer, boneId: string): number {
+    const bone = this.bones.find((candidate) => candidate.id === boneId);
+    if (!bone) return 0;
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const at = this.positionOf(bone);
+    return Math.atan2(world.y - at.y, world.x - at.x);
+  }
+
+  /** 지금 자세를 편집할 수 있는지 알려 준다. 회전 링의 진하기와 집기 판정에 쓴다. */
+  setPoseEditable(editable: boolean): void {
+    if (this.canPose === editable) return;
+    this.canPose = editable;
+    this.redrawOverlay();
+  }
+
   private pickBone(pointer: Phaser.Input.Pointer): PuppetBone | undefined {
     // 감춰둔 관절은 집을 수 없다. 보이는 것만 조작 대상이다.
     if (!this.visibility.bones || this.bones.length === 0) return undefined;
@@ -379,11 +456,16 @@ export class EditorScene extends Phaser.Scene {
       overlay.fillCircle(x, y, radius);
 
       if (selected) {
-        // 선택된 관절만 흰 링과 가운데 점으로 한 번 더 구분한다.
+        // 선택된 관절만 가운데 점으로 한 번 더 구분한다.
         overlay.fillStyle(0x111113, 1);
         overlay.fillCircle(x, y, radius * 0.34);
-        overlay.lineStyle(1.5 / zoom, 0xffffff, 0.9);
-        overlay.strokeCircle(x, y, radius * 2);
+
+        // 바깥 링은 회전 손잡이다. 안쪽 점은 이동, 링은 회전.
+        const ring = ROTATE_RADIUS / zoom;
+        overlay.lineStyle(1.5 / zoom, 0x000000, 0.5);
+        overlay.strokeCircle(x, y, ring);
+        overlay.lineStyle(1 / zoom, 0xffffff, this.canPose ? 0.85 : 0.35);
+        overlay.strokeCircle(x, y, ring);
       }
     }
   }

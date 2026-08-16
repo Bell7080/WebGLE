@@ -21,12 +21,24 @@ import {
 } from "@core/weight";
 import {
   applyPoint,
+  compose,
   computeSkinMatrices,
+  invert,
+  multiply,
+  NO_DELTA,
   skinVertices,
   type Mat2D,
 } from "@core/skeleton/transform";
 import { hexToNumber } from "@core/format";
-import { AnimationPlayer, deformModesFor, keyTimes } from "@core/animation";
+import {
+  AnimationPlayer,
+  deformModesFor,
+  deltaWithoutOwnKeys,
+  evaluateAnimation,
+  keyTimes,
+  keyValueFor,
+  setKey,
+} from "@core/animation";
 import { SecondaryMotion } from "@core/physics/secondary";
 import { createCanvasView } from "@renderer/phaser";
 import { EditorStore, type BrushState } from "@editor/state/store";
@@ -402,22 +414,161 @@ view.scene.setBoneHandlers({
   onDragStart: () => history.push(store.get().project),
 
   onDrag: (boneId, x, y) => {
-    // 재생 중에는 옮기지 않는다. 화면의 점은 자세를 따라가 있으므로
+    // 재생 중에는 손대지 않는다. 화면의 점은 자세를 따라가 있으므로
     // 여기서 기준 좌표를 덮어쓰면 잡은 자리와 결과가 어긋난다.
     if (player.current?.playing) {
-      ui.setStatus("재생 중에는 관절을 옮길 수 없습니다. 정지한 뒤 옮기세요.");
+      ui.setStatus("재생 중에는 관절을 옮길 수 없습니다. 일시정지한 뒤 옮기세요.");
       return;
     }
+
+    // 타임라인이 서 있으면 그 시점의 키를 찍는다. 아니면 기준 자세를 옮긴다.
+    if (poseEditable()) {
+      writeMoveKey(boneId, x, y);
+      return;
+    }
+
     store.update((project) =>
       patchBone(project, boneId, { x: Math.round(x), y: Math.round(y) }),
     );
   },
 
+  onRotate: (boneId, radians) => {
+    if (!poseEditable()) return;
+    writeRotateKey(boneId, radians);
+  },
+
   onDragEnd: (boneId) => {
     const bone = store.get().project.bones.find((b) => b.id === boneId);
-    if (bone) ui.setStatus(`${bone.name} 위치: ${Math.round(bone.x)}, ${Math.round(bone.y)}`);
+    if (!bone) return;
+
+    if (poseEditable()) {
+      rotateBase = null;
+      ui.setStatus(
+        `${bone.name}: ${keyTime().toFixed(2)}초(${Math.round(keyTime() / FRAME)}F)에 키를 찍었습니다.`,
+      );
+      return;
+    }
+    ui.setStatus(`${bone.name} 위치: ${Math.round(bone.x)}, ${Math.round(bone.y)}`);
   },
 });
+
+// ── 자세 편집 = 키 찍기 (기획서 21, 26) ────────────────────────
+
+/**
+ * 지금 자세를 편집할 수 있는지.
+ * 애니메이션이 올라가 있고 멈춰 서 있을 때만 그 시점의 키를 찍는다.
+ */
+function poseEditable(): boolean {
+  const current = player.current;
+  return Boolean(current && !current.playing && store.get().project.mesh);
+}
+
+/** 회전을 시작할 때의 값. 끄는 동안 누적 각도를 여기에 더한다. */
+let rotateBase: number | null = null;
+
+/** 지금 재생 헤드가 선 시각. 한 프레임에 맞춰 떨어뜨린다. */
+function keyTime(): number {
+  return Math.round(player.time / FRAME) * FRAME;
+}
+
+/**
+ * 키에 적을 값을 구해 애니메이션에 넣는다.
+ *
+ * 화면에서 원하는 변화량(`desired`)을 만들려면, 태그 Track 등이 이미 주고 있는 몫을 빼고
+ * 강도로 나눈 값을 적어야 한다. 그래야 프리셋과 섞여도 두 배로 움직이지 않는다.
+ */
+function putKey(
+  boneId: string,
+  property: "x" | "y" | "rotation",
+  desired: number,
+  time: number,
+): void {
+  const { project, selectedAnimation } = store.get();
+  const current = player.current;
+  const bone = project.bones.find((b) => b.id === boneId);
+  if (!current || !bone || !selectedAnimation) return;
+
+  const others = deltaWithoutOwnKeys(current.animation, project.bones, boneId, time, current.amount);
+  const value = keyValueFor(desired, others[property], bone.motionStrength, current.amount);
+
+  const next = setKey(current.animation, { kind: "bone", boneId }, property, time, value);
+  // 드래그 한 번이 Undo 한 단위다. 히스토리는 onDragStart에서 이미 쌓았으므로
+  // 여기서는 commit이 아니라 store만 갱신한다.
+  store.update((draft) => ({
+    ...draft,
+    animations: { ...draft.animations, [selectedAnimation]: next },
+  }));
+
+  // 재생 커서가 들고 있는 것도 갈아 끼워야 화면이 곧바로 따라온다.
+  // 시각을 지키기 위해 다시 올린 뒤 그 자리로 돌려놓는다.
+  const at = player.time;
+  player.play(next, { speed: current.speed, amount: current.amount });
+  player.pause();
+  player.seek(at);
+}
+
+/** 관절을 끌어 옮긴 자리를 x · y 키로 적는다. */
+function writeMoveKey(boneId: string, worldX: number, worldY: number): void {
+  const { project } = store.get();
+  const bone = project.bones.find((b) => b.id === boneId);
+  if (!bone) return;
+
+  // 델타가 없을 때의 자세(부모까지만 반영된 자리)를 기준으로 역산한다.
+  const base = baseMatrix(boneId);
+  if (!base) return;
+
+  const local = applyPoint(invert(base), worldX, worldY);
+  const time = keyTime();
+  putKey(boneId, "x", local.x, time);
+  putKey(boneId, "y", local.y, time);
+  applyPose();
+  refreshTimeline();
+}
+
+/** 바깥 링을 돌린 만큼을 rotation 키로 적는다. */
+function writeRotateKey(boneId: string, radians: number): void {
+  const { project } = store.get();
+  const current = player.current;
+  if (!current) return;
+
+  if (rotateBase === null) {
+    rotateBase = evaluateAnimation(
+      current.animation,
+      project.bones,
+      keyTime(),
+      current.amount,
+    ).get(boneId)?.rotation ?? 0;
+  }
+
+  putKey(boneId, "rotation", (rotateBase ?? 0) + radians, keyTime());
+  applyPose();
+  refreshTimeline();
+}
+
+/**
+ * 델타를 뺀 이 관절의 세계 변환. `부모의 현재 자세 × 부모 기준 지역 변환`이다.
+ * 끌어 옮긴 세계 좌표를 지역 델타로 되돌릴 때 쓴다.
+ */
+function baseMatrix(boneId: string): Mat2D | null {
+  const { project } = store.get();
+  const current = player.current;
+  if (!current) return null;
+
+  const bones = project.bones;
+  const bone = bones.find((b) => b.id === boneId);
+  if (!bone) return null;
+
+  // 이 관절의 델타만 0으로 둔 자세를 구하면 그 세계 변환이 곧 기준이 된다.
+  const deltas = evaluateAnimation(current.animation, bones, keyTime(), current.amount);
+  deltas.set(boneId, { ...NO_DELTA });
+  const skin = computeSkinMatrices(bones, deltas);
+
+  const matrix = skin.get(boneId);
+  if (!matrix) return null;
+
+  // skin은 "기준 자세 → 현재"이므로 기준 세계 변환을 곱해 되돌린다.
+  return multiply(matrix, compose(bone.x, bone.y, bone.rotation, bone.scaleX, bone.scaleY));
+}
 
 /** 칠하기 · 지우개를 캔버스에 연결하거나 해제한다. */
 function syncPaintMode(brush: BrushState = store.get().brush): void {
@@ -588,6 +739,7 @@ function applyPose(): void {
 
 function refreshTimeline(): void {
   const { project, selectedAnimation, selectedBoneId } = store.get();
+  view.scene.setPoseEditable(poseEditable());
   const animation = selectedAnimation ? project.animations[selectedAnimation] : undefined;
   const bone = project.bones.find((b) => b.id === selectedBoneId);
 
