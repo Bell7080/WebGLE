@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { setLanguage, translate } from "../src/editor/i18n";
+import { LANGUAGES, setLanguage, translate } from "../src/editor/i18n";
 
 /** Node 테스트에 브라우저와 같은 최소 localStorage를 두어 언어 선택을 검증한다. */
 const values = new Map<string, string>();
@@ -22,4 +22,15 @@ describe("tooltip translations", () => {
     setLanguage("fr");
     expect(translate("처음으로")).toBe("Aller au début");
   });
+
+  /** 동적 패널의 대표 버튼들이 어느 언어에서도 한국어로 남지 않는지 검증한다. */
+  it.each(LANGUAGES.filter(({ code }) => code !== "ko"))(
+    "translates dynamic controls in $name",
+    ({ code }) => {
+      setLanguage(code);
+      for (const source of ["애니메이션 없음", "영향 영역", "칠하기", "지우개", "변형"]) {
+        expect(translate(source), source).not.toBe(source);
+      }
+    },
+  );
 });
