@@ -1659,11 +1659,17 @@ export class EditorUI {
         button.className = on ? "tag-option active-fill" : "tag-option";
         button.textContent = tag.id;
         button.setAttribute("aria-pressed", String(on));
-        attachTooltip(button, {
-          title: on ? `${tag.id} — 붙어 있음 (누르면 뗍니다)` : tag.id,
-          body: tag.description,
-          meta: animationsUsingTag(tag.id),
-        });
+        attachTooltip(
+          button,
+          {
+            title: on ? `${tag.id} — 붙어 있음 (누르면 뗍니다)` : tag.id,
+            body: tag.description,
+            meta: animationsUsingTag(tag.id),
+          },
+          // 태그는 마흔 개가 넘고 이름만으로는 무엇이 움직일지 알 수 없다.
+          // 손가락으로는 한 번 눌러 읽고, 다시 눌러 붙인다.
+          { explainOnTouch: true },
+        );
         button.addEventListener("click", () =>
           this.callbacks.onUpdateBone(bone.id, {
             tags: on

@@ -1522,6 +1522,16 @@ button.key-remove {
     height: 100dvh;
   }
 
+  /*
+   * 격자 칸은 기본이 `min-width: auto`라 내용보다 좁아지지 않는다.
+   * 그래서 상단 바나 하단 바의 내용이 길면 칸 자체가 화면 밖으로 자라고,
+   * 캔버스까지 그 폭을 따라가 옆으로 밀린다. 줄어들 수 있게 열어 두면
+   * 각자의 스크롤 영역(`.layers` · `.anim-buttons`)이 알아서 흡수한다.
+   */
+  #app > * {
+    min-width: 0;
+  }
+
   #app.has-timeline {
     grid-template-rows: var(--topbar-h) 1fr var(--timeline-h) var(--animbar-h) var(--tabbar-h);
   }
@@ -1531,10 +1541,15 @@ button.key-remove {
     grid-template-columns: 1fr;
   }
 
+  /*
+   * 상단 바에는 overflow를 주면 안 된다. 파일 · 설정 메뉴가 이 안에 absolute로 떠 있어서,
+   * 그 순간 바 높이(40px)에 잘려 나간다. 화면에는 보이지만 손가락이 닿지 않고
+   * 그 자리의 캔버스가 대신 눌린다 — 메뉴가 열렸다가 바로 닫히는 것처럼 보인다.
+   * 넘치는 것은 아래 `.layers`가 혼자 스크롤해서 흡수한다.
+   */
   .topbar {
     gap: 8px;
     padding: 0 8px;
-    overflow-x: auto;
   }
 
   /* 이름표는 좁은 화면에서 자리값을 못 한다. */
@@ -1542,24 +1557,34 @@ button.key-remove {
     display: none;
   }
 
+  /*
+   * 넘치는 것은 이 줄이 혼자 흡수한다. `min-width: 0`이 없으면 flex 항목이
+   * 내용 너비 아래로 줄어들지 않아서, 상단 바가 화면 밖으로 삐져나간다.
+   */
   .layers {
     overflow-x: auto;
     flex: 1;
+    min-width: 0;
   }
 
-  /* 아래에서 올라오는 시트. 기본은 화면 밖이다. */
+  /*
+   * 아래에서 올라오는 시트. 기본은 화면 밖이다.
+   *
+   * 애니메이션 바 **위**에 선다. 그 위를 덮어 버리면 시트를 연 채로는 재생도, 프리셋 추가도
+   * 손이 닿지 않는데, 화면에는 버튼이 그대로 보여서 "안 눌린다"로 읽힌다.
+   */
   .panel {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: var(--tabbar-h);
+    bottom: calc(var(--tabbar-h) + var(--animbar-h));
     z-index: 40;
     height: min(56dvh, 460px);
     border: none;
     border-top: 1px solid var(--line-strong);
     border-radius: 12px 12px 0 0;
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
-    transform: translateY(calc(100% + var(--tabbar-h)));
+    transform: translateY(calc(100% + var(--tabbar-h) + var(--animbar-h) + var(--timeline-h)));
     transition: transform 0.18s ease-out;
     /* 내려가 있는 동안에는 손가락이 닿지 않아야 한다. */
     visibility: hidden;
@@ -1569,6 +1594,11 @@ button.key-remove {
   #app[data-sheet="right"] .panel-right {
     transform: translateY(0);
     visibility: visible;
+  }
+
+  /* 타임라인이 있으면 그만큼 더 올라간다. */
+  #app.has-timeline .panel {
+    bottom: calc(var(--tabbar-h) + var(--animbar-h) + var(--timeline-h));
   }
 
   .panel-head {
