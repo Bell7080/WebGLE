@@ -94,10 +94,12 @@ describe("전체 채우기와 정리", () => {
     const painted = { left: new Array<number>(count).fill(0) };
     painted.left[0] = 0.42;
 
-    const filled = fillUnweighted(painted, bones, mesh);
+    const result = fillUnweighted(painted, bones, mesh);
+    const filled = result.weights;
 
     expect(filled.left![0]).toBe(0.42);
     expect(unweightedCount(normalizeWeights(filled, count))).toBe(0);
+    expect(result.filledVertices).toBe(count - 1);
   });
 
   it("한 점짜리 오점을 제거하고 그 자리를 가까운 관절 값으로 메운다", () => {
@@ -109,10 +111,25 @@ describe("전체 채우기와 정리", () => {
     weights.speck[0] = 0.8;
     weights.left![0] = 0;
 
-    const cleaned = cleanupWeights(weights, bones, mesh);
+    const result = cleanupWeights(weights, bones, mesh);
+    const cleaned = result.weights;
 
     expect(cleaned.speck![0]).toBeLessThan(cleaned.left![0]!);
     expect(unweightedCount(normalizeWeights(cleaned, count))).toBe(0);
+    expect(result.removedMarks).toBeGreaterThan(0);
+  });
+
+  it("강하게 채우면 50% 가중치도 거리 기반 값으로 다시 채운다", () => {
+    const bones = [bone("left", 0, 50), bone("right", 100, 50)];
+    const count = vertexCount(mesh);
+    const painted = { left: new Array<number>(count).fill(0.5) };
+
+    const weak = fillUnweighted(painted, bones, mesh, null, "weak");
+    const strong = fillUnweighted(painted, bones, mesh, null, "strong");
+
+    expect(weak.filledVertices).toBe(0);
+    expect(strong.filledVertices).toBe(count);
+    expect(strong.weights.right!.some((value) => value > 0)).toBe(true);
   });
 });
 

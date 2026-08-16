@@ -4,6 +4,7 @@ import {
   formatPresetMeta,
   formatTagMultiplier,
   formatTagUsage,
+  formatWeightCorrectionResult,
   LANGUAGES,
   setLanguage,
   translate,
@@ -39,9 +40,11 @@ describe("tooltip translations", () => {
     "translates dynamic controls in $name",
     ({ code }) => {
       setLanguage(code);
-      for (const source of ["애니메이션 없음", "영향 영역", "칠하기", "지우개", "변형"]) {
+      for (const source of ["애니메이션 없음", "영향 영역", "칠하기", "지우개", "변형", "보정 강도", "약하게", "강하게", "모든 관절의 영향 영역을 채웁니다. 정말 진행할까요?"]) {
         expect(translate(source), source).not.toBe(source);
       }
+      // 실행 결과처럼 숫자가 들어가는 문장도 한국어 원문으로 되돌아가면 안 된다.
+      expect(formatWeightCorrectionResult("cleanup", { filledVertices: 12, removedMarks: 3 })).not.toMatch(/[가-힣]/);
     },
   );
 

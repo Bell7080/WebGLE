@@ -162,30 +162,50 @@ export function autoManagedBones(bones: readonly PuppetBone[]): Set<string> {
   return new Set(bones.filter((bone) => bone.autoWeight === true).map((bone) => bone.id));
 }
 
+/** 전체 보정 도구의 단계. 같은 세 단계가 채우기와 정리에서 예측 가능한 강도로 쓰인다. */
+export type WeightCorrectionStrength = "weak" | "normal" | "strong";
+
+/** UI가 실제 변화량을 알려 줄 수 있도록 결과와 집계를 함께 돌려준다. */
+export interface WeightCorrectionResult {
+  weights: WeightMap;
+  filledVertices: number;
+  removedMarks: number;
+}
+
+/** 강할수록 이미 어느 정도 칠해진 정점도 거리 기반 값으로 다시 꽉 채운다. */
+const FILL_THRESHOLDS: Record<WeightCorrectionStrength, number> = {
+  weak: 0.001,
+  normal: Math.sqrt(0.001),
+  strong: 0.5,
+};
+
 /**
- * 이미 손으로 잡은 영역은 보존하면서, 실루엣 안의 빈 정점만 거리 기반 값으로 메운다.
- * 전체 자동 계산과 달리 기존 채널을 덮지 않으므로 마지막 안전망으로 부담 없이 쓸 수 있다.
+ * 실루엣 안의 비어 있거나 선택 단계보다 약한 정점을 거리 기반 값으로 메운다.
+ * 약하게·보통은 수작업을 보존하고, 강하게는 50% 이하 영역까지 의도적으로 다시 계산한다.
  */
 export function fillUnweighted(
   current: WeightMap,
   bones: readonly PuppetBone[],
   mesh: PuppetMesh,
   mask?: readonly boolean[] | null,
-): WeightMap {
+  strength: WeightCorrectionStrength = "normal",
+): WeightCorrectionResult {
   const computed = autoWeights(bones, mesh, { mask });
   const count = vertexCount(mesh);
   const result: WeightMap = Object.fromEntries(
     bones.map((bone) => [bone.id, [...(current[bone.id] ?? new Array<number>(count).fill(0))]]),
   );
+  let filledVertices = 0;
 
   for (let index = 0; index < count; index += 1) {
     if (mask && !mask[index]) continue;
-    // 어떤 관절이든 이미 칠해졌다면 사용자의 경계 결정을 그대로 둔다.
-    // 정규화 단계에서 제곱된 뒤 0.001 이하로 사라질 값은 실질적으로 빈 영역이므로 함께 보완한다.
-    if (bones.some((bone) => (current[bone.id]?.[index] ?? 0) > Math.sqrt(0.001))) continue;
+    // 단계별 기준보다 진한 정점은 사용자가 결정한 경계로 보고 그대로 둔다.
+    const strongest = Math.max(...bones.map((bone) => current[bone.id]?.[index] ?? 0));
+    if (strongest > FILL_THRESHOLDS[strength]) continue;
     for (const bone of bones) result[bone.id]![index] = computed[bone.id]?.[index] ?? 0;
+    filledVertices += 1;
   }
-  return result;
+  return { weights: result, filledVertices, removedMarks: 0 };
 }
 
 /**
@@ -197,10 +217,14 @@ export function cleanupWeights(
   bones: readonly PuppetBone[],
   mesh: PuppetMesh,
   mask?: readonly boolean[] | null,
-): WeightMap {
+  strength: WeightCorrectionStrength = "normal",
+): WeightCorrectionResult {
   const count = vertexCount(mesh);
   const stride = mesh.cols + 1;
   const cleaned: WeightMap = {};
+  const faintThreshold = strength === "weak" ? 0.01 : strength === "normal" ? 0.03 : 0.08;
+  const maximumNeighbors = strength === "strong" ? 1 : 0;
+  let removedMarks = 0;
 
   for (const bone of bones) {
     const source = current[bone.id] ?? new Array<number>(count).fill(0);
@@ -216,11 +240,15 @@ export function cleanupWeights(
           if ((source[(row + dy) * stride + col + dx] ?? 0) > 0.01) supportingNeighbors += 1;
         }
       }
-      // 아주 옅은 자국과 주변 지지가 전혀 없는 한 점짜리 오점을 제거한다.
-      if ((source[index] ?? 0) < 0.03 || supportingNeighbors === 0) channel[index] = 0;
+      // 단계별로 아주 옅은 자국과 이웃의 지지가 부족한 작은 오점을 제거한다.
+      if ((source[index] ?? 0) < faintThreshold || supportingNeighbors <= maximumNeighbors) {
+        channel[index] = 0;
+        removedMarks += 1;
+      }
     }
     cleaned[bone.id] = channel;
   }
 
-  return fillUnweighted(cleaned, bones, mesh, mask);
+  const filled = fillUnweighted(cleaned, bones, mesh, mask, strength);
+  return { ...filled, removedMarks };
 }
