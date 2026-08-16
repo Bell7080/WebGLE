@@ -3,6 +3,7 @@ import "./style.css";
 import {
   createBone,
   partForNewBone,
+  serializeProject,
   type DeformMode,
   type PuppetAnimation,
   type PuppetBone,
@@ -43,6 +44,14 @@ import {
   projectFileName,
   unpackProject,
 } from "@editor/tools/projectFile";
+import {
+  clearSession,
+  createAutosave,
+  describeSavedAt,
+  isAvailable as autosaveAvailable,
+  loadSession,
+  saveSession,
+} from "@editor/tools/autosave";
 import { findPreset, PRESETS } from "./presets";
 
 const canvasArea = document.getElementById("canvasArea") as HTMLElement;
@@ -513,6 +522,89 @@ function tick(now: number): void {
 }
 requestAnimationFrame(tick);
 
+// ── 자동 저장 (기획서 37) ──────────────────────────────────────
+
+const autosave = createAutosave();
+/** 마지막으로 담아 둔 내용. 같은 것을 두 번 담지 않기 위한 것이다. */
+let savedSignature = "";
+/**
+ * 마지막으로 담은 이미지의 Object URL.
+ * 지금 것과 다를 때만 이미지를 다시 담는다 — 관절 하나 옮길 때마다 PNG를 다시 넣지 않기 위해서다.
+ */
+let savedTextureUrl: string | null = null;
+
+/** 담을 내용이 지난번과 같은지 가리는 값. 이미지가 바뀐 것도 여기서 잡힌다. */
+function sessionSignature(state: { project: PuppetProject; textureUrl: string | null }): string {
+  return `${state.textureUrl ?? "-"}|${serializeProject(state.project, false)}`;
+}
+
+if (autosaveAvailable()) {
+  store.subscribe((state) => {
+    // 재생 중에는 정점만 바뀌고 프로젝트는 그대로다. 굳이 담을 이유가 없다.
+    const signature = sessionSignature(state);
+    if (signature === savedSignature) return;
+    savedSignature = signature;
+
+    const { project, textureUrl } = state;
+    autosave.schedule(async () => {
+      let texture: Blob | null | undefined;
+      if (!textureUrl) {
+        texture = null;
+      } else if (textureUrl !== savedTextureUrl) {
+        texture = await (await fetch(textureUrl)).blob();
+      }
+      // undefined면 이미 담아 둔 이미지를 그대로 둔다.
+      await saveSession(project, texture);
+      savedTextureUrl = textureUrl;
+    });
+  });
+
+  // 탭을 닫기 직전에 예약된 것을 마저 담는다.
+  window.addEventListener("pagehide", () => void autosave.flushNow());
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") void autosave.flushNow();
+  });
+}
+
+/** 지난번에 하던 작업이 있으면 그대로 이어서 연다. */
+async function restoreSession(): Promise<void> {
+  if (!autosaveAvailable()) return;
+
+  const saved = await loadSession().catch(() => null);
+  if (!saved || saved.project.bones.length === 0) return;
+
+  const { project, texture } = saved;
+  const textureUrl = texture ? URL.createObjectURL(texture) : null;
+
+  store.set({
+    project,
+    textureUrl,
+    selectedBoneId: null,
+    weights: project.mesh ? toWeightMap(project.mesh.weights) : {},
+  });
+
+  if (textureUrl) {
+    const image = new Image();
+    image.src = textureUrl;
+    await image.decode();
+    view.scene.showTexture(image, project.character.pixelArt);
+    if (project.mesh) {
+      view.scene.setMesh(project.mesh, project.character.width, project.character.height);
+      alphaMap = buildAlphaMap(readPixels(image));
+      store.set({ mask: sampleAlphaMask(alphaMap, project.mesh) });
+    }
+  }
+
+  savedSignature = sessionSignature({ project, textureUrl });
+  savedTextureUrl = textureUrl;
+  ui.setStatus(
+    `${describeSavedAt(saved.savedAt)} 작업을 이어서 엽니다 · ${project.character.name} · ` +
+      `관절 ${project.bones.length}개 (새로 시작하려면 파일 → 새 프로젝트)`,
+  );
+}
+
+void restoreSession();
+
 // ── 프로젝트 입출력 ────────────────────────────────────────────
 
 function resetProject(): void {
@@ -530,6 +622,8 @@ function resetProject(): void {
     mask: null,
   });
   alphaMap = null;
+  autosave.cancel();
+  void clearSession();
   ui.setStatus("새 프로젝트");
 }
 
