@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LANGUAGES, setLanguage, translate, translateTagDescription } from "../src/editor/i18n";
+import {
+  formatAnimationSummary,
+  formatPresetMeta,
+  formatTagMultiplier,
+  formatTagUsage,
+  LANGUAGES,
+  setLanguage,
+  translate,
+  translatePresetDescription,
+  translateTagDescription,
+} from "../src/editor/i18n";
 import { TAG_DESCRIPTIONS } from "../src/core/format";
 
 /** Node 테스트에 브라우저와 같은 최소 localStorage를 두어 언어 선택을 검증한다. */
@@ -45,4 +55,24 @@ describe("tooltip translations", () => {
     expect(translate("숨쉬듯 미세하게 흔들린다")).toBe("Sways subtly as if breathing.");
     expect(translateTagDescription("root", TAG_DESCRIPTIONS.root!)).not.toMatch(/[가-힣]/);
   });
+
+  /** 카탈로그의 고정·동적 설명이 지원 언어 어느 쪽에서도 한국어로 되돌아가지 않게 한다. */
+  it.each(LANGUAGES.filter(({ code }) => code !== "ko"))(
+    "localizes catalog tooltips and dynamic values in $name",
+    ({ code }) => {
+      setLanguage(code);
+      const localized = [
+        translate("걷기"),
+        translate("중심 · 구조"),
+        translatePresetDescription(translate("걷기"), "위아래로 튀며 팔다리를 번갈아 흔든다"),
+        translateTagDescription("root", TAG_DESCRIPTIONS.root!),
+        translateTagDescription("heavy", TAG_DESCRIPTIONS.heavy!),
+        formatTagMultiplier(1.6),
+        formatTagUsage([translate("걷기")]),
+        formatAnimationSummary(1, true, 3),
+        formatPresetMeta("summary", false, "root leg"),
+      ];
+      for (const text of localized) expect(text).not.toMatch(/[가-힣]/);
+    },
+  );
 });

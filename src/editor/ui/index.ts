@@ -20,23 +20,31 @@ import { createColorWheel } from "./colorWheel";
 import { findPreset, PRESET_GROUPS, PRESETS } from "../../presets";
 import { icon, setIcon, type IconName } from "./icons";
 import { attachTooltip, hideTooltip } from "./tooltip";
-import { getLanguage, LANGUAGES, setLanguage, translate, translateTagDescription } from "../i18n";
+import {
+  formatAnimationSummary,
+  formatPresetMeta,
+  formatTagMultiplier,
+  formatTagUsage,
+  getLanguage,
+  LANGUAGES,
+  setLanguage,
+  translate,
+  translatePresetDescription,
+  translateTagDescription,
+} from "../i18n";
 
 /** 이 태그를 실제로 쓰는 애니메이션 이름들. 툴팁 아래에 붙여 준다. */
 function animationsUsingTag(tag: string): string {
   // 성격 태그는 대상을 고르지 않는다. 동작 목록을 보여 주면 거짓말이 된다.
   const amplitude = TAG_AMPLITUDE[tag];
   if (amplitude !== undefined) {
-    // 배율은 동적 값이라 완성된 한국어 문장을 사전 키로 쓸 수 없어 언어별 문장 틀에 끼운다.
-    if (getLanguage() === "en") return `This bone's motion is multiplied by ${amplitude}× in every animation.`;
-    return `모든 동작에서 이 관절의 움직임이 ${amplitude}배가 됩니다`;
+    // 배율은 동적 값이므로 i18n의 언어별 문장 틀에 끼운다.
+    return formatTagMultiplier(amplitude);
   }
 
   const known = TAG_CATALOG.find((entry) => entry.id === tag);
   if (known?.effect === "hint") {
-    return getLanguage() === "en"
-      ? "Display-only tag · does not create motion"
-      : "표시용 태그입니다 · 움직임을 만들지 않습니다";
+    return translateTagDescription(tag, known.description);
   }
 
   const users = PRESETS.filter((preset) =>
@@ -46,12 +54,7 @@ function animationsUsingTag(tag: string): string {
     ),
   ).map((preset) => preset.label);
 
-  if (getLanguage() === "en") {
-    return users.length > 0
-      ? `Animations using this tag: ${users.map((label) => translate(label)).join(" · ")}`
-      : "No built-in animation uses this tag yet.";
-  }
-  return users.length > 0 ? `이 태그를 쓰는 동작: ${users.join(" · ")}` : "아직 이 태그를 쓰는 기본 동작은 없습니다";
+  return formatTagUsage(users.map((label) => translate(label)));
 }
 
 /** 프리셋 id의 한국어 이름. 목록에 없는 것(직접 만든 것)은 id를 그대로 쓴다. */
@@ -62,11 +65,8 @@ function presetLabel(id: string): string {
 
 /** 길이 · 반복 · 트랙 수를 한 줄로. */
 function describeAnimation(animation: { duration: number; loop: boolean; tracks: unknown[] }): string {
-  // 시간과 트랙 수가 매번 달라지는 설명은 완성 문장이 아니라 언어별 문장 틀로 만든다.
-  if (getLanguage() === "en") {
-    return `${animation.duration}s · ${animation.loop ? "Loop" : "Once"} · ${animation.tracks.length} tracks`;
-  }
-  return `${animation.duration}초 · ${animation.loop ? "반복" : "한 번"} · 트랙 ${animation.tracks.length}개`;
+  // 시간과 트랙 수는 i18n의 언어별 문장 틀에서 조립한다.
+  return formatAnimationSummary(animation.duration, animation.loop, animation.tracks.length);
 }
 
 /** 이 애니메이션이 찾는 태그들. */
@@ -694,15 +694,9 @@ export class EditorUI {
 
         attachTooltip(button, {
           title: `${translate(preset.label)} (${preset.id})`,
-          body: preset.description,
-          // 보유 여부와 태그 목록은 동적이므로 영어 문장 틀에서 값을 직접 조립한다.
-          meta: getLanguage() === "en"
-            ? has
-              ? `${describeAnimation(preset.animation)} · Already added — adding again creates a copy`
-              : `${describeAnimation(preset.animation)} · Tags used: ${usedTags(preset.animation)}`
-            : has
-              ? `${describeAnimation(preset.animation)} · 이미 담겨 있습니다 — 또 담으면 사본이 생깁니다`
-              : `${describeAnimation(preset.animation)} · 쓰는 태그: ${usedTags(preset.animation)}`,
+          body: translatePresetDescription(translate(preset.label), preset.description),
+          // 보유 여부와 태그 목록은 i18n의 언어별 문장 틀에서 값을 직접 조립한다.
+          meta: formatPresetMeta(describeAnimation(preset.animation), has, usedTags(preset.animation)),
         });
         button.addEventListener("click", () => {
           this.callbacks.onAddAnimation(preset.id);
