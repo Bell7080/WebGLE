@@ -1368,6 +1368,16 @@ button.choice {
   border: 1px solid var(--line-strong);
 }
 
+/* 키 조작은 아이콘 의미를 추측하지 않아도 되도록 짧은 텍스트 버튼으로 둔다. */
+.timeline .tl-key-action {
+  min-width: 48px;
+  white-space: nowrap;
+}
+
+.timeline .tl-key-action.danger:not(:disabled) {
+  border-color: var(--text-3);
+}
+
 .tl-readout {
   flex: none;
   min-width: 132px;
@@ -1566,6 +1576,17 @@ button.key-remove {
 
   #app.has-timeline {
     grid-template-rows: var(--topbar-h) 1fr var(--timeline-h) var(--animbar-h) var(--tabbar-h);
+  }
+
+  /* 휴대폰에서는 키 버튼을 남기고 보조 숫자/힌트를 줄여 실제 시간 축 폭을 확보한다. */
+  .timeline {
+    gap: 4px;
+    padding-inline: 6px;
+  }
+
+  .timeline .tl-readout,
+  .timeline .tl-hint {
+    display: none;
   }
 
   /* 캔버스만 남기고 좌우 패널은 아래로 내려간다. */
