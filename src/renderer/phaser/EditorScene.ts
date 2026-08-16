@@ -52,6 +52,11 @@ export class EditorScene extends Phaser.Scene {
   private weightOverlay: Phaser.GameObjects.Image | null = null;
 
   private bones: readonly PuppetBone[] = [];
+  /**
+   * 재생 중인 자세에서 관절이 실제로 가 있는 위치. 멈춰 있으면 null이다.
+   * 그림이 휘는데 관절점만 기준 자세에 박혀 있으면 어디를 잡아야 할지 알 수 없다.
+   */
+  private posed: ReadonlyMap<string, { x: number; y: number }> | null = null;
   private selectedBoneId: string | null = null;
   private visibility: OverlayVisibility = { ...DEFAULT_OVERLAY_VISIBILITY };
 
@@ -177,7 +182,9 @@ export class EditorScene extends Phaser.Scene {
     let nearest: PuppetBone | undefined;
     let nearestDistance = radius;
     for (const bone of this.bones) {
-      const distance = Phaser.Math.Distance.Between(world.x, world.y, bone.x, bone.y);
+      // 보이는 자리를 그대로 집는다. 그려진 곳과 잡히는 곳이 어긋나면 안 된다.
+      const at = this.positionOf(bone);
+      const distance = Phaser.Math.Distance.Between(world.x, world.y, at.x, at.y);
       if (distance <= nearestDistance) {
         nearest = bone;
         nearestDistance = distance;
@@ -302,6 +309,20 @@ export class EditorScene extends Phaser.Scene {
     this.onZoomChange?.(camera.zoom);
   }
 
+  /**
+   * 재생 중인 자세를 알려 준다. null이면 기준 자세로 되돌린다.
+   * 관절점 · 연결선 · 집기 판정이 모두 이 위치를 따른다.
+   */
+  setPosedBones(posed: ReadonlyMap<string, { x: number; y: number }> | null): void {
+    this.posed = posed;
+    this.redrawOverlay();
+  }
+
+  /** 지금 화면에 그려지는 관절 위치. 재생 중이면 그 자세, 아니면 기준 자세다. */
+  private positionOf(bone: PuppetBone): { x: number; y: number } {
+    return this.posed?.get(bone.id) ?? { x: bone.x, y: bone.y };
+  }
+
   /** 관절점과 부모 연결선을 그린다. 흑백으로만 구분한다. (기획서 74) */
   drawBones(
     bones: readonly PuppetBone[],
@@ -335,10 +356,12 @@ export class EditorScene extends Phaser.Scene {
       const parent = bone.parentId ? byId.get(bone.parentId) : undefined;
       if (!parent) continue;
 
+      const from = this.positionOf(parent);
+      const to = this.positionOf(bone);
       overlay.lineStyle(3 / zoom, 0x000000, 0.45);
-      overlay.lineBetween(parent.x, parent.y, bone.x, bone.y);
+      overlay.lineBetween(from.x, from.y, to.x, to.y);
       overlay.lineStyle(1.5 / zoom, hexToNumber(bone.color), 0.9);
-      overlay.lineBetween(parent.x, parent.y, bone.x, bone.y);
+      overlay.lineBetween(from.x, from.y, to.x, to.y);
     }
   }
 
@@ -347,19 +370,20 @@ export class EditorScene extends Phaser.Scene {
     for (const bone of this.bones) {
       const selected = bone.id === this.selectedBoneId;
       const color = hexToNumber(bone.color);
+      const { x, y } = this.positionOf(bone);
 
       overlay.fillStyle(0x000000, 0.6);
-      overlay.fillCircle(bone.x, bone.y, radius + 1.5 / zoom);
+      overlay.fillCircle(x, y, radius + 1.5 / zoom);
 
       overlay.fillStyle(color, selected ? 1 : 0.85);
-      overlay.fillCircle(bone.x, bone.y, radius);
+      overlay.fillCircle(x, y, radius);
 
       if (selected) {
         // 선택된 관절만 흰 링과 가운데 점으로 한 번 더 구분한다.
         overlay.fillStyle(0x111113, 1);
-        overlay.fillCircle(bone.x, bone.y, radius * 0.34);
+        overlay.fillCircle(x, y, radius * 0.34);
         overlay.lineStyle(1.5 / zoom, 0xffffff, 0.9);
-        overlay.strokeCircle(bone.x, bone.y, radius * 2);
+        overlay.strokeCircle(x, y, radius * 2);
       }
     }
   }

@@ -19,7 +19,12 @@ import {
   toWeightMap,
   type WeightMap,
 } from "@core/weight";
-import { computeSkinMatrices, skinVertices } from "@core/skeleton/transform";
+import {
+  applyPoint,
+  computeSkinMatrices,
+  skinVertices,
+  type Mat2D,
+} from "@core/skeleton/transform";
 import { hexToNumber } from "@core/format";
 import { AnimationPlayer, deformModesFor } from "@core/animation";
 import { SecondaryMotion } from "@core/physics/secondary";
@@ -396,6 +401,12 @@ view.scene.setBoneHandlers({
   onDragStart: () => history.push(store.get().project),
 
   onDrag: (boneId, x, y) => {
+    // 재생 중에는 옮기지 않는다. 화면의 점은 자세를 따라가 있으므로
+    // 여기서 기준 좌표를 덮어쓰면 잡은 자리와 결과가 어긋난다.
+    if (player.current?.playing) {
+      ui.setStatus("재생 중에는 관절을 옮길 수 없습니다. 정지한 뒤 옮기세요.");
+      return;
+    }
     store.update((project) =>
       patchBone(project, boneId, { x: Math.round(x), y: Math.round(y) }),
     );
@@ -477,10 +488,24 @@ function playAnimation(animationId: string): void {
   ui.setStatus(`재생: ${animationId}`);
 }
 
+/** 자세가 반영된 관절 위치. 오버레이가 이 자리에 점을 찍는다. */
+function posedPositions(
+  bones: readonly PuppetBone[],
+  skin: ReadonlyMap<string, Mat2D>,
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  for (const bone of bones) {
+    const matrix = skin.get(bone.id);
+    positions.set(bone.id, matrix ? applyPoint(matrix, bone.x, bone.y) : { x: bone.x, y: bone.y });
+  }
+  return positions;
+}
+
 function stopAnimation(): void {
   player.stop();
   secondary.reset();
   store.set({ playing: null });
+  view.scene.setPosedBones(null);
   view.scene.updateMeshVertices(null);
   overlayDirty = true;
   ui.setStatus("정지");
@@ -510,6 +535,9 @@ function tick(now: number): void {
       // 변형 모드는 정점 혼합 방식까지 결정하므로 런타임에 Bone 설정을 함께 전달한다.
       // 대기에서만 발을 묶어 두는 식으로 애니메이션이 관절별 값을 덮어쓸 수 있다.
       const deformModes = deformModesFor(project.bones, player.current.animation);
+      // 관절점도 자세를 따라가게 한다. 그림만 휘고 점은 제자리에 있으면
+      // 지금 어디를 잡아야 할지 알 수 없다.
+      view.scene.setPosedBones(posedPositions(project.bones, skin));
       view.scene.updateMeshVertices(skinVertices(project.mesh, skin, undefined, deformModes));
     }
   } else if (overlayDirty) {
