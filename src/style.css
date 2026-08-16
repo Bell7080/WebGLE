@@ -1051,7 +1051,51 @@ button.deform-scope-reset {
 }
 
 .anim-group-items button {
-  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 6px;
+  cursor: pointer;
+}
+
+.anim-group-items button .icon {
+  width: 11px;
+  height: 11px;
+  color: var(--text-3);
+}
+
+/* 이미 담아 둔 것. 못 누르게 하지는 않는다 — 사본을 일부러 만들 수도 있다. */
+.anim-group-items button.has {
+  color: var(--text-3);
+  border-color: var(--line);
+}
+
+.anim-group-items button.has::after {
+  content: "담김";
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+
+/* 이 목록이 "고르는 곳"임을 못 박는다. 아래 줄(가진 것)과 헷갈리지 않게. */
+.anim-picker-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-bottom: 2px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.anim-picker-head strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.anim-picker-head span {
+  font-size: 11.5px;
+  color: var(--text-3);
 }
 
 /* 가중치 그래프 */

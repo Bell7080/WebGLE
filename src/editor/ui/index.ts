@@ -15,7 +15,7 @@ import { canReparent } from "@core/skeleton";
 import { MAX_DURATION, MIN_DURATION, ownTracks } from "@core/animation";
 import type { BrushState, EditorStore } from "../state/store";
 import { createColorWheel } from "./colorWheel";
-import { findPreset, PRESETS } from "../../presets";
+import { findPreset, PRESET_GROUPS, PRESETS } from "../../presets";
 import { icon, setIcon, type IconName } from "./icons";
 import { attachTooltip, hideTooltip } from "./tooltip";
 
@@ -586,7 +586,29 @@ export class EditorUI {
     this.animPicker.classList.toggle("open", this.animPickerOpen);
     if (!this.animPickerOpen) return;
 
-    for (const group of ["기본", "공격"] as const) {
+    /**
+     * 이 목록은 **고르는 곳**이고 아래 줄은 **가진 것**이다.
+     * 둘 다 이름이 나열돼 있어서 같은 것이 두 번 있는 것처럼 보이기 쉬웠다.
+     * 그래서 여기에 무슨 곳인지 적고, 버튼마다 ＋를 붙이고, 이미 담은 것은 그렇다고 표시한다.
+     */
+    const head = document.createElement("div");
+    head.className = "anim-picker-head";
+    const headTitle = document.createElement("strong");
+    headTitle.textContent = "애니메이션 추가";
+    const headHint = document.createElement("span");
+    headHint.textContent = "고르면 아래 목록에 담기고 바로 재생됩니다";
+    head.append(headTitle, headHint);
+    this.animPicker.append(head);
+
+    // 이미 담아 둔 프리셋. 이름 뒤 번호(walk2)는 떼고 본다.
+    const owned = new Set(
+      Object.keys(project.animations).map((id) => id.replace(/\d+$/, "")),
+    );
+
+    for (const group of PRESET_GROUPS) {
+      const presets = PRESETS.filter((candidate) => candidate.group === group);
+      if (presets.length === 0) continue;
+
       const column = document.createElement("div");
       column.className = "anim-group";
 
@@ -597,15 +619,22 @@ export class EditorUI {
       const row = document.createElement("div");
       row.className = "anim-group-items";
 
-      for (const preset of PRESETS.filter((candidate) => candidate.group === group)) {
+      for (const preset of presets) {
+        const has = owned.has(preset.id);
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "outlined";
-        button.textContent = preset.label;
+        button.className = has ? "outlined has" : "outlined";
+        button.append(icon("plus"));
+        const label = document.createElement("span");
+        label.textContent = preset.label;
+        button.append(label);
+
         attachTooltip(button, {
           title: `${preset.label} (${preset.id})`,
           body: preset.description,
-          meta: `${describeAnimation(preset.animation)} · 쓰는 태그: ${usedTags(preset.animation)}`,
+          meta: has
+            ? `${describeAnimation(preset.animation)} · 이미 담겨 있습니다 — 또 담으면 사본이 생깁니다`
+            : `${describeAnimation(preset.animation)} · 쓰는 태그: ${usedTags(preset.animation)}`,
         });
         button.addEventListener("click", () => {
           this.callbacks.onAddAnimation(preset.id);

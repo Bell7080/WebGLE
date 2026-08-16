@@ -24,8 +24,16 @@ import charge from "./charge.json";
 import spin from "./spin.json";
 import stomp from "./stomp.json";
 
-/** 목록에서 묶어 보여 줄 갈래. */
-export type PresetGroup = "기본" | "이동" | "반응" | "공격";
+/**
+ * 목록에서 묶어 보여 줄 갈래. 화면에 나오는 순서이기도 하다.
+ *
+ * 화면 쪽에서 갈래를 다시 나열하지 않고 이 배열을 그대로 쓴다.
+ * 예전에는 UI가 `["기본", "공격"]`을 직접 적고 있었는데, 갈래를 늘렸을 때
+ * 그 줄을 함께 고치지 않아 프리셋 7개가 목록에 아예 나오지 않았다.
+ */
+export const PRESET_GROUPS = ["기본", "이동", "반응", "공격"] as const;
+
+export type PresetGroup = (typeof PRESET_GROUPS)[number];
 
 export interface PresetInfo {
   id: string;

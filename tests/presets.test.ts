@@ -7,7 +7,7 @@ import {
   type PuppetBone,
 } from "../src/core/format";
 import { evaluateAnimation } from "../src/core/animation";
-import { findPreset, PRESETS } from "../src/presets";
+import { findPreset, PRESET_GROUPS, PRESETS } from "../src/presets";
 import { forExport } from "../src/editor/tools/projectFile";
 
 function bone(tags: string[]): PuppetBone {
@@ -240,5 +240,21 @@ describe("이동 계열도 서로 다르다", () => {
     const animation = findPreset("run")!.animation;
     const lean = evaluateAnimation(animation, humanoid(), 0).get("root")!.rotation;
     expect(lean).toBeGreaterThan(0.05);
+  });
+});
+
+describe("프리셋 갈래", () => {
+  it("모든 프리셋의 갈래가 목록 순서에 들어 있다", () => {
+    // 화면은 PRESET_GROUPS를 그대로 훑어 그린다. 여기 빠진 갈래의 프리셋은
+    // 만들어 두고도 사용자에게 아예 보이지 않는다 — 실제로 7개가 그렇게 숨어 있었다.
+    for (const preset of PRESETS) {
+      expect(PRESET_GROUPS, preset.id).toContain(preset.group);
+    }
+  });
+
+  it("갈래마다 적어도 하나는 있다", () => {
+    for (const group of PRESET_GROUPS) {
+      expect(PRESETS.filter((p) => p.group === group).length, group).toBeGreaterThan(0);
+    }
   });
 });
