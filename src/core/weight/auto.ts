@@ -161,3 +161,66 @@ export function withAutoWeights(
 export function autoManagedBones(bones: readonly PuppetBone[]): Set<string> {
   return new Set(bones.filter((bone) => bone.autoWeight === true).map((bone) => bone.id));
 }
+
+/**
+ * 이미 손으로 잡은 영역은 보존하면서, 실루엣 안의 빈 정점만 거리 기반 값으로 메운다.
+ * 전체 자동 계산과 달리 기존 채널을 덮지 않으므로 마지막 안전망으로 부담 없이 쓸 수 있다.
+ */
+export function fillUnweighted(
+  current: WeightMap,
+  bones: readonly PuppetBone[],
+  mesh: PuppetMesh,
+  mask?: readonly boolean[] | null,
+): WeightMap {
+  const computed = autoWeights(bones, mesh, { mask });
+  const count = vertexCount(mesh);
+  const result: WeightMap = Object.fromEntries(
+    bones.map((bone) => [bone.id, [...(current[bone.id] ?? new Array<number>(count).fill(0))]]),
+  );
+
+  for (let index = 0; index < count; index += 1) {
+    if (mask && !mask[index]) continue;
+    // 어떤 관절이든 이미 칠해졌다면 사용자의 경계 결정을 그대로 둔다.
+    // 정규화 단계에서 제곱된 뒤 0.001 이하로 사라질 값은 실질적으로 빈 영역이므로 함께 보완한다.
+    if (bones.some((bone) => (current[bone.id]?.[index] ?? 0) > Math.sqrt(0.001))) continue;
+    for (const bone of bones) result[bone.id]![index] = computed[bone.id]?.[index] ?? 0;
+  }
+  return result;
+}
+
+/**
+ * 한 정점에만 찍힌 고립 가중치와 거의 보이지 않는 잔여 값을 걷어낸 뒤 생긴 구멍을 다시 메운다.
+ * 8방향 이웃을 쓰므로 대각선으로 이어지는 가느다란 팔다리는 정상 영역으로 유지된다.
+ */
+export function cleanupWeights(
+  current: WeightMap,
+  bones: readonly PuppetBone[],
+  mesh: PuppetMesh,
+  mask?: readonly boolean[] | null,
+): WeightMap {
+  const count = vertexCount(mesh);
+  const stride = mesh.cols + 1;
+  const cleaned: WeightMap = {};
+
+  for (const bone of bones) {
+    const source = current[bone.id] ?? new Array<number>(count).fill(0);
+    const channel = [...source];
+    for (let index = 0; index < count; index += 1) {
+      if ((mask && !mask[index]) || (source[index] ?? 0) <= 0) continue;
+      const row = Math.floor(index / stride);
+      const col = index % stride;
+      let supportingNeighbors = 0;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if ((dx === 0 && dy === 0) || row + dy < 0 || row + dy > mesh.rows || col + dx < 0 || col + dx > mesh.cols) continue;
+          if ((source[(row + dy) * stride + col + dx] ?? 0) > 0.01) supportingNeighbors += 1;
+        }
+      }
+      // 아주 옅은 자국과 주변 지지가 전혀 없는 한 점짜리 오점을 제거한다.
+      if ((source[index] ?? 0) < 0.03 || supportingNeighbors === 0) channel[index] = 0;
+    }
+    cleaned[bone.id] = channel;
+  }
+
+  return fillUnweighted(cleaned, bones, mesh, mask);
+}
