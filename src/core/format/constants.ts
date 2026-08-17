@@ -215,6 +215,11 @@ export const MESH_GRID: Record<MeshResolution, number> = {
   normal: 48,
   high: 72,
   ultra: 108,
+  // 일반 격자는 브러시 경계를 실제 픽셀에 가깝게 다듬을 수 있도록 밀도 차이를 크게 둔다.
+  smoothMin: 128,
+  smoothLow: 512,
+  smoothNormal: 1024,
+  smoothHigh: 5120,
 };
 
 /**
@@ -229,13 +234,23 @@ export const MESH_LABELS: Record<MeshResolution, string> = {
   normal: "낮음",
   high: "보통",
   ultra: "높음",
+  smoothMin: "최소",
+  smoothLow: "낮음",
+  smoothNormal: "보통",
+  smoothHigh: "높음",
 };
+
+/** 도트 그림은 픽셀 형태를 지킬 수 있도록 기존의 비교적 성긴 네 단계를 쓴다. */
+export const PIXEL_MESH_RESOLUTIONS = ["low", "normal", "high", "ultra"] as const satisfies readonly MeshResolution[];
+
+/** 일반 그림은 기존 `높음`을 최소로 삼고 더 촘촘한 세 단계를 이어 붙인다. */
+export const SMOOTH_MESH_RESOLUTIONS = ["smoothMin", "smoothLow", "smoothNormal", "smoothHigh"] as const satisfies readonly MeshResolution[];
 
 /**
  * 그림을 처음 불러올 때 쓸 해상도.
  * 도트는 과하게 휘면 깨져 보여 성기게 잡는다. (기획서 51)
  */
-export const DEFAULT_RESOLUTION: MeshResolution = "high";
+export const DEFAULT_RESOLUTION: MeshResolution = "smoothMin";
 export const PIXEL_ART_RESOLUTION: MeshResolution = "low";
 
 /**

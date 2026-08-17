@@ -84,7 +84,16 @@ export interface PuppetBone {
  * **칠해 둔 영향 영역이 통째로 날아간다.** 더 촘촘한 것이 필요하면 이름을 새로 늘린다.
  * 화면에 보이는 이름표는 `MESH_LABELS`가 따로 들고 있다.
  */
-export type MeshResolution = "low" | "normal" | "high" | "ultra";
+export type MeshResolution =
+  | "low"
+  | "normal"
+  | "high"
+  | "ultra"
+  // 일반 일러스트 전용 단계는 기존 파일의 격자 크기를 보존하려고 새 이름으로 확장한다.
+  | "smoothMin"
+  | "smoothLow"
+  | "smoothNormal"
+  | "smoothHigh";
 
 /** 격자 Mesh. 정점/인덱스는 Mesh 단계에서 채운다. */
 export interface PuppetMesh {

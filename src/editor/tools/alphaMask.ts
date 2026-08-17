@@ -4,6 +4,9 @@ import { vertexCount } from "@core/mesh";
 /** 이 알파값 이상이면 캐릭터 영역으로 본다. */
 export const ALPHA_THRESHOLD = 8;
 
+/** 아주 얇은 반투명 테두리도 영향 영역에서 잘리지 않도록 확보하는 최소 여유(px). */
+export const ALPHA_MASK_PADDING = 2;
+
 /** 이미지의 알파 채널만 뽑아 둔 것. 칠하기 범위와 영향 영역 표시에 함께 쓴다. */
 export interface AlphaMap {
   width: number;
@@ -47,16 +50,17 @@ export function sampleAlphaMask(map: AlphaMap | null, mesh: PuppetMesh): boolean
   const count = vertexCount(mesh);
   if (!map) return new Array<boolean>(count).fill(true);
 
-  // 격자 한 칸의 절반만큼은 여유를 둔다. 실루엣 경계의 정점도 칠할 수 있어야 자연스럽다.
-  const marginX = Math.max(1, Math.round(map.width / mesh.cols / 2));
-  const marginY = Math.max(1, Math.round(map.height / mesh.rows / 2));
+  // 격자가 아무리 촘촘해도 2px은 남기고, 성긴 격자는 기존처럼 반 칸까지 둘러본다.
+  const marginX = Math.max(ALPHA_MASK_PADDING, Math.round(map.width / mesh.cols / 2));
+  const marginY = Math.max(ALPHA_MASK_PADDING, Math.round(map.height / mesh.rows / 2));
 
   return Array.from({ length: count }, (_unused, index) => {
     const x = Math.round(mesh.vertices[index * 2] ?? 0);
     const y = Math.round(mesh.vertices[index * 2 + 1] ?? 0);
 
-    for (let dy = -marginY; dy <= marginY; dy += marginY) {
-      for (let dx = -marginX; dx <= marginX; dx += marginX) {
+    // 여유 사각형의 모든 픽셀을 확인해야 정점 사이에 낀 1px 윤곽선도 빠뜨리지 않는다.
+    for (let dy = -marginY; dy <= marginY; dy += 1) {
+      for (let dx = -marginX; dx <= marginX; dx += 1) {
         if (alphaAt(map, x + dx, y + dy) >= ALPHA_THRESHOLD) return true;
       }
     }
