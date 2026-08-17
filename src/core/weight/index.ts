@@ -146,15 +146,27 @@ export function removeBoneWeights(map: WeightMap, boneId: string): WeightMap {
  * 영향이 큰 순으로 최대 MAX_BONES_PER_VERTEX개만 남기고 합이 1이 되게 만든다.
  * 아무도 칠하지 않은 정점은 빈 채로 둔다. 그 정점은 움직이지 않는다.
  */
-export function normalizeWeights(map: WeightMap, count: number): VertexWeight[] {
+export function normalizeWeights(
+  map: WeightMap,
+  count: number,
+  /** 앞에 놓인 관절일수록 앞 레이어이며, 겹친 영역을 조금 더 강하게 가져간다. */
+  layerOrder: readonly string[] = [],
+): VertexWeight[] {
   const boneIds = Object.keys(map);
+  const layerById = new Map(layerOrder.map((boneId, index) => [boneId, index]));
 
   return Array.from({ length: count }, (_unused, index) => {
     const candidates: { boneId: string; value: number }[] = [];
     for (const boneId of boneIds) {
       const painted = map[boneId]?.[index] ?? 0;
       // 저장되는 값만 강조하고 편집용 원본 농도는 보존해, 지우개와 덧칠의 감각은 그대로 유지한다.
-      const value = Math.pow(Math.max(0, Math.min(1, painted)), WEIGHT_DOMINANCE_POWER);
+      const base = Math.pow(Math.max(0, Math.min(1, painted)), WEIGHT_DOMINANCE_POWER);
+      // 뒤 레이어도 사라지지는 않도록 전체 목록에 걸쳐 최대 35%만 낮춘다.
+      const layer = layerById.get(boneId);
+      const depth = layer === undefined || layerOrder.length < 2
+        ? 0
+        : layer / (layerOrder.length - 1);
+      const value = base * (1 - depth * 0.35);
       if (value > 0.001) candidates.push({ boneId, value });
     }
 

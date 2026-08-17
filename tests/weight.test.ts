@@ -88,6 +88,17 @@ describe("브러시 누적", () => {
 });
 
 describe("가중치 정규화", () => {
+  it("겹친 영역은 관절 목록의 앞 레이어를 우선한다", () => {
+    // 같은 농도라도 앞 관절이 더 큰 몫을 받아 뒤 레이어가 앞으로 튀어나오지 않는다.
+    const bodyFirst = normalizeWeights({ body: [1], hair: [1] }, 1, ["body", "hair"])[0]!;
+    expect(bodyFirst.weights[bodyFirst.boneIds.indexOf("body")]!)
+      .toBeGreaterThan(bodyFirst.weights[bodyFirst.boneIds.indexOf("hair")]!);
+
+    // 목록을 바꾸면 우선도도 반대로 바뀐다.
+    const hairFirst = normalizeWeights({ body: [1], hair: [1] }, 1, ["hair", "body"])[0]!;
+    expect(hairFirst.weights[hairFirst.boneIds.indexOf("hair")]!)
+      .toBeGreaterThan(hairFirst.weights[hairFirst.boneIds.indexOf("body")]!);
+  });
   const mesh = createGridMesh(100, 100, "low");
 
   it("겹친 영역의 합은 1이 된다", () => {
