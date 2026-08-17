@@ -215,6 +215,11 @@ export const MESH_GRID: Record<MeshResolution, number> = {
   normal: 48,
   high: 72,
   ultra: 108,
+  // Phaser는 정점마다 JS 객체를 만들므로 500칸 이상은 프레임을 막는다. 체감 품질을 유지하는 안전 구간만 쓴다.
+  smoothMin: 128,
+  smoothLow: 192,
+  smoothNormal: 256,
+  smoothHigh: 384,
 };
 
 /**
@@ -229,13 +234,23 @@ export const MESH_LABELS: Record<MeshResolution, string> = {
   normal: "낮음",
   high: "보통",
   ultra: "높음",
+  smoothMin: "최소",
+  smoothLow: "낮음",
+  smoothNormal: "보통",
+  smoothHigh: "높음",
 };
+
+/** 도트 그림은 픽셀 형태를 지킬 수 있도록 기존의 비교적 성긴 네 단계를 쓴다. */
+export const PIXEL_MESH_RESOLUTIONS = ["low", "normal", "high", "ultra"] as const satisfies readonly MeshResolution[];
+
+/** 일반 그림은 기존 `높음`을 최소로 삼고 더 촘촘한 세 단계를 이어 붙인다. */
+export const SMOOTH_MESH_RESOLUTIONS = ["smoothMin", "smoothLow", "smoothNormal", "smoothHigh"] as const satisfies readonly MeshResolution[];
 
 /**
  * 그림을 처음 불러올 때 쓸 해상도.
  * 도트는 과하게 휘면 깨져 보여 성기게 잡는다. (기획서 51)
  */
-export const DEFAULT_RESOLUTION: MeshResolution = "high";
+export const DEFAULT_RESOLUTION: MeshResolution = "smoothMin";
 export const PIXEL_ART_RESOLUTION: MeshResolution = "low";
 
 /**
