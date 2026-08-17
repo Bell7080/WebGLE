@@ -5,6 +5,8 @@ import {
   MESH_GRID,
   MESH_LABELS,
   PIXEL_ART_RESOLUTION,
+  PIXEL_MESH_RESOLUTIONS,
+  SMOOTH_MESH_RESOLUTIONS,
   type MeshResolution,
 } from "../src/core/format";
 
@@ -47,10 +49,13 @@ describe("격자 Mesh 생성", () => {
 });
 
 describe("격자 해상도", () => {
-  it("이름마다 칸 수가 있고 촘촘해지는 순서다", () => {
-    const steps = (Object.keys(MESH_LABELS) as MeshResolution[]).map((id) => MESH_GRID[id]);
-    for (let i = 1; i < steps.length; i += 1) {
-      expect(steps[i]!, `${i}번째`).toBeGreaterThan(steps[i - 1]!);
+  it("각 부류 안에서 네 단계가 촘촘해지는 순서다", () => {
+    // 두 부류의 단계가 각각 독립적으로 증가해야 버튼의 의미와 실제 밀도가 일치한다.
+    for (const resolutions of [PIXEL_MESH_RESOLUTIONS, SMOOTH_MESH_RESOLUTIONS]) {
+      const steps = resolutions.map((id) => MESH_GRID[id]);
+      for (let i = 1; i < steps.length; i += 1) {
+        expect(steps[i]!, `${resolutions[i]} 단계`).toBeGreaterThan(steps[i - 1]!);
+      }
     }
   });
 
@@ -68,19 +73,23 @@ describe("격자 해상도", () => {
     expect(MESH_GRID.high).toBe(72);
   });
 
-  it("새로 늘린 것이 지금까지 중 가장 촘촘하다", () => {
-    expect(MESH_GRID.ultra).toBeGreaterThan(MESH_GRID.high);
+  it("도트와 일반 격자는 각각 네 단계이며 현재 높음과 같은 밀도에서 맞닿는다", () => {
+    expect(PIXEL_MESH_RESOLUTIONS).toHaveLength(4);
+    expect(SMOOTH_MESH_RESOLUTIONS).toHaveLength(4);
+    expect(MESH_GRID[PIXEL_MESH_RESOLUTIONS.at(-1)!]).toBe(MESH_GRID[SMOOTH_MESH_RESOLUTIONS[0]]);
+    expect(MESH_GRID[SMOOTH_MESH_RESOLUTIONS.at(-1)!]).toBeGreaterThan(MESH_GRID.ultra * 2);
   });
 
-  it("기본값은 도트가 아닌 그림에 쓰는 보통이다", () => {
-    expect(MESH_LABELS[DEFAULT_RESOLUTION]).toBe("보통");
+  it("기본값은 도트가 아닌 그림에 쓰는 최소다", () => {
+    expect(MESH_LABELS[DEFAULT_RESOLUTION]).toBe("최소");
     expect(MESH_GRID[PIXEL_ART_RESOLUTION]).toBeLessThan(MESH_GRID[DEFAULT_RESOLUTION]);
   });
 
   it("가장 촘촘한 격자도 정점 수가 감당할 만하다", () => {
     // 정사각형 기준 최악. 자동 가중치가 정점마다 모든 관절을 훑으므로 상한을 봐 둔다.
-    const mesh = createGridMesh(1024, 1024, "ultra");
-    expect(vertexCount(mesh)).toBe((MESH_GRID.ultra + 1) ** 2);
-    expect(vertexCount(mesh)).toBeLessThan(12_000);
+    const mesh = createGridMesh(1024, 1024, "smoothHigh");
+    expect(vertexCount(mesh)).toBe((MESH_GRID.smoothHigh + 1) ** 2);
+    // WebGL의 16비트 인덱스 범위 안에서 정점을 다룰 수 있도록 여유를 둔다.
+    expect(vertexCount(mesh)).toBeLessThan(65_536);
   });
 });

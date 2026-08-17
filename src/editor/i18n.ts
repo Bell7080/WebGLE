@@ -130,6 +130,8 @@ const rows: Record<string, readonly string[]> = {
   "일반": ["Smooth", "普通", "一般", "通常", "Suave", "Lisse", "Normal", "Suave", "Обычный"],
   "도트": ["Pixel art", "像素画", "像素畫", "ドット絵", "Pixel art", "Pixel art", "Pixelart", "Pixel art", "Пиксель-арт"],
   "격자": ["Mesh", "网格", "網格", "メッシュ", "Malla", "Maillage", "Gitter", "Malha", "Сетка"],
+  "도트 격자": ["Pixel mesh", "像素画网格", "像素畫網格", "ドット絵メッシュ", "Malla píxel", "Maillage pixel", "Pixelraster", "Malha pixel", "Пиксельная сетка"],
+  "일반 격자": ["Smooth mesh", "普通图像网格", "一般圖像網格", "通常画像メッシュ", "Malla suave", "Maillage lisse", "Glattes Gitter", "Malha suave", "Плавная сетка"],
   "좌우 뒤집기": ["Flip horizontally", "水平翻转", "水平翻轉", "左右反転", "Voltear horizontalmente", "Retourner horizontalement", "Horizontal spiegeln", "Inverter horizontalmente", "Отразить по горизонтали"],
   "새 프로젝트": ["New project", "新建项目", "新增專案", "新規プロジェクト", "Nuevo proyecto", "Nouveau projet", "Neues Projekt", "Novo projeto", "Новый проект"],
   "이미지 불러오기": ["Import image", "导入图像", "匯入圖像", "画像を読み込む", "Importar imagen", "Importer une image", "Bild importieren", "Importar imagem", "Импорт изображения"],

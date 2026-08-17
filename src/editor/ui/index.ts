@@ -6,6 +6,8 @@ import {
   TAG_CATALOG,
   TAG_DESCRIPTIONS,
   MESH_LABELS,
+  PIXEL_MESH_RESOLUTIONS,
+  SMOOTH_MESH_RESOLUTIONS,
   TAG_GROUPS,
   type DeformMode,
   type Interpolation,
@@ -256,11 +258,10 @@ const FILE_MENU: readonly FileMenuItem[] = [
   { action: "sprite-sheet", label: "스프라이트 시트로 굽기" },
 ];
 
-/** 격자 선택지. 이름표는 `MESH_LABELS`가 들고 있어 여기서 다시 적지 않는다. */
-const MESH_CHOICES = (Object.keys(MESH_LABELS) as MeshResolution[]).map((value) => ({
-  value,
-  label: MESH_LABELS[value],
-}));
+/** 한 부류의 격자 ID를 공통 선택지 모양으로 바꾼다. 이름은 렌더 시 현재 언어로 번역한다. */
+function meshChoices(resolutions: readonly MeshResolution[]): { value: MeshResolution; label: string }[] {
+  return resolutions.map((value) => ({ value, label: translate(MESH_LABELS[value]) }));
+}
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -907,17 +908,28 @@ export class EditorUI {
       this.settingsPanel.append(reason);
     }
 
-    // 격자 해상도 (기획서 15)
+    // 격자 해상도 (기획서 15). 도트용과 일반용을 분리해 목적과 밀도 차이를 바로 읽게 한다.
     const mesh = project.mesh;
+    const meshTip = {
+      title: "Mesh 해상도",
+      body: "이미지를 몇 칸으로 나눠 변형할지 정합니다. 도트 격자는 픽셀 형태를 지키고, 일반 격자는 훨씬 촘촘하게 나눠 브러시 경계를 부드럽게 만듭니다.",
+      meta: "바꿔도 칠해 둔 영향 영역은 새 격자로 옮겨 담습니다",
+    };
     this.settingsPanel.append(
       this.choiceField(
-        translate("격자"),
-        {
-          title: "Mesh 해상도",
-          body: "이미지를 몇 칸으로 나눠 변형할지 정합니다. 촘촘할수록 섬세하게 휘지만 무거워지고, 성길수록 가볍지만 뭉툭하게 휩니다. 도트 그림은 과하게 휘면 깨져 보여 낮은 쪽이 좋습니다.",
-          meta: "바꿔도 칠해 둔 영향 영역은 새 격자로 옮겨 담습니다",
+        translate("도트 격자"),
+        meshTip,
+        meshChoices(PIXEL_MESH_RESOLUTIONS),
+        mesh?.resolution ?? "normal",
+        (value) => {
+          this.callbacks.onCharacterSetting({ resolution: value });
+          this.renderSettings();
         },
-        MESH_CHOICES,
+      ),
+      this.choiceField(
+        translate("일반 격자"),
+        meshTip,
+        meshChoices(SMOOTH_MESH_RESOLUTIONS),
         mesh?.resolution ?? "normal",
         (value) => {
           this.callbacks.onCharacterSetting({ resolution: value });
