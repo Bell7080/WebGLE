@@ -39,6 +39,7 @@ import {
   evaluateAnimation,
   keyTimes,
   keyValueFor,
+  scaleKeyValueFor,
   moveOwnKeys,
   ownKeyTimes,
   ownKeysAt,
@@ -251,6 +252,8 @@ const ui = new EditorUI(store, {
       bones.splice(place === "after" ? target + 1 : target, 0, moved);
       return { ...current, bones };
     });
+    // 원본 칠은 유지하고 정규화만 새 앞→뒤 순서로 다시 계산한다.
+    setWeights(store.get().weights);
     ui.setStatus("관절 순서를 바꿨습니다.");
   },
 
@@ -651,7 +654,12 @@ function setWeights(weights: WeightMap): void {
     return;
   }
 
-  const normalized = normalizeWeights(weights, vertexCount(project.mesh));
+  // 관절 목록은 앞→뒤 레이어다. 같은 정점을 맡으면 앞쪽 관절이 우선한다.
+  const normalized = normalizeWeights(
+    weights,
+    vertexCount(project.mesh),
+    project.bones.map((bone) => bone.id),
+  );
   store.set({ weights });
   store.update((current) =>
     current.mesh ? { ...current, mesh: { ...current.mesh, weights: normalized } } : current,
@@ -708,17 +716,47 @@ view.scene.setBoneHandlers({
     writeRotateKey(boneId, radians);
   },
 
+  onScale: (boneId, scaleX, scaleY) => {
+    if (player.current?.playing) {
+      ui.setStatus(translate("재생 중에는 관절 크기를 바꿀 수 없습니다. 일시정지한 뒤 바꾸세요."));
+      return;
+    }
+
+    const bone = store.get().project.bones.find((candidate) => candidate.id === boneId);
+    if (!bone) return;
+    scaleChanged = true;
+    if (poseEditable()) {
+      writeScaleKey(boneId, scaleX, scaleY);
+    } else {
+      // 첫 이동에서 기준값을 붙들어, 이벤트 횟수와 무관하게 잡은 지점 대비 배율을 적용한다.
+      scaleBase ??= { scaleX: bone.scaleX, scaleY: bone.scaleY };
+      store.update((project) => patchBone(project, boneId, {
+        scaleX: Math.max(0.05, Math.min(20, scaleBase!.scaleX * scaleX)),
+        scaleY: Math.max(0.05, Math.min(20, scaleBase!.scaleY * scaleY)),
+      }));
+    }
+  },
+
   onDragEnd: (boneId) => {
     const bone = store.get().project.bones.find((b) => b.id === boneId);
     if (!bone) return;
 
     if (poseEditable()) {
       rotateBase = null;
+      scaleBase = null;
+      scaleChanged = false;
       ui.setStatus(
         `${bone.name}: ${keyTime().toFixed(2)}초(${Math.round(keyTime() / FRAME)}F)에 키를 찍었습니다.`,
       );
       return;
     }
+    if (scaleChanged) {
+      scaleChanged = false;
+      scaleBase = null;
+      ui.setStatus(`${bone.name}: ${translate("크기를 바꿨습니다.")} ${bone.scaleX.toFixed(2)} × ${bone.scaleY.toFixed(2)}`);
+      return;
+    }
+    scaleBase = null;
     // 관절이 옮겨 갔으면 자동으로 맡긴 영역도 따라가야 한다.
     refreshAutoWeights();
     ui.setStatus(`${bone.name} 위치: ${Math.round(bone.x)}, ${Math.round(bone.y)}`);
@@ -741,6 +779,12 @@ let painting: Stroke | null = null;
 
 /** 회전을 시작할 때의 값. 끄는 동안 누적 각도를 여기에 더한다. */
 let rotateBase: number | null = null;
+
+/** 우클릭 크기 드래그를 시작했을 때의 기준 자세 또는 키 배율. */
+let scaleBase: { scaleX: number; scaleY: number } | null = null;
+
+/** 드래그 종료 안내와 자동 가중치 갱신에서 크기 편집을 위치 편집과 구분한다. */
+let scaleChanged = false;
 
 /** 키를 끌기 시작한 시각. 끄는 동안 이어서 옮기기 위한 것이다. */
 let keyDragFrom: number | null = null;
@@ -814,7 +858,7 @@ function keyTime(): number {
  */
 function putKey(
   boneId: string,
-  property: "x" | "y" | "rotation",
+  property: "x" | "y" | "rotation" | "scaleX" | "scaleY",
   desired: number,
   time: number,
 ): void {
@@ -830,7 +874,11 @@ function putKey(
   // 좌우 반전은 계산이 다 끝난 뒤 부호를 뒤집는다. 그래서 파일에 적을 값은
   // 화면에서 원한 방향의 **반대**여야 한다. 가로와 회전만 해당한다.
   const flip = mirrored() && (property === "x" || property === "rotation") ? -1 : 1;
-  const value = keyValueFor(desired * flip, others[property], scale, 1);
+  // 크기 Track은 곱셈, 나머지는 덧셈이므로 역산식도 서로 다르다.
+  const isScale = property === "scaleX" || property === "scaleY";
+  const value = isScale
+    ? scaleKeyValueFor(desired, others[property], scale)
+    : keyValueFor(desired * flip, others[property], scale, 1);
 
   // 첫 편집 키 앞뒤에는 원본 자세로 되돌아오는 보호 키를 둔다. 직접 키이므로 사용자가
   // 필요 없는 루프에서는 평소와 똑같이 옮기거나 삭제할 수 있다.
@@ -849,7 +897,9 @@ function putKey(
         current.amount,
       );
       const boundaryScale = propertyScale(guarded, bone, property, current.amount);
-      const neutral = keyValueFor(0, boundaryOthers[property], boundaryScale, 1);
+      const neutral = isScale
+        ? scaleKeyValueFor(1, boundaryOthers[property], boundaryScale)
+        : keyValueFor(0, boundaryOthers[property], boundaryScale, 1);
       guarded = setKey(guarded, target, property, boundary, neutral);
     }
   }
@@ -867,6 +917,35 @@ function putKey(
   player.play(next, { speed: current.speed, amount: current.amount, mirror: mirrored() });
   player.pause();
   player.seek(at);
+}
+
+/** 우클릭으로 끈 가로·세로 배율을 현재 시점의 크기 키로 적는다. */
+function writeScaleKey(boneId: string, scaleX: number, scaleY: number): void {
+  const current = player.current;
+  if (!current) return;
+
+  if (!scaleBase) {
+    const delta = current.animation
+      ? evaluateAnimation(
+          current.animation,
+          store.get().project.bones,
+          keyTime(),
+          current.amount,
+          mirrored(),
+        ).get(boneId)
+      : undefined;
+    scaleBase = { scaleX: delta?.scaleX ?? 1, scaleY: delta?.scaleY ?? 1 };
+  }
+
+  // 축 잠금으로 1인 축은 사용자가 건드리지 않은 축이므로 불필요한 키도 만들지 않는다.
+  if (Math.abs(scaleX - 1) > 1e-6) {
+    putKey(boneId, "scaleX", Math.max(0.05, scaleBase.scaleX * scaleX), keyTime());
+  }
+  if (Math.abs(scaleY - 1) > 1e-6) {
+    putKey(boneId, "scaleY", Math.max(0.05, scaleBase.scaleY * scaleY), keyTime());
+  }
+  applyPose();
+  refreshTimeline();
 }
 
 /** 관절을 끌어 옮긴 자리를 x · y 키로 적는다. */

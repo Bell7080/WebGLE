@@ -31,6 +31,8 @@ export interface BoneInteractionHandlers {
    * 안쪽 점을 끌면 이동, 링을 끌면 회전이다. (스파인과 같은 방식)
    */
   onRotate(boneId: string, radians: number): void;
+  /** 우클릭으로 가로·세로 크기를 끌어 바꿀 때의 누적 배율이다. */
+  onScale(boneId: string, scaleX: number, scaleY: number): void;
 }
 
 export interface PaintHandlers {
@@ -73,6 +75,11 @@ export class EditorScene extends Phaser.Scene {
 
   private panning = false;
   private draggingBoneId: string | null = null;
+  /** 우클릭으로 크기를 편집 중인 관절과 잡은 화면 좌표. */
+  private scalingBoneId: string | null = null;
+  private scaleFrom = { x: 0, y: 0 };
+  /** 첫 4px 이동에서 정한 축. 손떨림이 반대 축 크기까지 바꾸지 않게 고정한다. */
+  private scalingAxis: "x" | "y" | null = null;
   /** 바깥 링을 잡아 돌리는 중인 관절. */
   private rotatingBoneId: string | null = null;
   /** 잡은 순간의 각도와, 그 뒤로 누적된 회전량(라디안). */
@@ -121,7 +128,21 @@ export class EditorScene extends Phaser.Scene {
 
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (pointer: Phaser.Input.Pointer) => {
       if (this.gesturing) return;
-      if (pointer.rightButtonDown() || pointer.middleButtonDown()) {
+      if (pointer.rightButtonDown()) {
+        // 관절 위 우클릭은 가로·세로 크기 편집, 빈 곳 우클릭은 기존 화면 이동이다.
+        const picked = this.pickBone(pointer);
+        if (picked && !this.paint) {
+          this.handlers?.onSelect(picked.id);
+          this.scalingBoneId = picked.id;
+          this.scaleFrom = { x: pointer.x, y: pointer.y };
+          this.scalingAxis = null;
+          this.handlers?.onDragStart(picked.id);
+        } else {
+          this.panning = true;
+        }
+        return;
+      }
+      if (pointer.middleButtonDown()) {
         this.panning = true;
         return;
       }
@@ -174,6 +195,11 @@ export class EditorScene extends Phaser.Scene {
         this.handlers?.onDragEnd(this.rotatingBoneId);
         this.rotatingBoneId = null;
       }
+      if (this.scalingBoneId) {
+        this.handlers?.onDragEnd(this.scalingBoneId);
+        this.scalingBoneId = null;
+        this.scalingAxis = null;
+      }
     });
 
     this.input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
@@ -188,6 +214,21 @@ export class EditorScene extends Phaser.Scene {
       }
 
       const world = camera.getWorldPoint(pointer.x, pointer.y);
+
+      if (this.scalingBoneId) {
+        const dx = pointer.x - this.scaleFrom.x;
+        const dy = pointer.y - this.scaleFrom.y;
+        // 작은 손떨림을 넘긴 뒤 먼저 크게 움직인 한 축만 드래그가 끝날 때까지 편집한다.
+        if (!this.scalingAxis && Math.max(Math.abs(dx), Math.abs(dy)) >= 4) {
+          this.scalingAxis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        }
+        if (!this.scalingAxis) return;
+        // 100 화면 px를 끌 때 약 e배가 되며, 건드리지 않은 축은 정확히 중립값 1이다.
+        const scaleX = this.scalingAxis === "x" ? Math.exp(dx / 100) : 1;
+        const scaleY = this.scalingAxis === "y" ? Math.exp(dy / 100) : 1;
+        this.handlers?.onScale(this.scalingBoneId, scaleX, scaleY);
+        return;
+      }
 
       if (this.paint) {
         this.brushWorld = { x: world.x, y: world.y };
@@ -320,6 +361,11 @@ export class EditorScene extends Phaser.Scene {
     if (this.rotatingBoneId) {
       this.handlers?.onDragEnd(this.rotatingBoneId);
       this.rotatingBoneId = null;
+    }
+    if (this.scalingBoneId) {
+      this.handlers?.onDragEnd(this.scalingBoneId);
+      this.scalingBoneId = null;
+      this.scalingAxis = null;
     }
   }
 

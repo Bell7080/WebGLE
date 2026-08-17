@@ -11,6 +11,7 @@ import {
   evaluateAnimation,
   findTrack,
   keyValueFor,
+  scaleKeyValueFor,
   moveOwnKeys,
   ownKeysAt,
   ownTracks,
@@ -158,6 +159,23 @@ describe("프리셋과 섞였을 때 적을 값", () => {
     const value = keyValueFor(0.7, 0, 1, 1);
     const next = setKey(empty, 팔, "rotation", 1, value);
     expect(evaluateAnimation(next, bones, 1).get("팔")?.rotation).toBeCloseTo(0.7);
+  });
+
+  it("크기 키는 중립값 1을 보존하고 다른 크기 Track과 곱셈으로 역산한다", () => {
+    // 다른 Track이 이미 0.8배라면 0.5배 결과를 만들 직접 키는 0.625여야 한다.
+    expect(scaleKeyValueFor(0.5, 0.8, 1)).toBeCloseTo(0.625);
+    expect(scaleKeyValueFor(1, 1, 1)).toBe(1);
+
+    const scaled: PuppetAnimation = {
+      ...empty,
+      tracks: [{ target: { kind: "tag", tag: "arm" }, property: "scaleY",
+        keys: [{ time: 0, value: 0.8 }, { time: 2, value: 0.8 }] }],
+    };
+    const direct = scaleKeyValueFor(0.5, 0.8, 1);
+    const next = setKey(scaled, 팔, "scaleY", 1, direct);
+    expect(evaluateAnimation(next, bones, 1).get("팔")?.scaleY).toBeCloseTo(0.5);
+    // Y만 편집한 검증 데이터에는 X Track 자체가 생기지 않아야 한다.
+    expect(findTrack(next, 팔, "scaleX")).toBeUndefined();
   });
 });
 
