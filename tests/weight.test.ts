@@ -209,6 +209,19 @@ describe("격자 해상도 변경", () => {
     const moved = resampleWeights(fine, coarse, map);
     expect(Math.max(...moved["몸통"]!)).toBeGreaterThan(0.9);
   });
+
+  it("크기가 다른 스킨에서도 상대 위치의 영향 영역을 유지한다", () => {
+    // 오른쪽 아래에 칠한 영역이 2:1 크기의 새 이미지에서도 오른쪽 아래에 남아야 한다.
+    const wide = createGridMesh(200, 50, "low");
+    const map = applyInfluence({}, "몸통", coarse, circle(80, 80, 18, 1, 0));
+    const moved = resampleWeights(coarse, wide, map)["몸통"]!;
+    let peak = 0;
+    for (let index = 1; index < moved.length; index += 1) {
+      if (moved[index]! > moved[peak]!) peak = index;
+    }
+    expect(wide.vertices[peak * 2]! / 200).toBeGreaterThan(0.65);
+    expect(wide.vertices[peak * 2 + 1]! / 50).toBeGreaterThan(0.65);
+  });
 });
 
 describe("한 획으로 칠하기", () => {

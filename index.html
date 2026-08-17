@@ -96,6 +96,8 @@
 
     <!-- image/* 로 열어야 휴대폰 갤러리가 사진을 걸러 내지 않고 그대로 보여 준다 -->
     <input type="file" id="imageInput" accept="image/*" hidden />
+    <!-- 교체 입력은 최초 불러오기와 분리해 같은 파일을 연속 선택해도 change가 확실히 발생한다. -->
+    <input type="file" id="replaceImageInput" accept="image/*" hidden />
     <input type="file" id="projectInput" accept=".zip,application/zip" hidden />
     <script type="module" src="/src/main.ts"></script>
   </body>

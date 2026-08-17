@@ -133,6 +133,8 @@ const rows: Record<string, readonly string[]> = {
   "좌우 뒤집기": ["Flip horizontally", "水平翻转", "水平翻轉", "左右反転", "Voltear horizontalmente", "Retourner horizontalement", "Horizontal spiegeln", "Inverter horizontalmente", "Отразить по горизонтали"],
   "새 프로젝트": ["New project", "新建项目", "新增專案", "新規プロジェクト", "Nuevo proyecto", "Nouveau projet", "Neues Projekt", "Novo projeto", "Новый проект"],
   "이미지 불러오기": ["Import image", "导入图像", "匯入圖像", "画像を読み込む", "Importar imagen", "Importer une image", "Bild importieren", "Importar imagem", "Импорт изображения"],
+  "일러스트 교체": ["Swap illustration", "替换插画", "替換插畫", "イラストを差し替え", "Cambiar ilustración", "Remplacer l’illustration", "Illustration austauschen", "Trocar ilustração", "Заменить иллюстрацию"],
+  "현재 관절과 애니메이션을 유지하고 일러스트를 교체할까요?": ["Swap the illustration while keeping the current bones and animations?", "是否保留当前骨骼和动画并替换插画？", "是否保留目前骨骼和動畫並替換插畫？", "現在のボーンとアニメーションを維持してイラストを差し替えますか？", "¿Cambiar la ilustración conservando los huesos y animaciones actuales?", "Remplacer l’illustration en conservant les os et animations actuels ?", "Illustration austauschen und aktuelle Knochen und Animationen behalten?", "Trocar a ilustração mantendo os ossos e animações atuais?", "Заменить иллюстрацию, сохранив текущие кости и анимации?"],
   "프로젝트 열기": ["Open project", "打开项目", "開啟專案", "プロジェクトを開く", "Abrir proyecto", "Ouvrir le projet", "Projekt öffnen", "Abrir projeto", "Открыть проект"],
   "프로젝트 저장": ["Save project", "保存项目", "儲存專案", "プロジェクトを保存", "Guardar proyecto", "Enregistrer le projet", "Projekt speichern", "Salvar projeto", "Сохранить проект"],
   "내보내기": ["Export", "导出", "匯出", "書き出し", "Exportar", "Exporter", "Exportieren", "Exportar", "Экспорт"],
