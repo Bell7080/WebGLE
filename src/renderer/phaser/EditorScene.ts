@@ -78,6 +78,8 @@ export class EditorScene extends Phaser.Scene {
   /** 우클릭으로 크기를 편집 중인 관절과 잡은 화면 좌표. */
   private scalingBoneId: string | null = null;
   private scaleFrom = { x: 0, y: 0 };
+  /** 첫 4px 이동에서 정한 축. 손떨림이 반대 축 크기까지 바꾸지 않게 고정한다. */
+  private scalingAxis: "x" | "y" | null = null;
   /** 바깥 링을 잡아 돌리는 중인 관절. */
   private rotatingBoneId: string | null = null;
   /** 잡은 순간의 각도와, 그 뒤로 누적된 회전량(라디안). */
@@ -133,6 +135,7 @@ export class EditorScene extends Phaser.Scene {
           this.handlers?.onSelect(picked.id);
           this.scalingBoneId = picked.id;
           this.scaleFrom = { x: pointer.x, y: pointer.y };
+          this.scalingAxis = null;
           this.handlers?.onDragStart(picked.id);
         } else {
           this.panning = true;
@@ -195,6 +198,7 @@ export class EditorScene extends Phaser.Scene {
       if (this.scalingBoneId) {
         this.handlers?.onDragEnd(this.scalingBoneId);
         this.scalingBoneId = null;
+        this.scalingAxis = null;
       }
     });
 
@@ -212,9 +216,16 @@ export class EditorScene extends Phaser.Scene {
       const world = camera.getWorldPoint(pointer.x, pointer.y);
 
       if (this.scalingBoneId) {
-        // 100 화면 px를 끌 때 약 e배가 되며, 지수식이라 음수 크기나 0을 만들지 않는다.
-        const scaleX = Math.exp((pointer.x - this.scaleFrom.x) / 100);
-        const scaleY = Math.exp((pointer.y - this.scaleFrom.y) / 100);
+        const dx = pointer.x - this.scaleFrom.x;
+        const dy = pointer.y - this.scaleFrom.y;
+        // 작은 손떨림을 넘긴 뒤 먼저 크게 움직인 한 축만 드래그가 끝날 때까지 편집한다.
+        if (!this.scalingAxis && Math.max(Math.abs(dx), Math.abs(dy)) >= 4) {
+          this.scalingAxis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        }
+        if (!this.scalingAxis) return;
+        // 100 화면 px를 끌 때 약 e배가 되며, 건드리지 않은 축은 정확히 중립값 1이다.
+        const scaleX = this.scalingAxis === "x" ? Math.exp(dx / 100) : 1;
+        const scaleY = this.scalingAxis === "y" ? Math.exp(dy / 100) : 1;
         this.handlers?.onScale(this.scalingBoneId, scaleX, scaleY);
         return;
       }
@@ -354,6 +365,7 @@ export class EditorScene extends Phaser.Scene {
     if (this.scalingBoneId) {
       this.handlers?.onDragEnd(this.scalingBoneId);
       this.scalingBoneId = null;
+      this.scalingAxis = null;
     }
   }
 

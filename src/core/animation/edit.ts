@@ -284,6 +284,19 @@ export function keyValueFor(
   return (desired - fromOthers) / scale;
 }
 
+/**
+ * 원하는 크기 배율을 만들기 위해 scale Track에 적어야 할 값.
+ * 크기는 덧셈이 아니라 `1 + (key - 1) * strength`의 곱이므로 중립값도 0이 아닌 1이다.
+ */
+export function scaleKeyValueFor(
+  desired: number,
+  fromOthers: number,
+  motionStrength: number,
+): number {
+  if (Math.abs(motionStrength) < 1e-6 || Math.abs(fromOthers) < 1e-6) return 1;
+  return 1 + (desired / fromOthers - 1) / motionStrength;
+}
+
 /** 애니메이션 길이의 한계(초). 너무 짧으면 키가 한 점에 뭉치고, 너무 길면 훑기가 힘들다. */
 export const MIN_DURATION = 0.1;
 export const MAX_DURATION = 10;

@@ -39,6 +39,7 @@ import {
   evaluateAnimation,
   keyTimes,
   keyValueFor,
+  scaleKeyValueFor,
   moveOwnKeys,
   ownKeyTimes,
   ownKeysAt,
@@ -873,7 +874,11 @@ function putKey(
   // 좌우 반전은 계산이 다 끝난 뒤 부호를 뒤집는다. 그래서 파일에 적을 값은
   // 화면에서 원한 방향의 **반대**여야 한다. 가로와 회전만 해당한다.
   const flip = mirrored() && (property === "x" || property === "rotation") ? -1 : 1;
-  const value = keyValueFor(desired * flip, others[property], scale, 1);
+  // 크기 Track은 곱셈, 나머지는 덧셈이므로 역산식도 서로 다르다.
+  const isScale = property === "scaleX" || property === "scaleY";
+  const value = isScale
+    ? scaleKeyValueFor(desired, others[property], scale)
+    : keyValueFor(desired * flip, others[property], scale, 1);
 
   // 첫 편집 키 앞뒤에는 원본 자세로 되돌아오는 보호 키를 둔다. 직접 키이므로 사용자가
   // 필요 없는 루프에서는 평소와 똑같이 옮기거나 삭제할 수 있다.
@@ -892,7 +897,9 @@ function putKey(
         current.amount,
       );
       const boundaryScale = propertyScale(guarded, bone, property, current.amount);
-      const neutral = keyValueFor(0, boundaryOthers[property], boundaryScale, 1);
+      const neutral = isScale
+        ? scaleKeyValueFor(1, boundaryOthers[property], boundaryScale)
+        : keyValueFor(0, boundaryOthers[property], boundaryScale, 1);
       guarded = setKey(guarded, target, property, boundary, neutral);
     }
   }
@@ -930,8 +937,13 @@ function writeScaleKey(boneId: string, scaleX: number, scaleY: number): void {
     scaleBase = { scaleX: delta?.scaleX ?? 1, scaleY: delta?.scaleY ?? 1 };
   }
 
-  putKey(boneId, "scaleX", Math.max(0.05, scaleBase.scaleX * scaleX), keyTime());
-  putKey(boneId, "scaleY", Math.max(0.05, scaleBase.scaleY * scaleY), keyTime());
+  // 축 잠금으로 1인 축은 사용자가 건드리지 않은 축이므로 불필요한 키도 만들지 않는다.
+  if (Math.abs(scaleX - 1) > 1e-6) {
+    putKey(boneId, "scaleX", Math.max(0.05, scaleBase.scaleX * scaleX), keyTime());
+  }
+  if (Math.abs(scaleY - 1) > 1e-6) {
+    putKey(boneId, "scaleY", Math.max(0.05, scaleBase.scaleY * scaleY), keyTime());
+  }
   applyPose();
   refreshTimeline();
 }
