@@ -215,12 +215,11 @@ export const MESH_GRID: Record<MeshResolution, number> = {
   normal: 48,
   high: 72,
   ultra: 108,
-  // 일반 최소는 도트 높음과 같은 밀도지만 별도 ID로 저장해 선택 부류를 명확히 보존한다.
-  smoothMin: 108,
-  // 이후 약 1.3배씩 늘려 브러시 경계가 단계마다 부드럽게 세밀해진다.
-  smoothLow: 144,
-  smoothNormal: 192,
-  smoothHigh: 240,
+  // 일반 격자는 브러시 경계를 실제 픽셀에 가깝게 다듬을 수 있도록 밀도 차이를 크게 둔다.
+  smoothMin: 128,
+  smoothLow: 512,
+  smoothNormal: 1024,
+  smoothHigh: 5120,
 };
 
 /**
