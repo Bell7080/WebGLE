@@ -172,6 +172,8 @@ const rows: Record<string, readonly string[]> = {
   "강도": ["Strength", "强度", "強度", "強さ", "Intensidad", "Intensité", "Stärke", "Intensidade", "Сила"],
   "흔들림": ["Secondary motion", "次级运动", "次要動態", "揺れ", "Movimiento secundario", "Mouvement secondaire", "Sekundärbewegung", "Movimento secundário", "Вторичное движение"],
   "영향 영역": ["Influence area", "影响区域", "影響區域", "影響領域", "Área de influencia", "Zone d’influence", "Einflussbereich", "Área de influência", "Область влияния"],
+  "재생 중에는 관절 크기를 바꿀 수 없습니다. 일시정지한 뒤 바꾸세요.": ["Bone scale cannot be changed during playback. Pause first.", "播放期间无法调整骨骼缩放。请先暂停。", "播放期間無法調整骨骼縮放。請先暫停。", "再生中はボーンの拡大縮小を変更できません。一時停止してください。", "No se puede cambiar la escala del hueso durante la reproducción. Pausa primero.", "L’échelle de l’os ne peut pas être modifiée pendant la lecture. Mettez d’abord en pause.", "Die Skalierung des Knochens kann während der Wiedergabe nicht geändert werden. Zuerst pausieren.", "A escala do osso não pode ser alterada durante a reprodução. Pause primeiro.", "Масштаб кости нельзя менять во время воспроизведения. Сначала поставьте на паузу."],
+  "크기를 바꿨습니다.": ["Scale changed.", "已调整缩放。", "已調整縮放。", "拡大縮小を変更しました。", "Escala cambiada.", "Échelle modifiée.", "Skalierung geändert.", "Escala alterada.", "Масштаб изменён."],
   "칠하기": ["Paint", "绘制", "繪製", "塗る", "Pintar", "Peindre", "Malen", "Pintar", "Рисовать"],
   "지우개": ["Eraser", "橡皮擦", "橡皮擦", "消しゴム", "Borrador", "Gomme", "Radierer", "Borracha", "Ластик"],
   "모두 채우기": ["Fill all", "全部填充", "全部填滿", "すべて塗る", "Rellenar todo", "Tout remplir", "Alles füllen", "Preencher tudo", "Заполнить всё"],
