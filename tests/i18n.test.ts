@@ -45,6 +45,7 @@ describe("tooltip translations", () => {
       }
       // 실행 결과처럼 숫자가 들어가는 문장도 한국어 원문으로 되돌아가면 안 된다.
       expect(formatWeightCorrectionResult("cleanup", { filledVertices: 12, removedMarks: 3 })).not.toMatch(/[가-힣]/);
+      expect(formatWeightCorrectionResult("smooth", { smoothedVertices: 7 })).not.toMatch(/[가-힣]/);
     },
   );
 

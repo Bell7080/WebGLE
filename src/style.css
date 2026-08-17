@@ -678,10 +678,10 @@ button.tag-option {
   margin: 0;
 }
 
-/* 전체 영역 작업은 서로 같은 범위의 동작임을 두 칸 버튼으로 보여 준다. */
+/* 전체 영역 작업은 서로 같은 범위의 동작임을 세 칸 버튼으로 보여 준다. */
 .weight-bulk-tools {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
 }
 
