@@ -19,7 +19,7 @@ import {
   toWeightMap,
   type WeightMap,
 } from "@core/weight";
-import { autoManagedBones, cleanupWeights, fillUnweighted, withAutoWeights } from "@core/weight/auto";
+import { autoManagedBones, cleanupWeights, fillUnweighted, smoothWeights, withAutoWeights } from "@core/weight/auto";
 import { applyStroke, beginStroke, extendStroke, type Stroke } from "@core/weight/stroke";
 import {
   applyPoint,
@@ -239,6 +239,16 @@ const ui = new EditorUI(store, {
     const result = cleanupWeights(weights, project.bones, project.mesh, mask, strength);
     setWeights(result.weights);
     ui.setStatus(formatWeightCorrectionResult("cleanup", result));
+  },
+
+  onSmoothWeights: (strength) => {
+    const { project, weights, mask } = store.get();
+    if (!project.mesh || project.bones.length === 0) return;
+    // 연속 클릭이 핵심인 도구라 확인창 없이 매 클릭을 독립 Undo 단계로 기록한다.
+    pushHistory();
+    const result = smoothWeights(weights, project.bones, project.mesh, mask, strength);
+    setWeights(result.weights);
+    ui.setStatus(formatWeightCorrectionResult("smooth", result));
   },
 
   onReorderBone: (boneId, targetId, place) => {

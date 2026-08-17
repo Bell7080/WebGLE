@@ -137,6 +137,8 @@ export interface EditorUICallbacks {
   onFillAllWeights(strength: WeightCorrectionStrength): void;
   /** 고립된 오점과 미세 잔여 가중치를 정돈하고 빈 곳을 메운다. */
   onCleanupWeights(strength: WeightCorrectionStrength): void;
+  /** 경계를 한 단계 넓히고 부드럽게 만든다. 연속 클릭을 위해 확인창을 띄우지 않는다. */
+  onSmoothWeights(strength: WeightCorrectionStrength): void;
 }
 
 /** 변형 방식 선택지. 짧은 이름은 버튼에, 나머지는 툴팁에 쓴다. */
@@ -1313,7 +1315,7 @@ export class EditorUI {
     }
     section.append(strengthRow);
 
-    // 두 동작은 선택 관절 하나가 아니라 캐릭터 전체를 다루므로 같은 비중의 묶음으로 둔다.
+    // 세 동작은 선택 관절 하나가 아니라 캐릭터 전체를 다루므로 같은 비중의 묶음으로 둔다.
     const bulkTools = document.createElement("div");
     bulkTools.className = "weight-bulk-tools";
     const fillAll = document.createElement("button");
@@ -1328,7 +1330,13 @@ export class EditorUI {
     cleanup.textContent = "정리";
     cleanup.title = "고립된 작은 자국과 희미한 잔여 영역을 지우고 빈 곳을 메웁니다.";
     cleanup.addEventListener("click", () => this.callbacks.onCleanupWeights(this.weightCorrectionStrength));
-    bulkTools.append(fillAll, cleanup);
+    const smooth = document.createElement("button");
+    smooth.type = "button";
+    smooth.className = "outlined";
+    smooth.textContent = translate("다듬기");
+    smooth.title = translate("영향 영역 경계를 한 단계 넓히고 부드럽게 만듭니다. 여러 번 눌러 반복할 수 있습니다.");
+    smooth.addEventListener("click", () => this.callbacks.onSmoothWeights(this.weightCorrectionStrength));
+    bulkTools.append(fillAll, cleanup, smooth);
     section.append(bulkTools);
 
     // 칠하기 / 지우개는 한 줄에 모은 아이콘 토글이다.

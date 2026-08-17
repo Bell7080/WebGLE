@@ -21,6 +21,10 @@ export interface Stroke {
   base: number[];
   /** 획의 각 이동 구간이 남긴 누적 농도. 같은 자리를 다시 훑으면 한 겹 더 쌓인다. */
   coverage: number[];
+  /** 이번 획이 실제로 지나간 정점만 기억해 결과 계산도 해당 범위로 제한한다. */
+  touched: Set<number>;
+  /** 매 포인터 이동마다 전체 채널을 복사하지 않도록 획 동안 재사용하는 결과 배열. */
+  result: number[];
   /** 직전에 지나온 자리. 다음 점까지를 선분으로 이어 칠한다. */
   lastX: number | null;
   lastY: number | null;
@@ -33,7 +37,15 @@ export function beginStroke(map: WeightMap, boneId: string, mesh: PuppetMesh): S
   const base = new Array<number>(count);
   for (let i = 0; i < count; i += 1) base[i] = existing[i] ?? 0;
 
-  return { boneId, base, coverage: new Array<number>(count).fill(0), lastX: null, lastY: null };
+  return {
+    boneId,
+    base,
+    coverage: new Array<number>(count).fill(0),
+    touched: new Set<number>(),
+    result: [...base],
+    lastX: null,
+    lastY: null,
+  };
 }
 
 /**
@@ -59,12 +71,27 @@ export function extendStroke(
     ...brush,
   };
 
-  const count = stroke.coverage.length;
-  for (let i = 0; i < count; i += 1) {
-    if (mask && !mask[i]) continue;
-    const value = influenceAt(influence, mesh.vertices[i * 2] ?? 0, mesh.vertices[i * 2 + 1] ?? 0);
-    // 포인터 이동 구간 하나를 한 겹으로 본다. 왕복하거나 교차한 부분은 한 획 안에서도 누적한다.
-    stroke.coverage[i] = Math.min(1, (stroke.coverage[i] ?? 0) + value);
+  // 규칙적인 격자에서 브러시 캡슐의 바운딩 박스에 들어오는 행·열만 순회한다.
+  const minX = Math.min(influence.x1, influence.x2) - influence.radius;
+  const maxX = Math.max(influence.x1, influence.x2) + influence.radius;
+  const minY = Math.min(influence.y1, influence.y2) - influence.radius;
+  const maxY = Math.max(influence.y1, influence.y2) + influence.radius;
+  const firstCol = Math.max(0, Math.floor((minX / (mesh.vertices[(mesh.cols) * 2] || 1)) * mesh.cols));
+  const lastCol = Math.min(mesh.cols, Math.ceil((maxX / (mesh.vertices[(mesh.cols) * 2] || 1)) * mesh.cols));
+  const bottomY = mesh.vertices[(mesh.rows * (mesh.cols + 1)) * 2 + 1] || 1;
+  const firstRow = Math.max(0, Math.floor((minY / bottomY) * mesh.rows));
+  const lastRow = Math.min(mesh.rows, Math.ceil((maxY / bottomY) * mesh.rows));
+
+  for (let row = firstRow; row <= lastRow; row += 1) {
+    for (let col = firstCol; col <= lastCol; col += 1) {
+      const i = row * (mesh.cols + 1) + col;
+      if (mask && !mask[i]) continue;
+      const value = influenceAt(influence, mesh.vertices[i * 2] ?? 0, mesh.vertices[i * 2 + 1] ?? 0);
+      if (value <= 0) continue;
+      // 포인터 이동 구간 하나를 한 겹으로 보고 실제로 바뀐 정점만 결과 갱신 대상으로 남긴다.
+      stroke.coverage[i] = Math.min(1, (stroke.coverage[i] ?? 0) + value);
+      stroke.touched.add(i);
+    }
   }
 
   stroke.lastX = x;
@@ -78,14 +105,12 @@ export function extendStroke(
  * 중간 결과가 쌓이지 않는다. 그래서 그리는 동안 화면이 실제 결과와 어긋나지 않는다.
  */
 export function applyStroke(map: WeightMap, stroke: Stroke, erase = false): WeightMap {
-  const count = stroke.coverage.length;
-  const channel = new Array<number>(count);
-
-  for (let i = 0; i < count; i += 1) {
+  // 한 획에서 건드린 정점만 다시 계산하고 나머지는 beginStroke에서 복사한 값을 그대로 재사용한다.
+  for (const i of stroke.touched) {
     const base = stroke.base[i] ?? 0;
     const laid = stroke.coverage[i] ?? 0;
-    channel[i] = erase ? Math.max(0, base - laid) : Math.min(1, base + laid);
+    stroke.result[i] = erase ? Math.max(0, base - laid) : Math.min(1, base + laid);
   }
 
-  return { ...map, [stroke.boneId]: channel };
+  return { ...map, [stroke.boneId]: stroke.result };
 }

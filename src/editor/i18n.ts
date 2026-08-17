@@ -182,6 +182,8 @@ const rows: Record<string, readonly string[]> = {
   "지우개": ["Eraser", "橡皮擦", "橡皮擦", "消しゴム", "Borrador", "Gomme", "Radierer", "Borracha", "Ластик"],
   "모두 채우기": ["Fill all", "全部填充", "全部填滿", "すべて塗る", "Rellenar todo", "Tout remplir", "Alles füllen", "Preencher tudo", "Заполнить всё"],
   "정리": ["Clean up", "清理", "整理", "整理", "Limpiar", "Nettoyer", "Bereinigen", "Limpar", "Очистить"],
+  "다듬기": ["Smooth", "平滑", "平滑", "なじませる", "Suavizar", "Lisser", "Glätten", "Suavizar", "Сгладить"],
+  "영향 영역 경계를 한 단계 넓히고 부드럽게 만듭니다. 여러 번 눌러 반복할 수 있습니다.": ["Expands and smooths influence boundaries by one step. Press repeatedly to continue.", "将影响区域边界扩大并平滑一步，可连续点击。", "將影響區域邊界擴大並平滑一步，可連續點擊。", "影響範囲の境界を一段広げて滑らかにします。繰り返し押せます。", "Expande y suaviza un paso los límites de influencia. Puede pulsarse repetidamente.", "Étend et lisse les limites d’influence d’un cran. Vous pouvez appuyer plusieurs fois.", "Erweitert und glättet Einflussgrenzen um eine Stufe. Mehrfaches Drücken ist möglich.", "Expande e suaviza os limites de influência em uma etapa. Pode ser pressionado repetidamente.", "Расширяет и сглаживает границы влияния на один шаг. Можно нажимать многократно."],
   "보정 강도": ["Correction strength", "修正强度", "修正強度", "補正強度", "Intensidad de corrección", "Intensité de correction", "Korrekturstärke", "Intensidade da correção", "Сила коррекции"],
   "약하게": ["Light", "弱", "弱", "弱", "Suave", "Faible", "Leicht", "Leve", "Слабо"],
   "강하게": ["Strong", "强", "強", "強", "Fuerte", "Forte", "Stark", "Forte", "Сильно"],
@@ -304,22 +306,22 @@ export function formatAnimationSummary(duration: number, loop: boolean, tracks: 
 
 /** 전체 보정 뒤 바뀐 정점·오점 수를 현재 언어의 어순으로 알려 준다. */
 export function formatWeightCorrectionResult(
-  kind: "fill" | "cleanup",
-  result: { filledVertices: number; removedMarks: number },
+  kind: "fill" | "cleanup" | "smooth",
+  result: { filledVertices?: number; removedMarks?: number; smoothedVertices?: number },
 ): string {
   const language = getLanguage();
-  const values = { filled: result.filledVertices, removed: result.removedMarks };
-  const templates: Record<LanguageCode, { fill: string; cleanup: string }> = {
-    ko: { fill: "빈 정점 {filled}개를 채웠습니다. Ctrl+Z로 되돌릴 수 있습니다.", cleanup: "오점 {removed}개를 지우고 빈 정점 {filled}개를 채웠습니다. Ctrl+Z로 되돌릴 수 있습니다." },
-    en: { fill: "Filled {filled} empty vertices. Press Ctrl+Z to undo.", cleanup: "Removed {removed} marks and filled {filled} empty vertices. Press Ctrl+Z to undo." },
-    "zh-CN": { fill: "已填充 {filled} 个空白顶点。可按 Ctrl+Z 撤销。", cleanup: "已移除 {removed} 个杂点并填充 {filled} 个空白顶点。可按 Ctrl+Z 撤销。" },
-    "zh-TW": { fill: "已填滿 {filled} 個空白頂點。可按 Ctrl+Z 復原。", cleanup: "已移除 {removed} 個雜點並填滿 {filled} 個空白頂點。可按 Ctrl+Z 復原。" },
-    ja: { fill: "空の頂点を {filled} 個塗りました。Ctrl+Z で元に戻せます。", cleanup: "不要な跡を {removed} 個消し、空の頂点を {filled} 個塗りました。Ctrl+Z で元に戻せます。" },
-    es: { fill: "Se rellenaron {filled} vértices vacíos. Ctrl+Z para deshacer.", cleanup: "Se eliminaron {removed} marcas y se rellenaron {filled} vértices vacíos. Ctrl+Z para deshacer." },
-    fr: { fill: "{filled} sommets vides remplis. Ctrl+Z pour annuler.", cleanup: "{removed} traces supprimées et {filled} sommets vides remplis. Ctrl+Z pour annuler." },
-    de: { fill: "{filled} leere Punkte gefüllt. Mit Ctrl+Z rückgängig machen.", cleanup: "{removed} Flecken entfernt und {filled} leere Punkte gefüllt. Mit Ctrl+Z rückgängig machen." },
-    "pt-BR": { fill: "{filled} vértices vazios preenchidos. Ctrl+Z para desfazer.", cleanup: "{removed} marcas removidas e {filled} vértices vazios preenchidos. Ctrl+Z para desfazer." },
-    ru: { fill: "Заполнено пустых вершин: {filled}. Ctrl+Z — отменить.", cleanup: "Удалено пятен: {removed}; заполнено пустых вершин: {filled}. Ctrl+Z — отменить." },
+  const values = { filled: result.filledVertices ?? 0, removed: result.removedMarks ?? 0, smoothed: result.smoothedVertices ?? 0 };
+  const templates: Record<LanguageCode, { fill: string; cleanup: string; smooth: string }> = {
+    ko: { fill: "빈 정점 {filled}개를 채웠습니다. Ctrl+Z로 되돌릴 수 있습니다.", cleanup: "오점 {removed}개를 지우고 빈 정점 {filled}개를 채웠습니다. Ctrl+Z로 되돌릴 수 있습니다.", smooth: "영향 영역 정점 {smoothed}개를 한 단계 다듬었습니다." },
+    en: { fill: "Filled {filled} empty vertices. Press Ctrl+Z to undo.", cleanup: "Removed {removed} marks and filled {filled} empty vertices. Press Ctrl+Z to undo.", smooth: "Smoothed {smoothed} influence vertices by one step." },
+    "zh-CN": { fill: "已填充 {filled} 个空白顶点。可按 Ctrl+Z 撤销。", cleanup: "已移除 {removed} 个杂点并填充 {filled} 个空白顶点。可按 Ctrl+Z 撤销。", smooth: "已将 {smoothed} 个影响顶点平滑一步。" },
+    "zh-TW": { fill: "已填滿 {filled} 個空白頂點。可按 Ctrl+Z 復原。", cleanup: "已移除 {removed} 個雜點並填滿 {filled} 個空白頂點。可按 Ctrl+Z 復原。", smooth: "已將 {smoothed} 個影響頂點平滑一步。" },
+    ja: { fill: "空の頂点を {filled} 個塗りました。Ctrl+Z で元に戻せます。", cleanup: "不要な跡を {removed} 個消し、空の頂点を {filled} 個塗りました。Ctrl+Z で元に戻せます。", smooth: "影響頂点 {smoothed} 個を一段なじませました。" },
+    es: { fill: "Se rellenaron {filled} vértices vacíos. Ctrl+Z para deshacer.", cleanup: "Se eliminaron {removed} marcas y se rellenaron {filled} vértices vacíos. Ctrl+Z para deshacer.", smooth: "Se suavizaron {smoothed} vértices de influencia un paso." },
+    fr: { fill: "{filled} sommets vides remplis. Ctrl+Z pour annuler.", cleanup: "{removed} traces supprimées et {filled} sommets vides remplis. Ctrl+Z pour annuler.", smooth: "{smoothed} sommets d’influence lissés d’un cran." },
+    de: { fill: "{filled} leere Punkte gefüllt. Mit Ctrl+Z rückgängig machen.", cleanup: "{removed} Flecken entfernt und {filled} leere Punkte gefüllt. Mit Ctrl+Z rückgängig machen.", smooth: "{smoothed} Einflusspunkte um eine Stufe geglättet." },
+    "pt-BR": { fill: "{filled} vértices vazios preenchidos. Ctrl+Z para desfazer.", cleanup: "{removed} marcas removidas e {filled} vértices vazios preenchidos. Ctrl+Z para desfazer.", smooth: "{smoothed} vértices de influência suavizados em uma etapa." },
+    ru: { fill: "Заполнено пустых вершин: {filled}. Ctrl+Z — отменить.", cleanup: "Удалено пятен: {removed}; заполнено пустых вершин: {filled}. Ctrl+Z — отменить.", smooth: "Сглажено вершин влияния на один шаг: {smoothed}." },
   };
   return fillTemplate(templates[language][kind], values);
 }

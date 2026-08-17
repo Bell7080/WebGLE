@@ -215,11 +215,11 @@ export const MESH_GRID: Record<MeshResolution, number> = {
   normal: 48,
   high: 72,
   ultra: 108,
-  // 일반 격자는 브러시 경계를 실제 픽셀에 가깝게 다듬을 수 있도록 밀도 차이를 크게 둔다.
+  // Phaser는 정점마다 JS 객체를 만들므로 500칸 이상은 프레임을 막는다. 체감 품질을 유지하는 안전 구간만 쓴다.
   smoothMin: 128,
-  smoothLow: 512,
-  smoothNormal: 1024,
-  smoothHigh: 5120,
+  smoothLow: 192,
+  smoothNormal: 256,
+  smoothHigh: 384,
 };
 
 /**

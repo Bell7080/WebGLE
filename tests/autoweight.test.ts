@@ -15,6 +15,7 @@ import {
   boneSegments,
   cleanupWeights,
   fillUnweighted,
+  smoothWeights,
   withAutoWeights,
 } from "../src/core/weight/auto";
 
@@ -130,6 +131,37 @@ describe("전체 채우기와 정리", () => {
     expect(weak.filledVertices).toBe(0);
     expect(strong.filledVertices).toBe(count);
     expect(strong.weights.right!.some((value) => value > 0)).toBe(true);
+  });
+
+  it("빈 곳은 관절점이 아니라 가장 가까운 칠 영역이 차지한다", () => {
+    const bones = [bone("left", 0, 50), bone("right", 100, 50)];
+    const count = vertexCount(mesh);
+    const weights = {
+      left: new Array<number>(count).fill(0),
+      right: new Array<number>(count).fill(0),
+    };
+    // 관절 위치와 반대로 왼쪽 관절 영역을 오른쪽에, 오른쪽 관절 영역을 왼쪽에 심는다.
+    const at = (x: number) => mesh.vertices.findIndex((value, index) => index % 2 === 0 && Math.abs(value - x) < 1) / 2;
+    weights.right[at(25)] = 1;
+    weights.left[at(75)] = 1;
+
+    const filled = fillUnweighted(weights, bones, mesh).weights;
+    expect(filled.left![at(70)]).toBe(1);
+    expect(filled.right![at(70)]).toBe(0);
+  });
+
+  it("다듬기를 반복하면 칠 영역이 한 칸씩 넓어지고 경계값은 부드러워진다", () => {
+    const bones = [bone("only", 50, 50)];
+    const count = vertexCount(mesh);
+    const weights = { only: new Array<number>(count).fill(0) };
+    const center = Math.floor(mesh.rows / 2) * (mesh.cols + 1) + Math.floor(mesh.cols / 2);
+    weights.only[center] = 1;
+
+    const once = smoothWeights(weights, bones, mesh).weights;
+    const twice = smoothWeights(once, bones, mesh).weights;
+    expect(once.only![center + 1]).toBeGreaterThan(0);
+    expect(twice.only![center + 2]).toBeGreaterThan(0);
+    expect(once.only![center]).toBeLessThan(1);
   });
 });
 

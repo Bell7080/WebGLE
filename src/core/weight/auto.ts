@@ -172,6 +172,12 @@ export interface WeightCorrectionResult {
   removedMarks: number;
 }
 
+/** 다듬기 한 번으로 실제 값이 달라진 정점 수와 새 가중치를 함께 돌려준다. */
+export interface WeightSmoothResult {
+  weights: WeightMap;
+  smoothedVertices: number;
+}
+
 /** 강할수록 이미 어느 정도 칠해진 정점도 거리 기반 값으로 다시 꽉 채운다. */
 const FILL_THRESHOLDS: Record<WeightCorrectionStrength, number> = {
   weak: 0.001,
@@ -190,22 +196,106 @@ export function fillUnweighted(
   mask?: readonly boolean[] | null,
   strength: WeightCorrectionStrength = "normal",
 ): WeightCorrectionResult {
-  const computed = autoWeights(bones, mesh, { mask });
   const count = vertexCount(mesh);
   const result: WeightMap = Object.fromEntries(
     bones.map((bone) => [bone.id, [...(current[bone.id] ?? new Array<number>(count).fill(0))]]),
   );
   let filledVertices = 0;
 
+  // 이미 칠한 정점을 동시에 출발시켜 빈 곳마다 가장 가까운 "영역"의 정점을 찾는다.
+  const owner = new Int32Array(count).fill(-1);
+  const queue = new Int32Array(count);
+  let head = 0;
+  let tail = 0;
+  for (let index = 0; index < count; index += 1) {
+    if (mask && !mask[index]) continue;
+    const strongest = Math.max(...bones.map((bone) => current[bone.id]?.[index] ?? 0));
+    if (strongest <= FILL_THRESHOLDS[strength]) continue;
+    owner[index] = index;
+    queue[tail] = index;
+    tail += 1;
+  }
+
+  // 영역이 하나도 없을 때만 관절 선분 거리 계산을 안전망으로 사용한다.
+  const computed = tail === 0 ? autoWeights(bones, mesh, { mask }) : null;
+  const stride = mesh.cols + 1;
+  while (head < tail) {
+    const index = queue[head] ?? 0;
+    head += 1;
+    const row = Math.floor(index / stride);
+    const col = index % stride;
+    for (const neighbor of [index - 1, index + 1, index - stride, index + stride]) {
+      const neighborRow = Math.floor(neighbor / stride);
+      const neighborCol = neighbor % stride;
+      if (neighbor < 0 || neighbor >= count || owner[neighbor] !== -1) continue;
+      if (Math.abs(neighborRow - row) + Math.abs(neighborCol - col) !== 1) continue;
+      if (mask && !mask[neighbor]) continue;
+      owner[neighbor] = owner[index] ?? -1;
+      queue[tail] = neighbor;
+      tail += 1;
+    }
+  }
+
   for (let index = 0; index < count; index += 1) {
     if (mask && !mask[index]) continue;
     // 단계별 기준보다 진한 정점은 사용자가 결정한 경계로 보고 그대로 둔다.
     const strongest = Math.max(...bones.map((bone) => current[bone.id]?.[index] ?? 0));
     if (strongest > FILL_THRESHOLDS[strength]) continue;
-    for (const bone of bones) result[bone.id]![index] = computed[bone.id]?.[index] ?? 0;
+    const source = owner[index] ?? -1;
+    for (const bone of bones) {
+      // 가까운 칠 영역이 있으면 그 값을 복사하고, 완전히 빈 그림만 관절 거리로 채운다.
+      result[bone.id]![index] = source >= 0
+        ? current[bone.id]?.[source] ?? 0
+        : computed?.[bone.id]?.[index] ?? 0;
+    }
     filledVertices += 1;
   }
   return { weights: result, filledVertices, removedMarks: 0 };
+}
+
+/**
+ * 해상도를 왕복했을 때 생기던 유용한 보간 효과를 명시적인 한 단계 다듬기로 만든다.
+ * 3×3 평균을 일부 섞으므로 경계는 한 칸씩 넓어지고, 연속 클릭하면 조금씩 더 부드러워진다.
+ */
+export function smoothWeights(
+  current: WeightMap,
+  bones: readonly PuppetBone[],
+  mesh: PuppetMesh,
+  mask?: readonly boolean[] | null,
+  strength: WeightCorrectionStrength = "normal",
+): WeightSmoothResult {
+  const count = vertexCount(mesh);
+  const stride = mesh.cols + 1;
+  const blend = strength === "weak" ? 0.3 : strength === "normal" ? 0.5 : 0.7;
+  const weights: WeightMap = {};
+  const changed = new Set<number>();
+
+  for (const bone of bones) {
+    const source = current[bone.id] ?? new Array<number>(count).fill(0);
+    const channel = [...source];
+    for (let index = 0; index < count; index += 1) {
+      if (mask && !mask[index]) continue;
+      const row = Math.floor(index / stride);
+      const col = index % stride;
+      let sum = 0;
+      let samples = 0;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (row + dy < 0 || row + dy > mesh.rows || col + dx < 0 || col + dx > mesh.cols) continue;
+          const neighbor = (row + dy) * stride + col + dx;
+          if (mask && !mask[neighbor]) continue;
+          sum += source[neighbor] ?? 0;
+          samples += 1;
+        }
+      }
+      const next = (source[index] ?? 0) * (1 - blend) + (samples > 0 ? sum / samples : 0) * blend;
+      channel[index] = next;
+      if (Math.abs(next - (source[index] ?? 0)) > 1e-6) changed.add(index);
+    }
+    weights[bone.id] = channel;
+  }
+
+  return { weights, smoothedVertices: changed.size };
 }
 
 /**
@@ -250,5 +340,7 @@ export function cleanupWeights(
   }
 
   const filled = fillUnweighted(cleaned, bones, mesh, mask, strength);
-  return { ...filled, removedMarks };
+  // 정리는 오점을 걷어낸 뒤 다듬기도 한 번 적용해 남은 경계를 자연스럽게 잇는다.
+  const smoothed = smoothWeights(filled.weights, bones, mesh, mask, strength);
+  return { weights: smoothed.weights, filledVertices: filled.filledVertices, removedMarks };
 }
