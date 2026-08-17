@@ -216,9 +216,14 @@ export function resampleWeights(
   for (const [boneId, channel] of Object.entries(map)) {
     const moved = new Array<number>(count).fill(0);
 
+    const fromWidth = from.vertices[from.vertices.length - 2] ?? 1;
+    const fromHeight = from.vertices[from.vertices.length - 1] ?? 1;
+    const toWidth = to.vertices[to.vertices.length - 2] ?? 1;
+    const toHeight = to.vertices[to.vertices.length - 1] ?? 1;
     for (let i = 0; i < count; i += 1) {
-      const x = to.vertices[i * 2] ?? 0;
-      const y = to.vertices[i * 2 + 1] ?? 0;
+      // 이미지 크기가 바뀌는 스킨 교체에서도 같은 상대 위치의 칠을 읽는다.
+      const x = ((to.vertices[i * 2] ?? 0) / (toWidth || 1)) * fromWidth;
+      const y = ((to.vertices[i * 2 + 1] ?? 0) / (toHeight || 1)) * fromHeight;
       moved[i] = sampleGrid(channel, from, x, y);
     }
 

@@ -248,6 +248,8 @@ interface FileMenuItem {
 const FILE_MENU: readonly FileMenuItem[] = [
   { action: "new", label: "새 프로젝트" },
   { action: "import-image", label: "이미지 불러오기" },
+  // 현재 관절·애니메이션을 유지한 채 스킨만 바꾸는 별도 흐름이다.
+  { action: "replace-image", label: "일러스트 교체" },
   { action: "open", label: "프로젝트 열기" },
   { action: "save", label: "프로젝트 저장", shortcut: "Ctrl+S" },
   { action: "export", label: "내보내기" },

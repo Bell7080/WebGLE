@@ -112,6 +112,8 @@ const mobile = setupMobileShell(
   canvasArea,
 );
 const imageInput = document.getElementById("imageInput") as HTMLInputElement;
+/** 기존 리그를 유지하는 스킨 교체 전용 파일 선택기. */
+const replaceImageInput = document.getElementById("replaceImageInput") as HTMLInputElement;
 const projectInput = document.getElementById("projectInput") as HTMLInputElement;
 
 const store = new EditorStore();
@@ -271,6 +273,13 @@ const ui = new EditorUI(store, {
     switch (action) {
       case "import-image":
         imageInput.click();
+        break;
+      case "replace-image":
+        if (!store.get().textureUrl) {
+          ui.setStatus(translate("이미지를 먼저 불러오세요."));
+          break;
+        }
+        replaceImageInput.click();
         break;
       case "open":
         projectInput.click();
@@ -1515,6 +1524,66 @@ async function importImage(file: File): Promise<void> {
   }
 }
 
+/**
+ * 새 일러스트를 현재 리그의 스킨으로 끼운다.
+ * 크기가 달라도 정규화 좌표를 기준으로 관절과 영향 영역을 옮겨, 비슷한 실루엣은 미세 조정만 하면 된다.
+ */
+async function replaceIllustration(file: File): Promise<void> {
+  const before = store.get();
+  if (!before.project.mesh || !before.textureUrl) return;
+  if (!window.confirm(translate("현재 관절과 애니메이션을 유지하고 일러스트를 교체할까요?"))) return;
+
+  try {
+    const { image, url, fileName, warning } = await loadImageFile(file);
+    const pixels = readPixels(image);
+    const verdict = pixels
+      ? judgePixelArt(analyzePixels(pixels.data, pixels.width, pixels.height))
+      : { pixelArt: before.project.character.pixelArt, reason: "픽셀을 읽지 못했습니다" };
+    const oldWidth = before.project.character.width || 1;
+    const oldHeight = before.project.character.height || 1;
+    const scaleX = image.width / oldWidth;
+    const scaleY = image.height / oldHeight;
+    // 사용자가 선택한 격자 밀도는 스킨을 바꿔도 작업 취향으로 간주해 유지한다.
+    const mesh = createGridMesh(image.width, image.height, before.project.mesh.resolution);
+    const movedWeights = resampleWeights(before.project.mesh, mesh, before.weights);
+
+    stopAnimation();
+    store.update((project) => ({
+      ...project,
+      character: {
+        ...project.character,
+        // 새 이름으로 바로 저장할 수 있도록 파일명을 캐릭터 이름의 초깃값으로 쓴다.
+        name: fileName.replace(/\.[^.]+$/, ""),
+        texture: fileName,
+        width: image.width,
+        height: image.height,
+        pixelArt: verdict.pixelArt,
+      },
+      bones: project.bones.map((bone) => ({ ...bone, x: bone.x * scaleX, y: bone.y * scaleY })),
+      mesh,
+    }));
+    alphaMap = buildAlphaMap(pixels);
+    store.set({
+      textureUrl: url,
+      weights: movedWeights,
+      mask: sampleAlphaMask(alphaMap, mesh),
+      pixelArtReason: verdict.reason,
+    });
+    URL.revokeObjectURL(before.textureUrl);
+    view.scene.showTexture(image, verdict.pixelArt);
+    view.scene.setMesh(mesh, image.width, image.height);
+    setWeights(movedWeights);
+    refreshAutoWeights();
+    ui.setStatus(
+      warning
+        ? `${fileName} · ${warning}`
+        : `${fileName} (${image.width}×${image.height}) · 관절 ${before.project.bones.length}개와 애니메이션을 유지했습니다.`,
+    );
+  } catch (error) {
+    ui.setStatus(error instanceof Error ? error.message : translate("이미지를 불러오지 못했습니다."));
+  }
+}
+
 async function saveProject(): Promise<void> {
   const { project, textureUrl } = store.get();
   try {
@@ -1672,6 +1741,13 @@ imageInput.addEventListener("change", () => {
   const file = imageInput.files?.[0];
   if (file) void importImage(file);
   imageInput.value = "";
+});
+
+replaceImageInput.addEventListener("change", () => {
+  const file = replaceImageInput.files?.[0];
+  if (file) void replaceIllustration(file);
+  // 같은 스킨을 다시 고르는 비교 작업도 가능하게 입력 값을 비운다.
+  replaceImageInput.value = "";
 });
 
 projectInput.addEventListener("change", () => {
