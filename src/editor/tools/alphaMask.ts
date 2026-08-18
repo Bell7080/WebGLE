@@ -1,8 +1,8 @@
 import type { PuppetMesh } from "@core/format";
 import { vertexCount } from "@core/mesh";
 
-/** 이 알파값 이상이면 캐릭터 영역으로 본다. */
-export const ALPHA_THRESHOLD = 8;
+/** 안티앨리어싱으로 거의 투명해진 픽셀도 월드에 남지 않도록 알파가 하나라도 있으면 캐릭터로 본다. */
+export const ALPHA_THRESHOLD = 1;
 
 /** 아주 얇은 반투명 테두리도 영향 영역에서 잘리지 않도록 확보하는 최소 여유(px). */
 export const ALPHA_MASK_PADDING = 2;
@@ -50,9 +50,10 @@ export function sampleAlphaMask(map: AlphaMap | null, mesh: PuppetMesh): boolean
   const count = vertexCount(mesh);
   if (!map) return new Array<boolean>(count).fill(true);
 
-  // 격자가 아무리 촘촘해도 2px은 남기고, 성긴 격자는 기존처럼 반 칸까지 둘러본다.
-  const marginX = Math.max(ALPHA_MASK_PADDING, Math.round(map.width / mesh.cols / 2));
-  const marginY = Math.max(ALPHA_MASK_PADDING, Math.round(map.height / mesh.rows / 2));
+  // 반 칸만 확인하면 셀 모서리의 반투명 픽셀이 반올림 경계에서 빠질 수 있으므로,
+  // 실제 셀의 반 너비를 올림한 뒤 고정 여유를 더해 둘레 정점까지 확실히 변형에 묶는다.
+  const marginX = Math.ceil(map.width / mesh.cols / 2) + ALPHA_MASK_PADDING;
+  const marginY = Math.ceil(map.height / mesh.rows / 2) + ALPHA_MASK_PADDING;
 
   return Array.from({ length: count }, (_unused, index) => {
     const x = Math.round(mesh.vertices[index * 2] ?? 0);
