@@ -102,12 +102,11 @@ export function computeSkinMatrices(
     // 부모 기준 지역 변환 = 부모 기준 자세의 역 × 자기 기준 자세
     const local = parentRest ? multiply(invert(parentRest), restWorld) : restWorld;
 
-    // 고정 계열은 자기 애니메이션뿐 아니라 부모 변환도 받지 않아 발 같은 기준점을 붙잡는다.
     // 애니메이션별 덮어쓰기가 있으면 저장된 공용값보다 우선한다. 정점 혼합에서만 덮어쓰기를
     // 사용하면 고정 관절 자체는 부모를 따라가므로, 발 그림과 관절점의 결과가 서로 어긋난다.
     const deform = deformModes.get(bone.id) ?? bone.deform;
-    const pinned = deform === "pinnedSoft" || deform === "fixed";
-    if (pinned) {
+    // 완전 고정은 위치와 선형 변형을 모두 버려 원래 모양과 자리를 그대로 유지한다.
+    if (deform === "fixed") {
       world.set(bone.id, restWorld);
       skin.set(bone.id, IDENTITY);
       continue;
@@ -116,7 +115,19 @@ export function computeSkinMatrices(
     const delta = deltas.get(bone.id) ?? NO_DELTA;
     const deltaMatrix = compose(delta.x, delta.y, delta.rotation, delta.scaleX, delta.scaleY);
 
-    const boneWorld = multiply(parentWorld ?? IDENTITY, multiply(local, deltaMatrix));
+    let boneWorld = multiply(parentWorld ?? IDENTITY, multiply(local, deltaMatrix));
+
+    if (deform === "pinnedSoft") {
+      // 위치 고정은 현재 회전·크기를 보존하되 관절의 기준점만 원래 월드 좌표로 되돌린다.
+      // 행렬 전체를 항등으로 만들면 발 위치뿐 아니라 발 모양까지 fixed처럼 굳어 버린다.
+      const movedAnchor = applyPoint(boneWorld, 0, 0);
+      boneWorld = {
+        ...boneWorld,
+        tx: boneWorld.tx + restWorld.tx - movedAnchor.x,
+        ty: boneWorld.ty + restWorld.ty - movedAnchor.y,
+      };
+    }
+
     world.set(bone.id, boneWorld);
     skin.set(bone.id, multiply(boneWorld, invert(restWorld)));
   }

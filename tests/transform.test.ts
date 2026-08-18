@@ -101,7 +101,7 @@ describe("스킨 행렬", () => {
   });
 
   it.each(["pinnedSoft", "fixed"] as const)(
-    "%s 관절은 자기와 부모의 애니메이션 변환을 모두 무시한다",
+    "%s 관절은 자기와 부모가 움직여도 기준 위치를 유지한다",
     (deform) => {
       const bones = [bone("root", 0, 0), bone("foot", 0, 50, "root", deform)];
       const skin = computeSkinMatrices(
@@ -116,6 +116,40 @@ describe("스킨 행렬", () => {
       expect(planted).toEqual({ x: 0, y: 50 });
     },
   );
+
+  it("Pinned Soft는 기준 위치를 고정해도 애니메이션의 회전 변형은 유지한다", () => {
+    const bones = [bone("root", 0, 0), bone("foot", 0, 50, "root", "soft")];
+    // idle에서만 위치 고정으로 덮어쓴 상황을 재현해 공용 soft 설정과 무관하게 검사한다.
+    const modes = new Map<string, DeformMode>([["foot", "pinnedSoft"]]);
+    const skin = computeSkinMatrices(
+      bones,
+      new Map([
+        ["root", delta({ x: 20 })],
+        ["foot", delta({ rotation: Math.PI / 2 })],
+      ]),
+      modes,
+    );
+
+    const matrix = skin.get("foot")!;
+    const planted = applyPoint(matrix, 0, 50);
+    const toe = applyPoint(matrix, 20, 50);
+    expect(planted.x).toBeCloseTo(0);
+    expect(planted.y).toBeCloseTo(50);
+    // 발끝은 고정점 주위로 회전하므로 완전 고정과 달리 원본 좌표에 남지 않는다.
+    expect(toe.x).toBeCloseTo(0);
+    expect(toe.y).toBeCloseTo(70);
+  });
+
+  it("Fixed는 기준 위치뿐 아니라 회전 변형도 계속 차단한다", () => {
+    const bones = [bone("root", 0, 0), bone("foot", 0, 50, "root", "fixed")];
+    const skin = computeSkinMatrices(
+      bones,
+      new Map([["foot", delta({ rotation: Math.PI / 2 })]]),
+    );
+
+    // 위치 고정과 완전 고정의 차이가 다시 합쳐지지 않도록 발끝 좌표까지 확인한다.
+    expect(applyPoint(skin.get("foot")!, 20, 50)).toEqual({ x: 20, y: 50 });
+  });
 
   it("애니메이션의 완전 고정 덮어쓰기도 여러 단계 부모의 변환을 모두 차단한다", () => {
     // 몸통 → 윗다리 → 아랫다리 → 발 구조에서 공용 설정이 soft여도 현재 동작의 fixed가 우선한다.
