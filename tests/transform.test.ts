@@ -151,6 +151,28 @@ describe("스킨 행렬", () => {
     expect(applyPoint(skin.get("foot")!, 20, 50)).toEqual({ x: 20, y: 50 });
   });
 
+  it("Pinned Soft 가중치가 1이어도 기준점에서 멀어지면 주변 움직임을 받는다", () => {
+    const bones = [bone("root", 0, 0), bone("foot", 0, 50, "root", "pinnedSoft")];
+    const skin = computeSkinMatrices(bones, new Map([["root", delta({ x: 30 })]]));
+    const footMesh: PuppetMesh = {
+      resolution: "low",
+      cols: 1,
+      rows: 1,
+      // 시작점과 중간, 외곽 모두 가중치 1인 실제로 넓게 칠한 발 영역을 재현한다.
+      vertices: [0, 50, 10, 50, 20, 50],
+      indices: [],
+      weights: [
+        { boneIds: ["foot"], weights: [1] },
+        { boneIds: ["foot"], weights: [1] },
+        { boneIds: ["foot"], weights: [1] },
+      ],
+    };
+
+    const result = skinVertices(footMesh, skin, undefined, new Map([["foot", "pinnedSoft"]]));
+    // 시작점은 고정되지만 중간은 절반, 가장 먼 외곽은 부모 이동을 전부 받아 형태가 굽는다.
+    expect([...result]).toEqual([0, 50, 25, 50, 50, 50]);
+  });
+
   it("애니메이션의 완전 고정 덮어쓰기도 여러 단계 부모의 변환을 모두 차단한다", () => {
     // 몸통 → 윗다리 → 아랫다리 → 발 구조에서 공용 설정이 soft여도 현재 동작의 fixed가 우선한다.
     const bones = [
