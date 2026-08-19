@@ -7,7 +7,7 @@ import {
   type PuppetBone,
 } from "../src/core/format";
 import { evaluateAnimation } from "../src/core/animation";
-import { findPreset, PRESET_GROUPS, PRESETS } from "../src/presets";
+import { findPreset, PRESET_GROUPS, PRESETS, updateBuiltInAnimations } from "../src/presets";
 import { forExport } from "../src/editor/tools/projectFile";
 
 function bone(tags: string[]): PuppetBone {
@@ -28,6 +28,19 @@ function bone(tags: string[]): PuppetBone {
 }
 
 describe("애니메이션 프리셋", () => {
+  it("기본 ID만 최신 프리셋으로 교체하고 프로젝트별 설정은 유지한다", () => {
+    const oldIdle = { ...structuredClone(PRESETS[0]!.animation), duration: 99, speed: 0.5, hidden: true };
+    const custom = { ...structuredClone(PRESETS[1]!.animation), name: "내 걷기", duration: 77 };
+
+    const result = updateBuiltInAnimations({ idle: oldIdle, "내 걷기": custom });
+
+    expect(result.updated).toEqual(["idle"]);
+    expect(result.animations.idle?.duration).toBe(PRESETS[0]!.animation.duration);
+    expect(result.animations.idle?.speed).toBe(0.5);
+    expect(result.animations.idle?.hidden).toBe(true);
+    expect(result.animations["내 걷기"]).toBe(custom);
+  });
+
   it("모두 이름 · 길이 · 트랙을 갖춘다", () => {
     for (const preset of PRESETS) {
       expect(preset.animation.name).toBe(preset.id);

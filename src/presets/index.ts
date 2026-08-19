@@ -82,3 +82,35 @@ export const PRESETS: readonly PresetInfo[] = [
 export function findPreset(id: string): PresetInfo | undefined {
   return PRESETS.find((preset) => preset.id === id);
 }
+
+/**
+ * 현재 프로젝트에서 기본 ID로 남아 있는 프리셋을 최신 내장 데이터로 교체한다.
+ *
+ * 사용자가 이름을 바꾸거나 복사한 동작은 커스텀 작업으로 간주해 건드리지 않는다. 반면 표시 여부와
+ * 재생 배율 같은 프로젝트별 설정은 프리셋 패치와 무관하므로 새 데이터 위에 다시 얹어 보존한다.
+ */
+export function updateBuiltInAnimations(
+  animations: Readonly<Record<string, PuppetAnimation>>,
+): { animations: Record<string, PuppetAnimation>; updated: string[] } {
+  const next = { ...animations };
+  const updated: string[] = [];
+
+  for (const preset of PRESETS) {
+    const current = animations[preset.id];
+    if (!current) continue;
+
+    // 키·트랙·길이는 최신 프리셋을 따르되 사용자가 설정 패널에서 정한 재생 옵션은 유지한다.
+    const preferences = {
+      ...(current.hidden === undefined ? {} : { hidden: current.hidden }),
+      ...(current.speed === undefined ? {} : { speed: current.speed }),
+      ...(current.strength === undefined ? {} : { strength: current.strength }),
+      ...(current.secondary === undefined ? {} : { secondary: current.secondary }),
+      ...(current.mirror === undefined ? {} : { mirror: current.mirror }),
+      ...(current.deform === undefined ? {} : { deform: structuredClone(current.deform) }),
+    };
+    next[preset.id] = { ...structuredClone(preset.animation), ...preferences, name: current.name };
+    updated.push(preset.id);
+  }
+
+  return { animations: next, updated };
+}
