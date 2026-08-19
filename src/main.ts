@@ -91,7 +91,7 @@ import { createZip } from "@core/format/zip";
 import { setIcon } from "@editor/ui/icons";
 import { setupMobileShell } from "@editor/ui/mobile";
 import { FRAME, Timeline } from "@editor/ui/timeline";
-import { findPreset, PRESETS } from "./presets";
+import { findPreset, PRESETS, updateBuiltInAnimations } from "./presets";
 import { formatWeightCorrectionResult, localizeStaticDocument, translate } from "@editor/i18n";
 
 // 동적 패널을 만들기 전에 문서의 고정 문구부터 선택 언어로 맞춘다.
@@ -273,6 +273,19 @@ const ui = new EditorUI(store, {
 
   // 저장 용량 최적화는 설정 패널에서만 실행하며, 결과가 더 작을 때 화면과 프로젝트를 함께 교체한다.
   onConvertPngToWebP: () => void convertCurrentPngToWebP(),
+
+  // 엔진 수정은 열린 옛 파일에도 자동 적용된다. 이 동작은 파일에 복사된 프리셋 데이터만 갱신한다.
+  onUpdateBuiltInAnimations: () => {
+    const result = updateBuiltInAnimations(store.get().project.animations);
+    if (result.updated.length === 0) {
+      ui.setStatus(translate("최신화할 기본 애니메이션이 없습니다."));
+      return;
+    }
+    if (!window.confirm(translate("기본 애니메이션을 최신 프리셋으로 교체할까요? 직접 편집한 키는 초기화됩니다."))) return;
+    stopAnimation();
+    commit((project) => ({ ...project, animations: result.animations }));
+    ui.setStatus(translate("기본 애니메이션 {count}개를 최신 버전으로 반영했습니다.").replace("{count}", String(result.updated.length)));
+  },
 
   onBrushChange: (patch) => {
     const brush = { ...store.get().brush, ...patch };

@@ -132,6 +132,8 @@ export interface EditorUICallbacks {
   onFlipCharacter(): void;
   /** 현재 PNG를 더 작은 WebP로 바꾸고 프로젝트의 텍스처도 교체한다. */
   onConvertPngToWebP(): void;
+  /** 기본 ID의 애니메이션을 현재 툴에 포함된 최신 프리셋으로 갱신한다. */
+  onUpdateBuiltInAnimations(): void;
   onBrushChange(patch: Partial<BrushState>): void;
   /** 이 관절의 영향 영역을 자동에 맡길지 직접 잡을지 바꾼다. */
   onAutoWeight(boneId: string, enabled: boolean): void;
@@ -962,6 +964,19 @@ export class EditorUI {
     });
     flip.addEventListener("click", () => this.callbacks.onFlipCharacter());
     this.settingsPanel.append(flip);
+
+    // 구버전 프로젝트의 내장 모션 사본만 명시적으로 최신화한다. 사용자 모션은 보호한다.
+    const update = document.createElement("button");
+    update.type = "button";
+    update.className = "settings-action";
+    update.textContent = translate("최신 버전 반영하기");
+    attachTooltip(update, {
+      title: translate("기본 애니메이션 최신화"),
+      body: translate("기본 이름의 애니메이션을 현재 툴의 최신 프리셋으로 교체합니다."),
+      meta: translate("직접 만든 동작과 이름을 바꾼 동작은 유지됩니다"),
+    });
+    update.addEventListener("click", () => this.callbacks.onUpdateBuiltInAnimations());
+    this.settingsPanel.append(update);
 
     // PNG에서만 의미가 있는 최적화라 다른 형식에서는 버튼 자체를 노출하지 않는다.
     if (/\.png$/i.test(project.character.texture)) {
