@@ -130,6 +130,8 @@ export interface EditorUICallbacks {
   }): void;
   /** 그림 · 관절 · 칠한 영역을 통째로 좌우 반전한다. */
   onFlipCharacter(): void;
+  /** 현재 PNG를 더 작은 WebP로 바꾸고 프로젝트의 텍스처도 교체한다. */
+  onConvertPngToWebP(): void;
   onBrushChange(patch: Partial<BrushState>): void;
   /** 이 관절의 영향 영역을 자동에 맡길지 직접 잡을지 바꾼다. */
   onAutoWeight(boneId: string, enabled: boolean): void;
@@ -960,6 +962,21 @@ export class EditorUI {
     });
     flip.addEventListener("click", () => this.callbacks.onFlipCharacter());
     this.settingsPanel.append(flip);
+
+    // PNG에서만 의미가 있는 최적화라 다른 형식에서는 버튼 자체를 노출하지 않는다.
+    if (/\.png$/i.test(project.character.texture)) {
+      const convert = document.createElement("button");
+      convert.type = "button";
+      convert.className = "settings-action";
+      convert.textContent = translate("PNG를 WebP로 용량 줄이기");
+      attachTooltip(convert, {
+        title: translate("PNG를 더 작은 WebP로 변환"),
+        body: translate("현재 PNG를 WebP로 압축합니다. 변환 파일이 원본보다 작을 때만 프로젝트에 적용합니다."),
+        meta: translate("투명 배경은 유지됩니다 · WebP가 같거나 크면 PNG를 유지합니다"),
+      });
+      convert.addEventListener("click", () => this.callbacks.onConvertPngToWebP());
+      this.settingsPanel.append(convert);
+    }
   }
 
   /** 몇 갈래 중 하나를 고르는 줄. 설정에서 여러 번 쓴다. */

@@ -54,7 +54,7 @@ import { createCanvasView } from "@renderer/phaser";
 import { EditorStore, type BrushState } from "@editor/state/store";
 import { UndoStack } from "@editor/history/UndoStack";
 import { EditorUI } from "@editor/ui";
-import { attachDropTarget, loadImageFile } from "@editor/tools/imageLoader";
+import { attachDropTarget, convertPngToSmallerWebP, loadImageFile } from "@editor/tools/imageLoader";
 import { flipImage, flipProject, flipWeights } from "@editor/tools/flip";
 import {
   buildAlphaMap,
@@ -270,6 +270,9 @@ const ui = new EditorUI(store, {
   },
 
   onFlipCharacter: () => void flipCharacter(),
+
+  // 저장 용량 최적화는 설정 패널에서만 실행하며, 결과가 더 작을 때 화면과 프로젝트를 함께 교체한다.
+  onConvertPngToWebP: () => void convertCurrentPngToWebP(),
 
   onBrushChange: (patch) => {
     const brush = { ...store.get().brush, ...patch };
@@ -1592,6 +1595,59 @@ async function replaceIllustration(file: File): Promise<void> {
   } catch (error) {
     ui.setStatus(error instanceof Error ? error.message : translate("이미지를 불러오지 못했습니다."));
   }
+}
+
+/** 현재 PNG를 WebP로 인코딩하고 실제 절감이 있을 때만 텍스처를 교체한다. */
+async function convertCurrentPngToWebP(): Promise<void> {
+  const before = store.get();
+  if (!before.textureUrl || !/\.png$/i.test(before.project.character.texture)) return;
+
+  try {
+    const original = await (await fetch(before.textureUrl)).blob();
+    const image = new Image();
+    image.src = before.textureUrl;
+    await image.decode();
+    const result = await convertPngToSmallerWebP(
+      image,
+      before.project.character.width,
+      before.project.character.height,
+      original,
+    );
+    if (!result.blob) {
+      ui.setStatus(translate(
+        result.rejectedBecause === "pixels-changed"
+          ? "WebP 변환 시 화질이 달라져 PNG를 유지했습니다."
+          : "WebP가 더 작지 않아 PNG를 유지했습니다.",
+      ));
+      return;
+    }
+
+    const url = URL.createObjectURL(result.blob);
+    // 새 URL이 실제로 디코드되는지 먼저 확인해 실패 시 프로젝트와 화면이 엇갈리지 않게 한다.
+    const convertedImage = new Image();
+    convertedImage.src = url;
+    await convertedImage.decode();
+    const texture = before.project.character.texture.replace(/\.png$/i, ".webp");
+    store.update((project) => ({
+      ...project,
+      character: { ...project.character, texture },
+    }));
+    store.set({ textureUrl: url });
+    // 화면도 실제 WebP Object URL을 사용해야 이후 원본 URL을 안전하게 해제할 수 있다.
+    view.scene.showTexture(convertedImage, before.project.character.pixelArt);
+    URL.revokeObjectURL(before.textureUrl);
+    const savedPercent = Math.round((1 - result.convertedBytes / result.originalBytes) * 100);
+    ui.setStatus(`${translate("WebP 변환 완료")} · ${savedPercent}% (${formatBytes(result.originalBytes)} → ${formatBytes(result.convertedBytes)})`);
+  } catch (error) {
+    ui.setStatus(error instanceof Error ? error.message : translate("WebP로 변환하지 못했습니다."));
+  }
+}
+
+/** 설정 상태 문구에서 원본과 결과 크기를 짧게 비교한다. */
+function formatBytes(bytes: number): string {
+  return bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 async function saveProject(): Promise<void> {
