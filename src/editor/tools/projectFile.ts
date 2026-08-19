@@ -102,7 +102,10 @@ export async function unpackProject(file: File): Promise<LoadedProject> {
 
   const textureUrl = textureEntry
     ? URL.createObjectURL(
-        new Blob([textureEntry.data as unknown as BlobPart], { type: "image/png" }),
+        // 저장된 확장자와 MIME을 맞춰 WebP 프로젝트도 브라우저가 동일하게 디코드하게 한다.
+        new Blob([textureEntry.data as unknown as BlobPart], {
+          type: project.character.texture.toLowerCase().endsWith(".webp") ? "image/webp" : "image/png",
+        }),
       )
     : null;
 

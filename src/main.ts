@@ -1637,7 +1637,8 @@ async function convertCurrentPngToWebP(): Promise<void> {
     view.scene.showTexture(convertedImage, before.project.character.pixelArt);
     URL.revokeObjectURL(before.textureUrl);
     const savedPercent = Math.round((1 - result.convertedBytes / result.originalBytes) * 100);
-    ui.setStatus(`${translate("WebP 변환 완료")} · ${savedPercent}% (${formatBytes(result.originalBytes)} → ${formatBytes(result.convertedBytes)})`);
+    // 선택 품질도 함께 표시해 자동 압축 결과와 용량 이득을 한눈에 확인하게 한다.
+    ui.setStatus(`${translate("WebP 변환 완료")} · ${savedPercent}% (${formatBytes(result.originalBytes)} → ${formatBytes(result.convertedBytes)}) · Q${Math.round((result.quality ?? 1) * 100)}`);
   } catch (error) {
     ui.setStatus(error instanceof Error ? error.message : translate("WebP로 변환하지 못했습니다."));
   }
