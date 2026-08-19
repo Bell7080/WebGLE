@@ -970,9 +970,9 @@ export class EditorUI {
       convert.className = "settings-action";
       convert.textContent = translate("PNG를 WebP로 용량 줄이기");
       attachTooltip(convert, {
-        title: translate("PNG를 더 작은 WebP로 변환"),
-        body: translate("현재 PNG를 WebP로 압축합니다. 변환 파일이 원본보다 작을 때만 프로젝트에 적용합니다."),
-        meta: translate("투명 배경은 유지됩니다 · WebP가 같거나 크면 PNG를 유지합니다"),
+        title: translate("PNG를 WebP로 변환"),
+        body: translate("현재 PNG를 WebP로 압축하고 프로젝트에 적용합니다."),
+        meta: translate("투명 배경은 유지됩니다 · 변환 후 화질과 용량이 달라질 수 있습니다"),
       });
       convert.addEventListener("click", () => this.callbacks.onConvertPngToWebP());
       this.settingsPanel.append(convert);
