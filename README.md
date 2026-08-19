@@ -30,6 +30,15 @@ const 거미 = await Puppet.load("/monsters/거미.zip");   // 내 게임 서버
 const vertices = 거미.update(dt);   // 변형된 정점(Float32Array), 멈춰 있으면 null
 ```
 
+ZIP은 그대로 두고 PNG/WebP 원화만 CDN에서 교체할 수도 있다. 한 번만 도는 모션은 실제 종료
+시점에 다음 모션으로 넘기며, 경계를 즉시 자르거나 부드럽게 섞도록 호출마다 선택한다.
+
+```ts
+const 거미 = await Puppet.load("/monsters/거미.zip", { texture: "/textures/spider.webp" });
+거미.play("hit", { next: "idle", transition: "blend", transitionDuration: 0.15 });
+거미.onComplete((motion) => console.log(`${motion} finished`));
+```
+
 그리는 것은 게임 엔진의 몫이다. `puppet.uv` · `puppet.texture` · `puppet.mesh.indices`를
 쓰던 렌더러에 넘기면 된다.
 

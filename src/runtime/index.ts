@@ -45,6 +45,19 @@ export interface PlayOptions {
   strength?: number;
   /** 처음부터 다시 시작할지. 이미 같은 것을 재생 중일 때만 의미가 있다. 기본 true. */
   restart?: boolean;
+  /** 한 번 재생한 뒤 실제 종료 시점에 이어서 재생할 동작. */
+  next?: string;
+  /** 다음 자세로 즉시 자를지 현재 화면 자세에서 부드럽게 섞을지. */
+  transition?: "cut" | "blend";
+  /** `blend` 시간(초). 기본 0.15초. */
+  transitionDuration?: number;
+}
+
+/** ZIP을 수정하지 않고 원화를 외부 파일로 공급하는 옵션. */
+export interface PuppetLoadOptions {
+  texture?: string | ArrayBuffer | Uint8Array | PuppetTexture;
+  /** 바이트 텍스처의 파일명과 MIME을 추론할 이름. */
+  textureName?: string;
 }
 
 /** 불러온 원본 이미지. 실제 디코딩은 렌더러가 한다. */
@@ -68,7 +81,9 @@ export class Puppet {
   /** 매 프레임 새로 만들지 않고 다시 쓴다. */
   private buffer: Float32Array | null = null;
   private playingId: string | null = null;
-
+  private queued: { name: string; transition: "cut" | "blend"; duration: number } | null = null;
+  private blend: { from: Float32Array; elapsed: number; duration: number } | null = null;
+  private readonly completeListeners = new Set<(name: string) => void>();
 
   private constructor(
     readonly project: PuppetProject,
@@ -86,12 +101,13 @@ export class Puppet {
    * URL 문자열을 주면 가져와서 읽고, 바이트를 주면 그대로 읽는다.
    * `.zip`이 아니라 `puppet.json` 내용을 직접 넘겨도 된다.
    */
-  static async load(source: string | ArrayBuffer | Uint8Array): Promise<Puppet> {
+  static async load(source: string | ArrayBuffer | Uint8Array, options: PuppetLoadOptions = {}): Promise<Puppet> {
     const bytes = await toBytes(source);
 
     // JSON을 그대로 넘긴 경우. ZIP은 "PK"로 시작한다.
     if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
-      return new Puppet(readProject(bytes), null);
+      const project = readProject(bytes);
+      return new Puppet(project, await externalTexture(options, project.character.texture));
     }
 
     let entries;
@@ -109,10 +125,11 @@ export class Puppet {
     const project = readProject(json.data);
     const image = entries.find((entry) => entry.name === project.character.texture);
 
-    return new Puppet(
-      project,
-      image ? { name: image.name, data: image.data, type: mimeOf(image.name) } : null,
-    );
+    // 외부 원화를 명시하면 ZIP의 Mesh/JSON은 유지하면서 이미지 바이트만 교체한다.
+    const external = await externalTexture(options, project.character.texture);
+    return new Puppet(project, external ?? (
+      image ? { name: image.name, data: image.data, type: mimeOf(image.name) } : null
+    ));
   }
 
   /** 이미 읽어 둔 Puppet JSON으로 만든다. 파일을 직접 다루는 경우에 쓴다. */
@@ -178,12 +195,22 @@ export class Puppet {
 
     if (options.restart === false && this.playingId === name) return true;
 
+    // 호출별 필터로 즉시 전환과 자연스러운 자세 연결을 선택한다.
+    this.blend = options.transition === "blend" && this.buffer ? {
+      from: this.buffer.slice(), elapsed: 0,
+      duration: Math.max(0.001, options.transitionDuration ?? 0.15),
+    } : null;
     this.player.play(animation, {
       speed: options.speed ?? animation.speed ?? 1,
       amount: options.strength ?? animation.strength ?? 1,
       mirror: animation.mirror === true,
     });
     this.playingId = name;
+    this.queued = options.next ? {
+      name: options.next,
+      transition: options.transition ?? "cut",
+      duration: Math.max(0.001, options.transitionDuration ?? 0.15),
+    } : null;
     this.secondary.reset();
     return true;
   }
@@ -191,6 +218,8 @@ export class Puppet {
   stop(): void {
     this.player.stop();
     this.playingId = null;
+    this.queued = null;
+    this.blend = null;
     this.secondary.reset();
   }
 
@@ -218,6 +247,12 @@ export class Puppet {
     return () => set.delete(listener);
   }
 
+  /** 비반복 모션의 실제 종료를 사용자 정의 이벤트와 충돌 없이 듣는다. */
+  onComplete(listener: (name: string) => void): () => void {
+    this.completeListeners.add(listener);
+    return () => this.completeListeners.delete(listener);
+  }
+
   /**
    * 시간을 dt초만큼 굴리고 변형된 정점을 돌려준다.
    *
@@ -234,6 +269,8 @@ export class Puppet {
     const deformModes = deformModesFor(bones, animation);
 
     // 1) 애니메이션만 반영한 자세
+    const wasPlaying = current.playing;
+    const completedName = this.playingId;
     const deltas = this.player.update(dt, bones);
     const posed = computeSkinMatrices(bones, deltas, deformModes);
     // 2) 그 움직임을 입력 삼아 늦게 따라오는 흔들림을 더한다 (기획서 29)
@@ -244,7 +281,28 @@ export class Puppet {
     if (!this.buffer || this.buffer.length !== mesh.vertices.length) {
       this.buffer = new Float32Array(mesh.vertices.length);
     }
-    return skinVertices(mesh, skin, this.buffer, deformModes);
+    const result = skinVertices(mesh, skin, this.buffer, deformModes);
+
+    // AnimationPlayer의 실제 상태 변화를 완료 신호로 사용해 holdMs 타이머 충돌을 없앤다.
+    if (wasPlaying && !this.player.current?.playing && completedName) {
+      for (const listener of this.completeListeners) listener(completedName);
+      const queued = this.queued;
+      this.queued = null;
+      if (queued && this.hasAnimation(queued.name)) {
+        this.play(queued.name, { transition: queued.transition, transitionDuration: queued.duration });
+      }
+    }
+
+    const blend = this.blend;
+    if (blend) {
+      blend.elapsed += Math.max(0, dt);
+      const ratio = Math.min(1, blend.elapsed / blend.duration);
+      for (let i = 0; i < result.length; i += 1) {
+        result[i] = (blend.from[i] ?? result[i]!) * (1 - ratio) + result[i]! * ratio;
+      }
+      if (ratio >= 1) this.blend = null;
+    }
+    return result;
   }
 
   /**
@@ -262,6 +320,18 @@ export class Puppet {
     const skin = computeSkinMatrices(bones, deltas, deformModes);
     return skinVertices(mesh, skin, undefined, deformModes);
   }
+}
+
+/** URL/바이트를 런타임 공통 텍스처로 정규화한다. */
+async function externalTexture(options: PuppetLoadOptions, fallbackName: string): Promise<PuppetTexture | null> {
+  const source = options.texture;
+  if (!source) return null;
+  if (typeof source === "object" && "name" in source && "data" in source && "type" in source) return source;
+  const data = await toBytes(source);
+  const name = options.textureName ?? (typeof source === "string"
+    ? source.split(/[?#]/, 1)[0]!.split("/").pop() || fallbackName
+    : fallbackName);
+  return { name, data, type: mimeOf(name) };
 }
 
 async function toBytes(source: string | ArrayBuffer | Uint8Array): Promise<Uint8Array> {

@@ -67,6 +67,17 @@ describe("묶음 읽기", () => {
     expect(puppet.animations.length).toBe(2);
   });
 
+  it("ZIP을 수정하지 않고 외부 WebP 원화를 우선 적용한다", async () => {
+    const fetchBefore = globalThis.fetch;
+    globalThis.fetch = async () => new Response(new Uint8Array([9, 8, 7]));
+    const puppet = await Puppet.load(zipOf(), { texture: "https://cdn.test/original.webp?v=2" });
+    globalThis.fetch = fetchBefore;
+
+    expect(puppet.texture?.name).toBe("original.webp");
+    expect(puppet.texture?.type).toBe("image/webp");
+    expect([...puppet.texture!.data]).toEqual([9, 8, 7]);
+  });
+
   it("JSON을 그대로 넘겨도 읽힌다", async () => {
     const bytes = new TextEncoder().encode(serializeProject(project(), false));
     expect((await Puppet.load(bytes)).name).toBe("허수아비");
@@ -197,6 +208,20 @@ describe("게임 이벤트", () => {
     const 그만둔뒤 = heard.length;
     for (let i = 0; i < 60; i += 1) puppet.update(1 / 60);
     expect(heard).toHaveLength(그만둔뒤);
+  });
+
+  it("실제 종료 이벤트로 다음 모션을 블렌딩한다", async () => {
+    const puppet = await Puppet.load(zipOf());
+    puppet.project.animations.hit = { name: "hit", duration: 0.1, loop: false, tracks: [] };
+    const completed: string[] = [];
+    puppet.onComplete((name) => completed.push(name));
+
+    puppet.play("hit", { next: "idle", transition: "blend", transitionDuration: 0.2 });
+    puppet.update(0.11);
+
+    expect(completed).toEqual(["hit"]);
+    expect(puppet.playing).toBe("idle");
+    expect(puppet.update(0.05)).toHaveLength(puppet.restVertices.length);
   });
 });
 

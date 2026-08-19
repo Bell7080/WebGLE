@@ -14,10 +14,10 @@
  * `scene.add.existing`을 따로 부를 필요 없다. `load`가 씬에 붙여 준다.
  */
 import Phaser from "phaser";
-import { Puppet, type PlayOptions, type PuppetTexture } from "./index";
+import { Puppet, type PlayOptions, type PuppetLoadOptions, type PuppetTexture } from "./index";
 
 export { Puppet, PuppetLoadError } from "./index";
-export type { PlayOptions, PuppetTexture } from "./index";
+export type { PlayOptions, PuppetLoadOptions, PuppetTexture } from "./index";
 
 /** 같은 캐릭터를 여러 마리 놓아도 텍스처는 한 번만 올린다. */
 function textureKey(name: string): string {
@@ -31,6 +31,9 @@ export interface CreatureOptions {
   play?: string;
   /** 텍스처 키를 직접 정하고 싶을 때. 기본은 캐릭터 이름에서 만든다. */
   key?: string;
+  /** ZIP을 건드리지 않고 우선 사용할 외부 PNG/WebP 원화. */
+  texture?: PuppetLoadOptions["texture"];
+  textureName?: string;
 }
 
 /**
@@ -88,7 +91,10 @@ export class PuppetCreature extends Phaser.GameObjects.Mesh {
     source: string | ArrayBuffer | Uint8Array,
     options: CreatureOptions = {},
   ): Promise<PuppetCreature> {
-    return PuppetCreature.fromPuppet(scene, await Puppet.load(source), options);
+    return PuppetCreature.fromPuppet(scene, await Puppet.load(source, {
+      texture: options.texture,
+      textureName: options.textureName,
+    }), options);
   }
 
   /** 이미 읽어 둔 `Puppet`으로 만든다. 한 파일로 여러 마리를 세울 때 쓴다. */
@@ -158,6 +164,11 @@ export class PuppetCreature extends Phaser.GameObjects.Mesh {
    */
   onEvent(event: string, listener: (event: string) => void): () => void {
     return this.puppet.on(event, listener);
+  }
+
+  /** 비반복 모션이 실제로 끝난 순간을 듣는다. */
+  onAnimationComplete(listener: (name: string) => void): () => void {
+    return this.puppet.onComplete(listener);
   }
 
   /** 좌우 뒤집기. 왼쪽을 보게 하려면 `true`. (기획서 43) */
