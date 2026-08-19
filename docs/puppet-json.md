@@ -40,6 +40,11 @@ PuppetForge의 단일 소스. 편집기 · 런타임 · 다른 엔진이 모두 
 `texture`는 프로젝트 안의 파일명이다. 좌표는 모두 이 텍스처의 픽셀 좌표계를 쓴다
 (좌상단이 원점, y는 아래로 증가).
 
+ZIP 포맷 자체는 안전한 이식성을 위해 계속 이 파일명을 가리키며 외부 URL을 저장하지 않는다.
+게임에서 원화를 CDN의 PNG/WebP로 분리하려면 ZIP을 임의 수정하는 대신
+`Puppet.load(zip, { texture: externalUrl })` 또는 Phaser의 `CreatureOptions.texture`를 사용한다.
+외부 텍스처는 ZIP 안 이미지보다 우선하며 Mesh와 UV는 기존 `width`/`height`를 그대로 쓴다.
+
 좌우 반전은 캐릭터가 아니라 **애니메이션마다** 정한다(`animations[].mirror`).
 편집기의 `설정 → 좌우 뒤집기`는 그것과 다른 일로, 그림 · 관절 · 가중치를 실제로 옮기므로
 파일에는 아무 표시도 남지 않는다.
