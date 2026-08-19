@@ -84,8 +84,9 @@ describe("성격 태그 배율", () => {
         keys: [{ time: 0, value: 100 }],
       }],
     };
-    const plain = evaluateAnimation(animation, [bone("a", ["arm"])], 0);
-    const stiff = evaluateAnimation(animation, [bone("a", ["arm", "stiff"])], 0);
+    // 정확한 시작 자세 보호 뒤에도 성격 태그 배율은 동일하게 적용된다.
+    const plain = evaluateAnimation(animation, [bone("a", ["arm"])], 0.001);
+    const stiff = evaluateAnimation(animation, [bone("a", ["arm", "stiff"])], 0.001);
 
     expect(plain.get("a")!.x).toBe(100);
     expect(stiff.get("a")!.x).toBeCloseTo(100 * TAG_AMPLITUDE.stiff!);

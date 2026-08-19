@@ -77,6 +77,23 @@ describe("애니메이션 프리셋", () => {
     }
   });
 
+  it("모든 프리셋의 시작과 끝은 원본 일러스트 자세다", () => {
+    // stagger와 끝 자세 키가 있더라도 동작 전환 접점에는 변형이 남지 않아야 한다.
+    const tagged = TAG_CATALOG.map((tag) => bone([tag.id]));
+    for (const preset of PRESETS) {
+      for (const time of [0, preset.animation.duration]) {
+        const deltas = evaluateAnimation(preset.animation, tagged, time);
+        for (const delta of deltas.values()) {
+          expect(delta.x, `${preset.id} @ ${time}s`).toBeCloseTo(0);
+          expect(delta.y, `${preset.id} @ ${time}s`).toBeCloseTo(0);
+          expect(delta.rotation, `${preset.id} @ ${time}s`).toBeCloseTo(0);
+          expect(delta.scaleX, `${preset.id} @ ${time}s`).toBeCloseTo(1);
+          expect(delta.scaleY, `${preset.id} @ ${time}s`).toBeCloseTo(1);
+        }
+      }
+    }
+  });
+
   it("태그가 하나도 없는 캐릭터에서도 오류 없이 지나간다 (기획서 64)", () => {
     const bare = [bone([])];
     for (const preset of PRESETS) {
@@ -238,7 +255,8 @@ describe("이동 계열도 서로 다르다", () => {
 
   it("달리기는 앞으로 기운 자세를 유지한다", () => {
     const animation = findPreset("run")!.animation;
-    const lean = evaluateAnimation(animation, humanoid(), 0).get("root")!.rotation;
+    // 0초의 원본 자세를 지난 직후부터 달리기 특유의 전경 자세가 나타난다.
+    const lean = evaluateAnimation(animation, humanoid(), animation.duration * 0.3).get("root")!.rotation;
     expect(lean).toBeGreaterThan(0.05);
   });
 });

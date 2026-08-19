@@ -377,27 +377,27 @@ describe("강도와 흔들림은 서로 다른 일을 한다", () => {
   };
 
   it("흔들림은 회전만 키운다 — 나아가는 거리는 그대로다", () => {
-    const plain = evaluateAnimation(both, [moving("a")], 0).get("a")!;
-    const swung = evaluateAnimation({ ...both, secondary: 2 }, [moving("a")], 0).get("a")!;
+    const plain = evaluateAnimation(both, [moving("a")], 0.001).get("a")!;
+    const swung = evaluateAnimation({ ...both, secondary: 2 }, [moving("a")], 0.001).get("a")!;
 
     expect(swung.rotation).toBeCloseTo(plain.rotation * 2);
     expect(swung.x).toBeCloseTo(plain.x);
   });
 
   it("흔들림 0이면 회전만 멈추고 이동은 남는다", () => {
-    const still = evaluateAnimation({ ...both, secondary: 0 }, [moving("a")], 0).get("a")!;
+    const still = evaluateAnimation({ ...both, secondary: 0 }, [moving("a")], 0.001).get("a")!;
     expect(still.rotation).toBe(0);
     expect(still.x).toBe(100);
   });
 
   it("강도는 이동과 회전을 함께 줄인다", () => {
-    const half = evaluateAnimation(both, [moving("a")], 0, 0.5).get("a")!;
+    const half = evaluateAnimation(both, [moving("a")], 0.001, 0.5).get("a")!;
     expect(half.x).toBeCloseTo(50);
     expect(half.rotation).toBeCloseTo(0.5);
   });
 
   it("강도 0이면 아무것도 움직이지 않는다 — 흔들림이 켜져 있어도 그렇다", () => {
-    const frozen = evaluateAnimation({ ...both, secondary: 2 }, [moving("a")], 0, 0).get("a")!;
+    const frozen = evaluateAnimation({ ...both, secondary: 2 }, [moving("a")], 0.001, 0).get("a")!;
     expect(frozen.x).toBe(0);
     expect(frozen.rotation).toBe(0);
   });
@@ -449,6 +449,8 @@ describe("좌우 반전", () => {
   it("재생 커서가 보는 쪽을 들고 있고 도중에 바꿀 수 있다", () => {
     const player = new AnimationPlayer();
     player.play(punch, { mirror: true });
+    // 0초는 원본 자세이므로 재생이 시작된 직후 좌우 반전을 확인한다.
+    player.seek(0.001);
     expect(player.sample([bone]).get("arm")!.x).toBe(-20);
 
     player.setMirror(false);
@@ -460,6 +462,7 @@ describe("좌우 반전", () => {
     const player = new AnimationPlayer();
     player.play(punch, { mirror: true });
     player.play({ ...punch, name: "again" });
+    player.seek(0.001);
     expect(player.sample([bone]).get("arm")!.x).toBe(-20);
   });
 });
