@@ -21,20 +21,45 @@ export interface WebPConversion {
   blob: Blob | null;
   /** 적용하지 않은 이유. 성공해서 Blob이 있으면 null이다. */
   rejectedBecause: "not-smaller" | "pixels-changed" | null;
+  /** 브라우저 인코더에 전달되어 선택된 품질. 미적용이면 null이다. */
+  quality: number | null;
 }
+
+/** 일러스트의 선과 투명 경계를 지키면서 비교할 WebP 품질 후보다. */
+const WEBP_QUALITY_CANDIDATES = [0.92, 0.88, 0.84] as const;
+const MIN_WEBP_PSNR = 38;
 
 /** 동일하거나 큰 결과를 적용하지 않도록 크기 비교 정책을 한곳에 둔다. */
 export function isWebPSmaller(originalBytes: number, convertedBytes: number): boolean {
   return convertedBytes < originalBytes;
 }
 
-/** 두 RGBA 버퍼가 완전히 같은지 확인해 변환 과정의 화질 손실을 차단한다. */
-export function pixelsAreIdentical(original: Uint8ClampedArray, converted: Uint8ClampedArray): boolean {
-  if (original.length !== converted.length) return false;
-  for (let index = 0; index < original.length; index += 1) {
-    if (original[index] !== converted[index]) return false;
+/** 완전 투명 픽셀의 숨은 RGB는 제외하고, 보이는 RGB의 PSNR과 알파 보존 여부를 계산한다. */
+export function measureWebPQuality(
+  original: Uint8ClampedArray,
+  converted: Uint8ClampedArray,
+): { psnr: number; alphaIdentical: boolean } {
+  if (original.length !== converted.length || original.length % 4 !== 0) {
+    return { psnr: 0, alphaIdentical: false };
   }
-  return true;
+
+  let squaredError = 0;
+  let comparedChannels = 0;
+  let alphaIdentical = true;
+  for (let index = 0; index < original.length; index += 4) {
+    // 알파는 캐릭터 실루엣과 메시 클리핑에 직접 쓰이므로 색상과 달리 한 단계 차이도 허용하지 않는다.
+    if (original[index + 3] !== converted[index + 3]) alphaIdentical = false;
+    if (original[index + 3] === 0 && converted[index + 3] === 0) continue;
+    for (let channel = 0; channel < 3; channel += 1) {
+      const difference = original[index + channel] - converted[index + channel];
+      squaredError += difference * difference;
+      comparedChannels += 1;
+    }
+  }
+
+  if (squaredError === 0 || comparedChannels === 0) return { psnr: Number.POSITIVE_INFINITY, alphaIdentical };
+  const meanSquaredError = squaredError / comparedChannels;
+  return { psnr: 10 * Math.log10((255 * 255) / meanSquaredError), alphaIdentical };
 }
 
 /** Canvas 인코더를 사용하되, WebP가 더 작지 않으면 원본을 보존한다. */
@@ -55,33 +80,41 @@ export async function convertPngToSmallerWebP(
   context.drawImage(image, 0, 0, width, height);
 
   const originalPixels = context.getImageData(0, 0, width, height).data;
-  // 최고 품질로 인코딩한 뒤 픽셀을 재검사한다. 브라우저가 손실 압축하면 적용하지 않는다.
-  const converted = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/webp", 1),
-  );
-  if (!converted || converted.type !== "image/webp") {
-    throw new Error("이 브라우저는 WebP 변환을 지원하지 않습니다.");
+  let best: { blob: Blob; quality: number } | null = null;
+  let producedWebP = false;
+  let passedVisualQuality = false;
+  for (const quality of WEBP_QUALITY_CANDIDATES) {
+    // 후보마다 실제로 다시 디코드해 Canvas/WebGL에서 보이는 픽셀을 기준으로 판정한다.
+    const converted = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
+    if (!converted || converted.type !== "image/webp") continue;
+    producedWebP = true;
+    const convertedBitmap = await createImageBitmap(converted);
+    const verificationCanvas = document.createElement("canvas");
+    verificationCanvas.width = width;
+    verificationCanvas.height = height;
+    const verificationContext = verificationCanvas.getContext("2d");
+    if (!verificationContext) throw new Error("WebP 화질을 확인할 수 없습니다.");
+    verificationContext.drawImage(convertedBitmap, 0, 0);
+    convertedBitmap.close();
+    const qualityResult = measureWebPQuality(
+      originalPixels,
+      verificationContext.getImageData(0, 0, width, height).data,
+    );
+    if (qualityResult.alphaIdentical && qualityResult.psnr >= MIN_WEBP_PSNR) passedVisualQuality = true;
+    if (qualityResult.alphaIdentical && qualityResult.psnr >= MIN_WEBP_PSNR && isWebPSmaller(original.size, converted.size)) {
+      // 통과한 후보 중 가장 작은 파일을 골라 일러스트별로 압축 효과를 자동 최적화한다.
+      if (!best || converted.size < best.blob.size) best = { blob: converted, quality };
+    }
   }
-
-  // 저장될 WebP를 다시 디코드해 원본 PNG의 모든 RGBA 채널과 1바이트 단위로 비교한다.
-  const convertedBitmap = await createImageBitmap(converted);
-  const verificationCanvas = document.createElement("canvas");
-  verificationCanvas.width = width;
-  verificationCanvas.height = height;
-  const verificationContext = verificationCanvas.getContext("2d");
-  if (!verificationContext) throw new Error("WebP 화질을 확인할 수 없습니다.");
-  verificationContext.drawImage(convertedBitmap, 0, 0);
-  convertedBitmap.close();
-  const convertedPixels = verificationContext.getImageData(0, 0, width, height).data;
-  const identical = pixelsAreIdentical(originalPixels, convertedPixels);
-  const smaller = isWebPSmaller(original.size, converted.size);
+  if (!producedWebP) throw new Error("이 브라우저는 WebP 변환을 지원하지 않습니다.");
 
   return {
     originalBytes: original.size,
-    convertedBytes: converted.size,
-    // 화질이 완전히 같고 용량까지 줄어든 경우에만 원본 PNG를 교체한다.
-    blob: identical && smaller ? converted : null,
-    rejectedBecause: !identical ? "pixels-changed" : !smaller ? "not-smaller" : null,
+    convertedBytes: best?.blob.size ?? original.size,
+    blob: best?.blob ?? null,
+    // 모든 후보가 품질 기준을 넘지 못한 경우와 용량 이득이 없는 경우를 구분한다.
+    rejectedBecause: best ? null : passedVisualQuality ? "not-smaller" : "pixels-changed",
+    quality: best?.quality ?? null,
   };
 }
 
