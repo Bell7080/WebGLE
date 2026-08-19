@@ -200,6 +200,14 @@ export function evaluateAnimation(
   const deltas = new Map<string, BoneDelta>();
 
   const duration = Math.max(0.0001, animation.duration);
+  /**
+   * 동작 전환의 양쪽 접점을 원화 자세로 통일한다.
+   *
+   * 프리셋 키가 끝 자세를 남기거나 stagger가 첫 대상을 앞서 샘플링하더라도, 재생의 정확한
+   * 시작과 끝에서는 각 속성의 기본값을 사용한다. 덕분에 hit → idle처럼 서로 다른 동작을
+   * 이어 붙일 때 이전 동작의 잔여 자세가 한 프레임 남아 보이는 단절이 생기지 않는다.
+   */
+  const atRestBoundary = time <= 0 || time >= duration;
   /** focus 태그별 "그 태그를 달고 있거나 아래에 매단" 관절들. 태그마다 한 번만 구한다. */
   const carriers = new Map<string, Set<string>>();
   /** 성격 태그 배율. 관절마다 한 번만 구한다. */
@@ -223,7 +231,9 @@ export function evaluateAnimation(
     for (let i = 0; i < targets.length; i += 1) {
       const bone = targets[i]!;
       const value =
-        stagger === 0
+        atRestBoundary
+          ? base
+          : stagger === 0
           ? shared
           : sampleTrack(
               track.keys,

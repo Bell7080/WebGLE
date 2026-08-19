@@ -95,14 +95,15 @@ describe("여러 개인 부위의 어긋냄 (stagger)", () => {
 
   it("다리 두 개는 정확히 반대로 나간다", () => {
     const [도적] = CREATURES["도적 (단검)"]!;
-    const [왼, 오른] = rotations(도적, "walk", "다리", 0);
+    // 정확한 시작 프레임은 원본 자세이므로, 동작이 펼쳐진 시점의 위상을 비교한다.
+    const [왼, 오른] = rotations(도적, "walk", "다리", 0.001);
     expect(왼).toBeCloseTo(0.22, 2);
     expect(오른).toBeCloseTo(-0.22, 2);
   });
 
   it("다리 네 개는 주기를 넷으로 나눠 딛는다", () => {
     const [몬스터] = CREATURES["팔4·다리4 몬스터"]!;
-    const values = rotations(몬스터, "walk", "다리", 0);
+    const values = rotations(몬스터, "walk", "다리", 0.001);
     expect(values).toHaveLength(4);
     // 같은 값이 겹치지 않고 네 위상으로 흩어진다.
     expect(new Set(values.map((v) => v.toFixed(2))).size).toBeGreaterThan(2);
@@ -110,7 +111,7 @@ describe("여러 개인 부위의 어긋냄 (stagger)", () => {
 
   it("다리 스무 개는 앞에서 뒤로 흐르는 파도가 된다", () => {
     const [지네] = CREATURES["지네 (다리 20)"]!;
-    const values = rotations(지네, "walk", "다리", 0);
+    const values = rotations(지네, "walk", "다리", 0.001);
     expect(values).toHaveLength(20);
 
     // 이웃한 다리끼리는 조금씩만 다르다 — 뚝뚝 끊기지 않고 이어진 파도다.
@@ -123,7 +124,7 @@ describe("여러 개인 부위의 어긋냄 (stagger)", () => {
 
   it("파도는 시간이 지나면 몸을 타고 흘러간다", () => {
     const [지네] = CREATURES["지네 (다리 20)"]!;
-    const before = rotations(지네, "walk", "다리", 0);
+    const before = rotations(지네, "walk", "다리", 0.001);
     const after = rotations(지네, "walk", "다리", 0.25);
     // 같은 파형이되 자리가 옮겨 가 있다.
     expect(after).not.toEqual(before);
