@@ -237,3 +237,65 @@ describe("한 자세만 구하기", () => {
     expect((await Puppet.load(zipOf())).poseAt("없음", 0)).toBeNull();
   });
 });
+
+describe("그리지 않는 정점 건너뛰기", () => {
+  /** 왼쪽 절반 셀만 그린다고 알린 인덱스. */
+  function leftHalf(puppet: Puppet): number[] {
+    const mesh = puppet.mesh!;
+    const kept: number[] = [];
+    for (let row = 0; row < mesh.rows; row += 1) {
+      for (let col = 0; col < mesh.cols / 2; col += 1) {
+        const start = (row * mesh.cols + col) * 6;
+        kept.push(...mesh.indices.slice(start, start + 6));
+      }
+    }
+    return kept;
+  }
+
+  it("그리는 정점은 전부 계산할 때와 똑같이 움직인다", async () => {
+    const full = await Puppet.load(zipOf());
+    const partial = await Puppet.load(zipOf());
+    const drawn = leftHalf(partial);
+    partial.setDrawIndices(drawn);
+    full.play("walk");
+    partial.play("walk");
+
+    for (let frame = 0; frame < 30; frame += 1) {
+      const a = full.update(1 / 60)!;
+      const b = partial.update(1 / 60)!;
+      for (const index of drawn) {
+        expect(b[index * 2]).toBe(a[index * 2]);
+        expect(b[index * 2 + 1]).toBe(a[index * 2 + 1]);
+      }
+    }
+  });
+
+  it("그리지 않는 정점은 계산하지 않고 원래 자리에 둔다", async () => {
+    const puppet = await Puppet.load(zipOf());
+    const drawn = new Set(leftHalf(puppet));
+    puppet.setDrawIndices([...drawn]);
+    puppet.play("walk");
+    let moved: Float32Array | null = null;
+    for (let frame = 0; frame < 20; frame += 1) moved = puppet.update(1 / 60);
+
+    const rest = puppet.restVertices;
+    const count = rest.length / 2;
+    for (let index = 0; index < count; index += 1) {
+      if (drawn.has(index)) continue;
+      expect(moved![index * 2]).toBe(Math.fround(rest[index * 2]!));
+      expect(moved![index * 2 + 1]).toBe(Math.fround(rest[index * 2 + 1]!));
+    }
+  });
+
+  it("null을 주면 다시 전부 계산한다", async () => {
+    const full = await Puppet.load(zipOf());
+    const reset = await Puppet.load(zipOf());
+    reset.setDrawIndices(leftHalf(reset));
+    reset.setDrawIndices(null);
+    full.play("walk");
+    reset.play("walk");
+    for (let frame = 0; frame < 10; frame += 1) {
+      expect(Array.from(reset.update(1 / 60)!)).toEqual(Array.from(full.update(1 / 60)!));
+    }
+  });
+});
