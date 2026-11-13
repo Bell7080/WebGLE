@@ -11,7 +11,7 @@ import {
 } from "@core/format";
 import { createGridMesh, vertexCount } from "@core/mesh";
 import { DEFAULT_RESOLUTION, MESH_LABELS, PIXEL_ART_RESOLUTION } from "@core/format";
-import type { MeshResolution } from "@core/format";
+import type { MeshResolution, PuppetMesh } from "@core/format";
 import {
   normalizeWeights,
   removeBoneWeights,
@@ -19,7 +19,7 @@ import {
   toWeightMap,
   type WeightMap,
 } from "@core/weight";
-import { autoManagedBones, cleanupWeights, fillUnweighted, smoothWeights, withAutoWeights } from "@core/weight/auto";
+import { autoManagedBones, cleanupWeights, extendWeightsInto, fillUnweighted, smoothWeights, withAutoWeights } from "@core/weight/auto";
 import { applyStroke, beginStroke, extendStroke, type Stroke } from "@core/weight/stroke";
 import {
   applyPoint,
@@ -59,6 +59,7 @@ import { flipImage, flipProject, flipWeights } from "@editor/tools/flip";
 import {
   buildAlphaMap,
   readPixels,
+  legacyAlphaMask,
   sampleAlphaMask,
   type AlphaMap,
 } from "@editor/tools/alphaMask";
@@ -92,7 +93,7 @@ import { setIcon } from "@editor/ui/icons";
 import { setupMobileShell } from "@editor/ui/mobile";
 import { FRAME, Timeline } from "@editor/ui/timeline";
 import { findPreset, PRESETS, updateBuiltInAnimations } from "./presets";
-import { formatWeightCorrectionResult, localizeStaticDocument, translate } from "@editor/i18n";
+import { formatEdgeFillResult, formatWeightCorrectionResult, localizeStaticDocument, translate } from "@editor/i18n";
 
 // 동적 패널을 만들기 전에 문서의 고정 문구부터 선택 언어로 맞춘다.
 localizeStaticDocument();
@@ -560,6 +561,7 @@ async function flipCharacter(): Promise<void> {
       store.get().project.mesh ?? project.mesh,
       project.character.width,
       project.character.height,
+      store.get().mask,
     );
     view.scene.drawBones(store.get().project.bones, store.get().selectedBoneId);
     overlayDirty = true;
@@ -579,7 +581,7 @@ async function reloadTexture(url: string, pixelArt: boolean): Promise<void> {
 
   const { project } = store.get();
   if (project.mesh) {
-    view.scene.setMesh(project.mesh, project.character.width, project.character.height);
+    view.scene.setMesh(project.mesh, project.character.width, project.character.height, store.get().mask);
   }
 }
 
@@ -605,6 +607,7 @@ function changeResolution(resolution: MeshResolution, project: PuppetProject): v
     store.get().project.mesh ?? mesh,
     project.character.width,
     project.character.height,
+    store.get().mask,
   );
   ui.setStatus(
     `격자 ${MESH_LABELS[resolution]} (${mesh.cols}×${mesh.rows}) · 칠한 영역은 그대로 옮겼습니다.`,
@@ -1447,15 +1450,14 @@ async function restoreSession(): Promise<void> {
     weights: project.mesh ? toWeightMap(project.mesh.weights) : {},
   });
 
+  let edgeFilled = 0;
   if (textureUrl) {
     const image = new Image();
     image.src = textureUrl;
     await image.decode();
     view.scene.showTexture(image, project.character.pixelArt);
     if (project.mesh) {
-      view.scene.setMesh(project.mesh, project.character.width, project.character.height);
-      alphaMap = buildAlphaMap(readPixels(image));
-      store.set({ mask: sampleAlphaMask(alphaMap, project.mesh) });
+      edgeFilled = showLoadedMesh(image, project.mesh, project.character.width, project.character.height);
     }
   }
 
@@ -1463,7 +1465,8 @@ async function restoreSession(): Promise<void> {
   savedTextureUrl = textureUrl;
   ui.setStatus(
     `${describeSavedAt(saved.savedAt)} 작업을 이어서 엽니다 · ${project.character.name} · ` +
-      `관절 ${project.bones.length}개 (새로 시작하려면 파일 → 새 프로젝트)`,
+      `관절 ${project.bones.length}개 (새로 시작하려면 파일 → 새 프로젝트)` +
+      (edgeFilled > 0 ? ` · ${formatEdgeFillResult(edgeFilled)}` : ""),
   );
 }
 
@@ -1537,7 +1540,7 @@ async function importImage(file: File): Promise<void> {
     });
 
     view.scene.showTexture(image, verdict.pixelArt);
-    view.scene.setMesh(mesh, image.width, image.height);
+    view.scene.setMesh(mesh, image.width, image.height, store.get().mask);
     // 관절을 먼저 놓고 그림을 나중에 불러온 경우에도 곧바로 움직이게 한다.
     refreshAutoWeights();
     ui.setStatus(
@@ -1597,7 +1600,7 @@ async function replaceIllustration(file: File): Promise<void> {
     });
     URL.revokeObjectURL(before.textureUrl);
     view.scene.showTexture(image, verdict.pixelArt);
-    view.scene.setMesh(mesh, image.width, image.height);
+    view.scene.setMesh(mesh, image.width, image.height, store.get().mask);
     setWeights(movedWeights);
     refreshAutoWeights();
     ui.setStatus(
@@ -1753,6 +1756,34 @@ async function exportProject(): Promise<void> {
   }
 }
 
+/**
+ * 저장된 작업을 열 때 알파 마스크를 만들고 Mesh를 올린다.
+ *
+ * v0.42.0부터 마스크가 셀 단위로 넓어졌다. 옛 파일에는 "그림이 걸쳐 있는데 칠할 수 없던"
+ * 테두리 정점이 비어 있어 그 셀이 찢어져 보였으므로, 그 정점만 이웃 값으로 메운다.
+ * 예전에도 칠할 수 있던 곳은 사용자가 비워 둔 것으로 보고 건드리지 않는다. 메운 정점 수를 돌려준다.
+ */
+function showLoadedMesh(image: HTMLImageElement, mesh: PuppetMesh, width: number, height: number): number {
+  alphaMap = buildAlphaMap(readPixels(image));
+  const mask = sampleAlphaMask(alphaMap, mesh);
+  store.set({ mask });
+
+  let filled = 0;
+  if (alphaMap) {
+    const legacy = legacyAlphaMask(alphaMap, mesh);
+    const targets = mask.map((inside, index) => inside && !legacy[index]);
+    if (targets.some(Boolean)) {
+      const { project, weights } = store.get();
+      const result = extendWeightsInto(weights, project.bones, mesh, targets);
+      filled = result.filledVertices;
+      if (filled > 0) setWeights(result.weights);
+    }
+  }
+
+  view.scene.setMesh(store.get().project.mesh ?? mesh, width, height, mask);
+  return filled;
+}
+
 async function openProject(file: File): Promise<void> {
   try {
     const previous = store.get().textureUrl;
@@ -1770,19 +1801,21 @@ async function openProject(file: File): Promise<void> {
       weights: project.mesh ? toWeightMap(project.mesh.weights) : {},
     });
 
+    let edgeFilled = 0;
     if (textureUrl) {
       const image = new Image();
       image.src = textureUrl;
       await image.decode();
       view.scene.showTexture(image, project.character.pixelArt);
       if (project.mesh) {
-        view.scene.setMesh(project.mesh, project.character.width, project.character.height);
-        alphaMap = buildAlphaMap(readPixels(image));
-        store.set({ mask: sampleAlphaMask(alphaMap, project.mesh) });
+        edgeFilled = showLoadedMesh(image, project.mesh, project.character.width, project.character.height);
       }
     }
 
-    ui.setStatus(`불러옴: ${project.character.name} · 관절 ${project.bones.length}개`);
+    ui.setStatus(
+      `불러옴: ${project.character.name} · 관절 ${project.bones.length}개` +
+        (edgeFilled > 0 ? ` · ${formatEdgeFillResult(edgeFilled)}` : ""),
+    );
   } catch (error) {
     ui.setStatus(error instanceof Error ? error.message : "프로젝트를 열지 못했습니다.");
   }

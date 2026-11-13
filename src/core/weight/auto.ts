@@ -344,3 +344,62 @@ export function cleanupWeights(
   const smoothed = smoothWeights(filled.weights, bones, mesh, mask, strength);
   return { weights: smoothed.weights, filledVertices: filled.filledVertices, removedMarks };
 }
+
+/**
+ * 지정한 빈 정점에만 가장 가까운 칠한 정점의 값을 복사한다.
+ *
+ * 옛 작업 파일에서 "그림은 걸쳐 있는데 칠할 수 없던" 테두리 정점을 메우는 데 쓴다.
+ * `targets` 밖의 정점은 읽기만 하고 절대 바꾸지 않으며, 이미 값이 있는 target도 그대로 둔다.
+ * 반환값의 `filledVertices`는 실제로 채운 정점 수다.
+ */
+export function extendWeightsInto(
+  current: WeightMap,
+  bones: readonly PuppetBone[],
+  mesh: PuppetMesh,
+  targets: readonly boolean[],
+): WeightCorrectionResult {
+  const count = vertexCount(mesh);
+  const stride = mesh.cols + 1;
+  const weighted = (index: number) => bones.some((bone) => (current[bone.id]?.[index] ?? 0) > 0);
+
+  const owner = new Int32Array(count).fill(-1);
+  const queue = new Int32Array(count);
+  let head = 0;
+  let tail = 0;
+  for (let index = 0; index < count; index += 1) {
+    if (!weighted(index)) continue;
+    owner[index] = index;
+    queue[tail] = index;
+    tail += 1;
+  }
+
+  const filled: number[] = [];
+  while (head < tail) {
+    const index = queue[head] ?? 0;
+    head += 1;
+    const row = Math.floor(index / stride);
+    const col = index % stride;
+    for (let dy = -1; dy <= 1; dy += 1) {
+      for (let dx = -1; dx <= 1; dx += 1) {
+        const r = row + dy;
+        const c = col + dx;
+        if ((dx === 0 && dy === 0) || r < 0 || r > mesh.rows || c < 0 || c > mesh.cols) continue;
+        const neighbor = r * stride + c;
+        if (owner[neighbor] !== -1 || !targets[neighbor]) continue;
+        owner[neighbor] = owner[index] ?? -1;
+        queue[tail] = neighbor;
+        tail += 1;
+        filled.push(neighbor);
+      }
+    }
+  }
+
+  const result: WeightMap = Object.fromEntries(
+    bones.map((bone) => [bone.id, [...(current[bone.id] ?? new Array<number>(count).fill(0))]]),
+  );
+  for (const index of filled) {
+    const source = owner[index] ?? -1;
+    for (const bone of bones) result[bone.id]![index] = current[bone.id]?.[source] ?? 0;
+  }
+  return { weights: result, filledVertices: filled.length, removedMarks: 0 };
+}
