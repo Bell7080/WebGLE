@@ -339,6 +339,23 @@ export function formatWeightCorrectionResult(
   return fillTemplate(templates[language][kind], values);
 }
 
+/** 옛 작업 파일을 열 때 테두리의 빈 정점을 자동으로 메웠음을 알린다. */
+export function formatEdgeFillResult(filled: number): string {
+  const templates: Record<LanguageCode, string> = {
+    ko: "테두리 정점 {filled}개를 이웃 영향 영역으로 메워 찢어짐을 막았습니다. 저장하면 반영됩니다.",
+    en: "Filled {filled} edge vertices from neighboring influence to prevent tearing. Save to keep the fix.",
+    "zh-CN": "已用相邻影响区域填充 {filled} 个边缘顶点以防止撕裂。保存后生效。",
+    "zh-TW": "已用相鄰影響區域填滿 {filled} 個邊緣頂點以防止撕裂。儲存後生效。",
+    ja: "縁の頂点 {filled} 個を隣の影響範囲で埋め、裂けを防ぎました。保存すると反映されます。",
+    es: "Se rellenaron {filled} vértices del borde con la influencia vecina para evitar desgarros. Guarda para conservar el arreglo.",
+    fr: "{filled} sommets du contour remplis depuis l’influence voisine pour éviter les déchirures. Enregistrez pour conserver la correction.",
+    de: "{filled} Randpunkte aus dem benachbarten Einfluss gefüllt, um Risse zu verhindern. Zum Übernehmen speichern.",
+    "pt-BR": "{filled} vértices da borda preenchidos com a influência vizinha para evitar rasgos. Salve para manter a correção.",
+    ru: "Заполнено краевых вершин по соседнему влиянию: {filled}, чтобы избежать разрывов. Сохраните, чтобы закрепить исправление.",
+  };
+  return fillTemplate(templates[getLanguage()], { filled });
+}
+
 /** 프리셋 보유 여부와 사용 태그를 애니메이션 요약 뒤에 붙인다. */
 export function formatPresetMeta(summary: string, has: boolean, tags: string): string {
   const language = getLanguage();

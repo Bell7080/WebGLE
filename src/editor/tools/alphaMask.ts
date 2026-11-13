@@ -1,11 +1,11 @@
 import type { PuppetMesh } from "@core/format";
-import { vertexCount } from "@core/mesh";
+import { alphaVertexMask, MESH_ALPHA_PADDING, MESH_ALPHA_THRESHOLD, vertexCount } from "@core/mesh";
 
 /** 안티앨리어싱으로 거의 투명해진 픽셀도 월드에 남지 않도록 알파가 하나라도 있으면 캐릭터로 본다. */
-export const ALPHA_THRESHOLD = 1;
+export const ALPHA_THRESHOLD = MESH_ALPHA_THRESHOLD;
 
 /** 아주 얇은 반투명 테두리도 영향 영역에서 잘리지 않도록 확보하는 최소 여유(px). */
-export const ALPHA_MASK_PADDING = 2;
+export const ALPHA_MASK_PADDING = MESH_ALPHA_PADDING;
 
 /** 이미지의 알파 채널만 뽑아 둔 것. 칠하기 범위와 영향 영역 표시에 함께 쓴다. */
 export interface AlphaMap {
@@ -43,23 +43,31 @@ export function alphaAt(map: AlphaMap, x: number, y: number): number {
 }
 
 /**
- * 정점이 이미지의 그려진 영역 안에 있는지 표시한다.
- * 투명 배경 PNG를 전제로, 칠하기를 캐릭터 실루엣 안쪽으로 제한한다. (클리핑 마스크)
+ * 정점이 이미지의 그려진 영역에 닿아 있는지 표시한다.
+ * 투명 배경 PNG를 전제로, 칠하기를 캐릭터 실루엣 쪽으로 제한한다. (클리핑 마스크)
+ *
+ * 판정은 셀 단위다. 그림이 한 픽셀이라도 걸친 셀(여유 포함)의 꼭짓점 네 개를 모두 넣는다.
+ * 예전처럼 정점 주변 반 칸만 보면 셀 한쪽 모서리에 걸친 테두리 픽셀의 반대편 꼭짓점이
+ * 빠져서, 그 셀이 늘어나 찢어져 보였다.
  */
 export function sampleAlphaMask(map: AlphaMap | null, mesh: PuppetMesh): boolean[] {
+  if (!map) return new Array<boolean>(vertexCount(mesh)).fill(true);
+  return alphaVertexMask(map.data, map.width, map.height, mesh);
+}
+
+/**
+ * v0.42.0 이전의 마스크 판정. 옛 파일을 열 때 "그때는 칠할 수 없던" 정점을 가려내는 데만 쓴다.
+ * 이 차이만 메우면 사용자가 일부러 비워 둔 곳은 건드리지 않는다.
+ */
+export function legacyAlphaMask(map: AlphaMap | null, mesh: PuppetMesh): boolean[] {
   const count = vertexCount(mesh);
   if (!map) return new Array<boolean>(count).fill(true);
 
-  // 반 칸만 확인하면 셀 모서리의 반투명 픽셀이 반올림 경계에서 빠질 수 있으므로,
-  // 실제 셀의 반 너비를 올림한 뒤 고정 여유를 더해 둘레 정점까지 확실히 변형에 묶는다.
   const marginX = Math.ceil(map.width / mesh.cols / 2) + ALPHA_MASK_PADDING;
   const marginY = Math.ceil(map.height / mesh.rows / 2) + ALPHA_MASK_PADDING;
-
   return Array.from({ length: count }, (_unused, index) => {
     const x = Math.round(mesh.vertices[index * 2] ?? 0);
     const y = Math.round(mesh.vertices[index * 2 + 1] ?? 0);
-
-    // 여유 사각형의 모든 픽셀을 확인해야 정점 사이에 낀 1px 윤곽선도 빠뜨리지 않는다.
     for (let dy = -marginY; dy <= marginY; dy += 1) {
       for (let dx = -marginX; dx <= marginX; dx += 1) {
         if (alphaAt(map, x + dx, y + dy) >= ALPHA_THRESHOLD) return true;

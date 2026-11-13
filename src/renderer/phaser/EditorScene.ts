@@ -6,7 +6,7 @@ import {
   type PuppetBone,
   type PuppetMesh,
 } from "@core/format";
-import { toUV } from "@core/mesh";
+import { toUV, visibleIndices } from "@core/mesh";
 
 const TEXTURE_KEY = "character";
 const WEIGHT_TEXTURE_KEY = "weight-overlay";
@@ -59,6 +59,8 @@ export class EditorScene extends Phaser.Scene {
   private sprite: Phaser.GameObjects.Image | null = null;
   private meshObject: Phaser.GameObjects.Mesh | null = null;
   private meshData: PuppetMesh | null = null;
+  /** 실제로 그리는 삼각형 인덱스. 그림이 없는 셀은 빠져 있다. */
+  private drawIndices: number[] = [];
   private overlay: Phaser.GameObjects.Graphics | null = null;
   private weightOverlay: Phaser.GameObjects.Image | null = null;
 
@@ -459,8 +461,10 @@ export class EditorScene extends Phaser.Scene {
    * 격자 Mesh를 캔버스에 올린다.
    * Phaser Mesh는 원점이 항상 중앙이고 y축이 위로 향하므로, 이미지 좌표를 그에 맞춰 옮긴다.
    */
-  setMesh(mesh: PuppetMesh, width: number, height: number): void {
+  setMesh(mesh: PuppetMesh, width: number, height: number, mask: readonly boolean[] | null = null): void {
     this.meshData = mesh;
+    // 투명한 셀은 그려도 보이지 않으므로 빼 둔다. 정점 번호는 그대로라 변형 계산과 무관하다.
+    this.drawIndices = visibleIndices(mesh, mask);
     this.destroyMesh();
 
     // WebGL에서만 Mesh를 쓸 수 있다. Canvas 렌더러면 원본 이미지를 그대로 둔다.
@@ -469,7 +473,7 @@ export class EditorScene extends Phaser.Scene {
     const uv = toUV(mesh, width, height);
     const positions: number[] = [];
     const uvs: number[] = [];
-    for (const index of mesh.indices) {
+    for (const index of this.drawIndices) {
       positions.push(
         (mesh.vertices[index * 2] ?? 0) - width / 2,
         height / 2 - (mesh.vertices[index * 2 + 1] ?? 0),
@@ -525,7 +529,7 @@ export class EditorScene extends Phaser.Scene {
     const halfWidth = meshObject.width / 2;
     const halfHeight = meshObject.height / 2;
 
-    mesh.indices.forEach((index, slot) => {
+    this.drawIndices.forEach((index, slot) => {
       const vertex = meshObject.vertices[slot];
       if (!vertex) return;
       vertex.x = (source[index * 2] ?? 0) - halfWidth;

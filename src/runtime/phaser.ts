@@ -14,6 +14,7 @@
  * `scene.add.existing`을 따로 부를 필요 없다. `load`가 씬에 붙여 준다.
  */
 import Phaser from "phaser";
+import { alphaVertexMask, visibleIndices } from "../core/mesh";
 import { Puppet, type PlayOptions, type PuppetLoadOptions, type PuppetTexture } from "./index";
 
 export { Puppet, PuppetLoadError } from "./index";
@@ -47,20 +48,27 @@ export class PuppetCreature extends Phaser.GameObjects.Mesh {
   private readonly indices: number[];
   private flipped = false;
 
-  private constructor(scene: Phaser.Scene, puppet: Puppet, key: string, x: number, y: number) {
+  private constructor(
+    scene: Phaser.Scene,
+    puppet: Puppet,
+    key: string,
+    x: number,
+    y: number,
+    indices: number[],
+  ) {
     const mesh = puppet.mesh;
     if (!mesh) throw new Error("Mesh가 없는 캐릭터는 그릴 수 없습니다.");
 
     super(scene, x, y, key);
     this.puppet = puppet;
-    this.indices = mesh.indices;
+    this.indices = indices;
 
     const { width, height } = puppet;
     const uv = puppet.uv;
     const positions: number[] = [];
     const uvs: number[] = [];
     // Phaser Mesh는 원점이 가운데이고 y축이 위로 향한다. 이미지 좌표를 거기 맞춘다.
-    for (const index of mesh.indices) {
+    for (const index of indices) {
       positions.push(
         (mesh.vertices[index * 2] ?? 0) - width / 2,
         height / 2 - (mesh.vertices[index * 2 + 1] ?? 0),
@@ -115,6 +123,7 @@ export class PuppetCreature extends Phaser.GameObjects.Mesh {
       key,
       options.x ?? 0,
       options.y ?? 0,
+      drawableIndices(scene, key, puppet),
     );
     if (options.play) creature.play(options.play);
     return creature;
@@ -216,6 +225,42 @@ export class PuppetCreature extends Phaser.GameObjects.Mesh {
     // 움직이는 동안에는 매 프레임 다시 계산하게 두고, 멈추면 한 번만 갱신하고 되돌린다.
     this.ignoreDirtyCache = deforming;
     if (!deforming) (this as unknown as { dirtyCache: number[] }).dirtyCache[10] = 1;
+  }
+}
+
+/** 텍스처 원본마다 한 번만 계산한다. 같은 캐릭터를 여러 마리 세워도 픽셀은 한 번 읽는다. */
+const drawableCache = new WeakMap<object, { cols: number; rows: number; indices: number[] }>();
+
+/**
+ * 그림이 걸친 셀의 삼각형만 고른다.
+ *
+ * 투명한 셀은 그려도 보이지 않지만 Phaser는 삼각형 정점마다 객체를 두고 매 프레임 옮긴다.
+ * 픽셀을 읽을 수 없거나(교차 출처 이미지 등) 크기가 맞지 않으면 전체 격자를 그대로 그린다.
+ */
+function drawableIndices(scene: Phaser.Scene, key: string, puppet: Puppet): number[] {
+  const mesh = puppet.mesh!;
+  try {
+    const source = scene.textures.get(key).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    if (source.width !== puppet.width || source.height !== puppet.height) return mesh.indices;
+
+    const cached = drawableCache.get(source);
+    if (cached && cached.cols === mesh.cols && cached.rows === mesh.rows) return cached.indices;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = source.width;
+    canvas.height = source.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return mesh.indices;
+    context.drawImage(source, 0, 0);
+    const { data } = context.getImageData(0, 0, source.width, source.height);
+
+    const alpha = new Uint8Array(source.width * source.height);
+    for (let i = 0; i < alpha.length; i += 1) alpha[i] = data[i * 4 + 3] ?? 0;
+    const indices = visibleIndices(mesh, alphaVertexMask(alpha, source.width, source.height, mesh));
+    drawableCache.set(source, { cols: mesh.cols, rows: mesh.rows, indices });
+    return indices;
+  } catch {
+    return mesh.indices;
   }
 }
 
