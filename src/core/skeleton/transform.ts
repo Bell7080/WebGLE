@@ -158,6 +158,7 @@ export function skinVertices(
   skinMatrices: ReadonlyMap<string, Mat2D>,
   out?: Float32Array,
   deformModes: ReadonlyMap<string, DeformMode> = new Map(),
+  active?: ArrayLike<number> | null,
 ): Float32Array {
   const count = mesh.vertices.length / 2;
   const result = out && out.length === mesh.vertices.length ? out : new Float32Array(mesh.vertices.length);
@@ -180,12 +181,15 @@ export function skinVertices(
     }
   }
 
+  // 그리지 않는 정점(투명한 셀에만 속한 정점)은 계산하지 않고 원래 자리에 둔다.
+  // 위의 위치 고정 반경은 칠한 영역 전체에서 정해지므로 그대로 전체를 본다.
+  const skipInactive = active != null && active.length === count;
   for (let i = 0; i < count; i += 1) {
     const x = mesh.vertices[i * 2] ?? 0;
     const y = mesh.vertices[i * 2 + 1] ?? 0;
     const vertexWeight = mesh.weights[i];
 
-    if (!vertexWeight || vertexWeight.boneIds.length === 0) {
+    if (!vertexWeight || vertexWeight.boneIds.length === 0 || (skipInactive && !active[i])) {
       result[i * 2] = x;
       result[i * 2 + 1] = y;
       continue;

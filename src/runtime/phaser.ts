@@ -17,7 +17,7 @@ import Phaser from "phaser";
 import { alphaVertexMask, visibleIndices } from "../core/mesh";
 import { Puppet, type PlayOptions, type PuppetLoadOptions, type PuppetTexture } from "./index";
 
-export { Puppet, PuppetLoadError } from "./index";
+export { Puppet, PuppetLoadError, alphaVertexMask, visibleIndices } from "./index";
 export type { PlayOptions, PuppetLoadOptions, PuppetTexture } from "./index";
 
 /** 같은 캐릭터를 여러 마리 놓아도 텍스처는 한 번만 올린다. */
@@ -62,6 +62,8 @@ export class PuppetCreature extends Phaser.GameObjects.Mesh {
     super(scene, x, y, key);
     this.puppet = puppet;
     this.indices = indices;
+    // 그리지 않는 정점은 변형 계산도 건너뛴다.
+    if (indices !== mesh.indices) puppet.setDrawIndices(indices);
 
     const { width, height } = puppet;
     const uv = puppet.uv;

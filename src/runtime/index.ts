@@ -20,6 +20,9 @@ import {
 } from "../core/format";
 import { readZip } from "../core/format/zip";
 import { toUV } from "../core/mesh";
+
+/** 렌더러가 그림 없는 셀을 빼고 그릴 때 쓰는 판정. `PuppetCreature`와 같은 기준이다. */
+export { alphaVertexMask, visibleIndices } from "../core/mesh";
 import { AnimationPlayer, deformModesFor, evaluateAnimation } from "../core/animation";
 import { computeSkinMatrices, skinVertices } from "../core/skeleton/transform";
 import { SecondaryMotion } from "../core/physics/secondary";
@@ -84,6 +87,8 @@ export class Puppet {
   private queued: { name: string; transition: "cut" | "blend"; duration: number } | null = null;
   private blend: { from: Float32Array; elapsed: number; duration: number } | null = null;
   private readonly completeListeners = new Set<(name: string) => void>();
+  /** 렌더러가 실제로 그리는 정점. null이면 전부 계산한다. */
+  private active: Uint8Array | null = null;
 
   private constructor(
     readonly project: PuppetProject,
@@ -156,6 +161,24 @@ export class Puppet {
 
   get mesh(): PuppetMesh | null {
     return this.project.mesh;
+  }
+
+  /**
+   * 렌더러가 실제로 그리는 삼각형 인덱스를 알려 준다.
+   *
+   * 여기 없는 정점(투명한 셀에만 속한 정점)은 매 프레임 변형 계산을 건너뛰고 원래 자리에 둔다.
+   * 보이는 결과는 같고 CPU 몫만 준다. 그리지 않는 정점 좌표를 다른 용도로 읽는다면 부르지 않는다.
+   * null을 주면 다시 전부 계산한다.
+   */
+  setDrawIndices(indices: ArrayLike<number> | null): void {
+    const mesh = this.project.mesh;
+    if (!mesh || !indices) {
+      this.active = null;
+      return;
+    }
+    const active = new Uint8Array(mesh.vertices.length / 2);
+    for (let i = 0; i < indices.length; i += 1) active[indices[i]!] = 1;
+    this.active = active;
   }
 
   /** 부를 수 있는 애니메이션 이름들. */
@@ -281,7 +304,7 @@ export class Puppet {
     if (!this.buffer || this.buffer.length !== mesh.vertices.length) {
       this.buffer = new Float32Array(mesh.vertices.length);
     }
-    const result = skinVertices(mesh, skin, this.buffer, deformModes);
+    const result = skinVertices(mesh, skin, this.buffer, deformModes, this.active);
 
     // AnimationPlayer의 실제 상태 변화를 완료 신호로 사용해 holdMs 타이머 충돌을 없앤다.
     if (wasPlaying && !this.player.current?.playing && completedName) {
@@ -318,7 +341,7 @@ export class Puppet {
     const deltas = evaluateAnimation(animation, bones, time, animation.strength ?? 1, animation.mirror === true);
     const deformModes = deformModesFor(bones, animation);
     const skin = computeSkinMatrices(bones, deltas, deformModes);
-    return skinVertices(mesh, skin, undefined, deformModes);
+    return skinVertices(mesh, skin, undefined, deformModes, this.active);
   }
 }
 
