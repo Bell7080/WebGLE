@@ -173,6 +173,41 @@ describe("스킨 행렬", () => {
     expect([...result]).toEqual([0, 50, 25, 50, 50, 50]);
   });
 
+  it("위치 고정 반경은 캐시해도 같고, 가중치가 바뀌면 다시 센다", () => {
+    const bones = [bone("root", 0, 0), bone("foot", 0, 50, "root", "pinnedSoft")];
+    const modes = new Map<string, DeformMode>([["foot", "pinnedSoft"]]);
+    const footMesh = (reach: number): PuppetMesh => ({
+      resolution: "low",
+      cols: 1,
+      rows: 1,
+      vertices: [0, 50, 10, 50, reach, 50],
+      indices: [],
+      weights: [
+        { boneIds: ["foot"], weights: [1] },
+        { boneIds: ["foot"], weights: [1] },
+        { boneIds: ["foot"], weights: [1] },
+      ],
+    });
+    const mesh = footMesh(20);
+    // 여러 프레임을 같은 Mesh로 돌려도 첫 프레임과 결과가 같다.
+    for (const x of [30, 10, 30]) {
+      const skin = computeSkinMatrices(bones, new Map([["root", delta({ x })]]));
+      const first = [...skinVertices(mesh, skin, undefined, modes)];
+      const again = [...skinVertices(mesh, skin, undefined, modes)];
+      expect(again).toEqual(first);
+    }
+    const skin = computeSkinMatrices(bones, new Map([["root", delta({ x: 30 })]]));
+    expect([...skinVertices(mesh, skin, undefined, modes)]).toEqual([0, 50, 25, 50, 50, 50]);
+
+    // 칠하기로 가중치 배열이 새로 바뀌면 반경을 다시 센다. 세 번째 정점의 영향을 빼면
+    // 반경이 10으로 줄어 두 번째 정점이 외곽이 된다.
+    const repainted: PuppetMesh = {
+      ...mesh,
+      weights: [mesh.weights[0]!, mesh.weights[1]!, { boneIds: [], weights: [] }],
+    };
+    expect([...skinVertices(repainted, skin, undefined, modes)]).toEqual([0, 50, 40, 50, 20, 50]);
+  });
+
   it("애니메이션의 완전 고정 덮어쓰기도 여러 단계 부모의 변환을 모두 차단한다", () => {
     // 몸통 → 윗다리 → 아랫다리 → 발 구조에서 공용 설정이 soft여도 현재 동작의 fixed가 우선한다.
     const bones = [

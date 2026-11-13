@@ -150,6 +150,37 @@ export function computeSkinMatrices(
 }
 
 /**
+ * 위치 고정 반경 캐시. 가중치 배열이 바뀌면(칠하기 등) 새 배열이 되므로 저절로 다시 센다.
+ * 키는 관절과 기준점 좌표다. 같은 관절이라도 기준 자세가 달라지면 새로 센다.
+ */
+const pinRadiusCache = new WeakMap<PuppetMesh["weights"], Map<string, number>>();
+
+function pinRadius(mesh: PuppetMesh, boneId: string, anchorX: number, anchorY: number): number {
+  let byBone = pinRadiusCache.get(mesh.weights);
+  if (!byBone) {
+    byBone = new Map();
+    pinRadiusCache.set(mesh.weights, byBone);
+  }
+  const key = `${boneId}|${anchorX}|${anchorY}|${mesh.vertices.length}`;
+  const cached = byBone.get(key);
+  if (cached !== undefined) return cached;
+
+  let radius = 0;
+  const count = mesh.vertices.length / 2;
+  for (let i = 0; i < count; i += 1) {
+    const vertexWeight = mesh.weights[i];
+    if (!vertexWeight) continue;
+    for (let slot = 0; slot < vertexWeight.boneIds.length; slot += 1) {
+      if (vertexWeight.boneIds[slot] !== boneId || (vertexWeight.weights[slot] ?? 0) <= 0) continue;
+      const distance = Math.hypot((mesh.vertices[i * 2] ?? 0) - anchorX, (mesh.vertices[i * 2 + 1] ?? 0) - anchorY);
+      if (distance > radius) radius = distance;
+    }
+  }
+  byBone.set(key, radius);
+  return radius;
+}
+
+/**
  * 정점을 Bone 가중치에 따라 변형한다 (Linear Blend Skinning).
  * 가중치가 없는 정점은 원본 자리에 그대로 둔다. (기획서 64의 태도와 같다)
  */
@@ -166,19 +197,10 @@ export function skinVertices(
   // 위치 고정 영역의 실제 반경은 별도 데이터가 없으므로, 해당 관절이 칠해진 정점 중
   // 기준점에서 가장 먼 거리를 사용한다. 이렇게 하면 가중치가 1인 넓은 영역도 시작점만
   // 강하게 붙고 외곽은 주변 움직임으로 자연스럽게 돌아간다.
+  // 기준점은 원래 자세의 관절 위치라 프레임마다 바뀌지 않으므로 한 번 센 값을 다시 쓴다.
   const pinRadii = new Map<string, number>();
-  for (let i = 0; i < count; i += 1) {
-    const vertexWeight = mesh.weights[i];
-    if (!vertexWeight) continue;
-    const x = mesh.vertices[i * 2] ?? 0;
-    const y = mesh.vertices[i * 2 + 1] ?? 0;
-    for (let slot = 0; slot < vertexWeight.boneIds.length; slot += 1) {
-      const boneId = vertexWeight.boneIds[slot];
-      const matrix = boneId ? skinMatrices.get(boneId) : undefined;
-      if (!boneId || !matrix?.pin || (vertexWeight.weights[slot] ?? 0) <= 0) continue;
-      const distance = Math.hypot(x - matrix.pin.anchorX, y - matrix.pin.anchorY);
-      pinRadii.set(boneId, Math.max(pinRadii.get(boneId) ?? 0, distance));
-    }
+  for (const [boneId, matrix] of skinMatrices) {
+    if (matrix.pin) pinRadii.set(boneId, pinRadius(mesh, boneId, matrix.pin.anchorX, matrix.pin.anchorY));
   }
 
   // 그리지 않는 정점(투명한 셀에만 속한 정점)은 계산하지 않고 원래 자리에 둔다.
